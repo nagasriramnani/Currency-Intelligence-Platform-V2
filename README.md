@@ -18,7 +18,7 @@
 - [Installation & Setup](#-installation--setup)
 - [Running the Application](#-running-the-application)
 - [Testing](#-testing)
-- [Presentation Guide](#-presentation-guide)
+
 - [Recent Updates](#-recent-updates)
 - [Troubleshooting](#-troubleshooting)
 - [Future Roadmap](#-future-roadmap)
@@ -202,19 +202,7 @@ npm run lint
 
 ---
 
-## 🎥 Presentation Guide
 
-**Recommended Flow (4-6 Minutes)**:
-
-1.  **Landing (30s)**: Show KPI cards and "Market Pulse".
-2.  **Trends (60s)**: Navigate to "Historical Trends", toggle moving average.
-3.  **YoY (45s)**: Scroll to "Year-on-Year Comparison".
-4.  **Risk (45s)**: Show "Volatility Risk" chart.
-5.  **Forecast (60s)**: Switch to "Forecast" tab, explain confidence bands.
-6.  **Intelligence (45s)**: Highlight AI insights and Alerts panel.
-7.  **Closing (15s)**: Enable **Presentation Mode** for a clean board view.
-
----
 
 ## 🔄 Recent Updates
 
