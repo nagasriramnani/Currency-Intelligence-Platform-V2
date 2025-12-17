@@ -69,10 +69,10 @@ class HedgingRecommendationEngine:
     - Market regime
     """
     
-    # Thresholds for recommendations
-    VOL_HIGH_THRESHOLD = 15.0  # Annualized vol above this is "high"
-    VOL_VERY_HIGH_THRESHOLD = 25.0
-    VAR_HIGH_THRESHOLD = 2.0  # 2% daily VaR
+    # Thresholds for recommendations (adjusted for FX markets)
+    VOL_HIGH_THRESHOLD = 25.0  # Annualized vol above this is "high"
+    VOL_VERY_HIGH_THRESHOLD = 40.0  # Very high volatility
+    VAR_HIGH_THRESHOLD = 5.0  # 5% daily VaR (more realistic for FX)
     CORRELATION_HEDGE_THRESHOLD = 0.7  # Above this, can hedge one instead of both
     
     def __init__(self):
@@ -265,11 +265,12 @@ class HedgingRecommendationEngine:
         max_var = max((v.var_parametric for v in var_results.values()), default=0)
         max_vol = max((v.volatility for v in var_results.values()), default=0)
         
-        if max_var > 3.0 or max_vol > 25:
+        # Adjusted thresholds for FX markets
+        if max_var > 8.0 or max_vol > 45:
             return "critical"
-        elif max_var > 2.0 or max_vol > 18:
+        elif max_var > 5.0 or max_vol > 35:
             return "high"
-        elif max_var > 1.0 or max_vol > 12:
+        elif max_var > 2.0 or max_vol > 20:
             return "moderate"
         else:
             return "low"

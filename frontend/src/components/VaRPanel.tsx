@@ -26,11 +26,12 @@ interface VaRPanelProps {
 }
 
 function getRiskLevel(var_value: number): { level: string; color: string; bg: string } {
-    if (var_value > 3.0) {
+    // Adjusted thresholds for FX markets (daily VaR of 2-5% is common)
+    if (var_value > 8.0) {
         return { level: 'Critical', color: 'text-red-400', bg: 'bg-red-500/20' };
-    } else if (var_value > 2.0) {
+    } else if (var_value > 5.0) {
         return { level: 'High', color: 'text-orange-400', bg: 'bg-orange-500/20' };
-    } else if (var_value > 1.0) {
+    } else if (var_value > 2.0) {
         return { level: 'Moderate', color: 'text-yellow-400', bg: 'bg-yellow-500/20' };
     } else {
         return { level: 'Low', color: 'text-emerald-400', bg: 'bg-emerald-500/20' };
@@ -124,12 +125,12 @@ export function VaRPanel({ data, confidence, horizonDays, isLoading }: VaRPanelP
                                     <div
                                         className={cn(
                                             'h-full rounded-full transition-all duration-500',
-                                            varValue > 3.0 ? 'bg-red-500' :
-                                                varValue > 2.0 ? 'bg-orange-500' :
-                                                    varValue > 1.0 ? 'bg-yellow-500' :
+                                            varValue > 8.0 ? 'bg-red-500' :
+                                                varValue > 5.0 ? 'bg-orange-500' :
+                                                    varValue > 2.0 ? 'bg-yellow-500' :
                                                         'bg-emerald-500'
                                         )}
-                                        style={{ width: `${Math.min(varValue * 25, 100)}%` }}
+                                        style={{ width: `${Math.min(varValue * 10, 100)}%` }}
                                     />
                                 </div>
                             </div>

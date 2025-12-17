@@ -51,49 +51,54 @@ class PDFReportGenerator:
     
     def _add_custom_styles(self):
         """Add custom paragraph styles."""
-        self._styles.add(ParagraphStyle(
-            name='ReportTitle',
+        # Helper to safely add styles
+        def safe_add_style(name, **kwargs):
+            if name not in self._styles.byName:
+                self._styles.add(ParagraphStyle(name=name, **kwargs))
+        
+        safe_add_style(
+            'ReportTitle',
             parent=self._styles['Heading1'],
             fontSize=24,
             spaceAfter=30,
             alignment=TA_CENTER,
             textColor=colors.HexColor('#1a365d')
-        ))
+        )
         
-        self._styles.add(ParagraphStyle(
-            name='SectionTitle',
+        safe_add_style(
+            'SectionTitle',
             parent=self._styles['Heading2'],
             fontSize=16,
             spaceBefore=20,
             spaceAfter=10,
             textColor=colors.HexColor('#2c5282')
-        ))
+        )
         
-        self._styles.add(ParagraphStyle(
-            name='SubSection',
+        safe_add_style(
+            'SubSection',
             parent=self._styles['Heading3'],
             fontSize=12,
             spaceBefore=10,
             spaceAfter=5,
             textColor=colors.HexColor('#4a5568')
-        ))
+        )
         
-        self._styles.add(ParagraphStyle(
-            name='BodyText',
+        safe_add_style(
+            'ReportBody',  # Renamed from BodyText to avoid collision
             parent=self._styles['Normal'],
             fontSize=10,
             spaceAfter=8,
             textColor=colors.HexColor('#2d3748')
-        ))
+        )
         
-        self._styles.add(ParagraphStyle(
-            name='Highlight',
+        safe_add_style(
+            'Highlight',
             parent=self._styles['Normal'],
             fontSize=10,
             backColor=colors.HexColor('#ebf8ff'),
             textColor=colors.HexColor('#2b6cb0'),
             borderPadding=5
-        ))
+        )
     
     def generate_executive_summary(
         self,
@@ -125,7 +130,7 @@ class PDFReportGenerator:
         story.append(Paragraph(self.title, self._styles['ReportTitle']))
         story.append(Paragraph(
             f"Executive Summary | {(generated_at or datetime.now()).strftime('%B %d, %Y')}",
-            self._styles['BodyText']
+            self._styles['ReportBody']
         ))
         story.append(Spacer(1, 20))
         
@@ -162,11 +167,11 @@ class PDFReportGenerator:
         if recommendations:
             story.append(Paragraph(
                 f"<b>Overall Risk Level:</b> {recommendations.get('overall_risk_level', 'N/A').upper()}",
-                self._styles['BodyText']
+                self._styles['ReportBody']
             ))
             story.append(Paragraph(
                 recommendations.get('overall_recommendation', ''),
-                self._styles['BodyText']
+                self._styles['ReportBody']
             ))
             
             # Currency recommendations table
@@ -246,7 +251,7 @@ class PDFReportGenerator:
         story.append(Paragraph("Risk Analytics Report", self._styles['ReportTitle']))
         story.append(Paragraph(
             f"Generated: {(generated_at or datetime.now()).strftime('%B %d, %Y %H:%M UTC')}",
-            self._styles['BodyText']
+            self._styles['ReportBody']
         ))
         story.append(Spacer(1, 20))
         
@@ -320,12 +325,12 @@ class PDFReportGenerator:
             for rec in recommendations.get('currency_recommendations', []):
                 story.append(Paragraph(
                     f"<b>{rec.get('currency', '')}:</b> {rec.get('action', '').upper()} - {rec.get('rationale', '')}",
-                    self._styles['BodyText']
+                    self._styles['ReportBody']
                 ))
                 if rec.get('instruments'):
                     story.append(Paragraph(
                         f"Suggested instruments: {', '.join(rec.get('instruments', []))}",
-                        self._styles['BodyText']
+                        self._styles['ReportBody']
                     ))
                 story.append(Spacer(1, 5))
         
