@@ -30,6 +30,10 @@ reportlab>=4.0.0
 # Testing
 pytest>=7.4.0
 
+# Google Cloud (for Cloud Run deployment)
+google-cloud-storage>=2.10.0
+gunicorn>=21.0.0
+
 # SHAP for explainability (optional - may not work on Render free tier)
 # shap>=0.44.0
 

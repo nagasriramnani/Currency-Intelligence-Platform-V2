@@ -67,6 +67,13 @@ from alerts.engine import AlertEngine, create_alert_engine
 # Production Forecast Service (load-only, no training in endpoints)
 from ml.services.forecast_service import ForecastService, ModelNotFoundError, ModelLoadError
 
+# Cloud Run support
+try:
+    from cloud.startup import validate_startup, get_health_check
+    CLOUD_SUPPORT = True
+except ImportError:
+    CLOUD_SUPPORT = False
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -314,8 +321,34 @@ def train_selected_models(model_type: str, currencies: list, df: pd.DataFrame) -
 # Lifespan context manager for startup/shutdown
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize app state on startup with interactive model selection."""
+    """
+    Initialize app state on startup.
+    
+    In Cloud Run mode:
+    - Downloads models from GCS if configured
+    - Validates models exist before serving
+    - Fails fast if models are missing
+    
+    In local development mode:
+    - Offers interactive model training
+    """
     logger.info("Initializing Currency Intelligence Platform API...")
+    
+    # Check if running in Cloud Run (K_SERVICE env var is set)
+    is_cloud_run = os.getenv("K_SERVICE") is not None
+    
+    if is_cloud_run and CLOUD_SUPPORT:
+        # Cloud Run startup: validate models, fail fast if missing
+        logger.info("Cloud Run detected - running cloud startup validation")
+        try:
+            startup_result = validate_startup(
+                models_dir="trained_models",
+                fail_fast=True  # Fail if models missing
+            )
+            logger.info(f"Cloud startup complete: {startup_result}")
+        except RuntimeError as e:
+            logger.critical(f"STARTUP FAILED: {e}")
+            raise  # Let Cloud Run know the instance is unhealthy
     
     # Initialize components
     app_state["treasury_client"] = TreasuryAPIClient()
@@ -325,9 +358,9 @@ async def lifespan(app: FastAPI):
     app_state["narrative_engine"] = NarrativeEngine()
     app_state["alert_manager"] = AlertManager()
     
-    # Interactive model selection
+    # Interactive model selection (only in local development)
     import sys
-    if sys.stdin.isatty():  # Only prompt if running interactively
+    if not is_cloud_run and sys.stdin.isatty():
         model_type, currencies = interactive_model_selection()
     else:
         model_type, currencies = None, None
@@ -338,8 +371,8 @@ async def lifespan(app: FastAPI):
         refresh_data()
         logger.info("Initial data loaded successfully")
         
-        # Train selected models if not skipped
-        if model_type and currencies and app_state.get("data") is not None:
+        # Train selected models if not skipped (never in Cloud Run)
+        if not is_cloud_run and model_type and currencies and app_state.get("data") is not None:
             train_selected_models(model_type, currencies, app_state["data"])
         
     except Exception as e:
@@ -359,14 +392,22 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Add CORS middleware - Allow frontend to connect
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
+# Configure CORS - Support both development and production
+def get_allowed_origins() -> list:
+    """Get allowed origins from environment or defaults."""
+    env_origins = os.getenv("ALLOWED_ORIGINS", "")
+    if env_origins:
+        return [o.strip() for o in env_origins.split(",")]
+    # Default origins for development
+    return [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        "*"  # Allow all origins for development
-    ],
+        "https://*.vercel.app",  # Vercel preview deployments
+    ]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_allowed_origins(),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
@@ -579,9 +620,39 @@ def refresh_data(days_back: int = 9125):  # ~25 years default (maximum historica
         raise
 
 
+@app.get("/health")
+async def health_endpoint():
+    """
+    Health check endpoint for Cloud Run.
+    
+    Returns model status, startup state, and basic health info.
+    Cloud Run uses this to determine if the instance is healthy.
+    """
+    if CLOUD_SUPPORT:
+        health_data = get_health_check()
+    else:
+        health_data = {
+            "status": "healthy",
+            "initialized": True,
+            "models_loaded": True,
+            "cloud_run": False
+        }
+    
+    # Add data status
+    df = app_state.get("data")
+    health_data["data_loaded"] = df is not None and not df.empty
+    health_data["last_update"] = app_state.get("last_update")
+    
+    if df is not None and not df.empty:
+        health_data["data_points"] = len(df)
+        health_data["currencies"] = df["currency"].unique().tolist()
+    
+    return health_data
+
+
 @app.get("/", response_model=HealthResponse)
-async def health_check():
-    """Health check endpoint."""
+async def root_health_check():
+    """Root endpoint - legacy health check for backwards compatibility."""
     df = app_state.get("data")
     
     if df is None or df.empty:
