@@ -66,17 +66,62 @@ export function ForecastChart({ forecastData, currency, scenario }: ForecastChar
       return historical;
     }
 
+    // Get the last actual point for anchoring
+    // Use API's last_actual if available, otherwise use last historical point
+    const lastActual = forecastData.last_actual || {
+      date: historical[historical.length - 1].date,
+      value: historical[historical.length - 1].actual
+    };
+
+    // Create bridge point at the last actual date with the last actual value
+    // This ensures the forecast line starts from where the actual line ends
     const bridgePoint = {
-      date: forecastSeries[0].date,
-      actual: historical[historical.length - 1].actual,
-      forecast: forecastSeries[0].forecast,
-      lower: forecastSeries[0].lower,
-      upper: forecastSeries[0].upper,
+      date: lastActual.date,
+      actual: lastActual.value,  // Connect to actual line
+      forecast: lastActual.value, // Start forecast from same point
+      lower: forecastSeries[0]?.lower ?? null,
+      upper: forecastSeries[0]?.upper ?? null,
       type: 'transition' as const,
     };
 
-    return [...historical, bridgePoint, ...forecastSeries.slice(1)];
+    return [...historical, bridgePoint, ...forecastSeries];
   }, [forecastData, adjustedSeries]);
+
+  // Error state: Model not trained
+  if (forecastData?.error) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-6">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">🚫</span>
+            <div>
+              <h4 className="text-lg font-bold text-red-400">
+                Model Not Trained
+              </h4>
+              <p className="mt-1 text-sm text-red-300">
+                {forecastData.error.message}
+              </p>
+              {forecastData.error.hint && (
+                <p className="mt-2 text-xs text-sapphire-400">
+                  💡 {forecastData.error.hint}
+                </p>
+              )}
+              {forecastData.error.action && (
+                <div className="mt-3 rounded bg-sapphire-900/50 p-3">
+                  <p className="text-xs font-mono text-sapphire-300">
+                    {forecastData.error.action}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        <p className="text-sm text-sapphire-400">
+          Train a model via the terminal training menu before viewing forecasts.
+        </p>
+      </div>
+    );
+  }
 
   if (!forecastData || chartData.length === 0) {
     return (
@@ -88,15 +133,80 @@ export function ForecastChart({ forecastData, currency, scenario }: ForecastChar
 
   return (
     <div className="space-y-6">
+      {/* Model Provenance Badge - Full Metadata Display */}
+      {forecastData.model && (
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Model Type Badge */}
+          <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${forecastData.model.is_fallback
+            ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+            }`}>
+            <span className="uppercase tracking-wider font-bold">
+              {forecastData.model.model_type}
+            </span>
+          </div>
+
+          {/* Model ID */}
+          {forecastData.model.model_version && (
+            <span className="text-[10px] text-sapphire-400 font-mono">
+              {forecastData.model.model_version.substring(0, 30)}
+            </span>
+          )}
+
+          {/* Training Date */}
+          {forecastData.model.trained_at && (
+            <span className="text-[10px] text-sapphire-400 border border-sapphire-700 px-2 py-0.5 rounded">
+              📅 {new Date(forecastData.model.trained_at).toLocaleDateString()}
+            </span>
+          )}
+
+          {/* Validation MAPE */}
+          {forecastData.model.metrics?.mape !== undefined && (
+            <span className="text-[10px] text-sapphire-400 border border-sapphire-700 px-2 py-0.5 rounded">
+              MAPE: {forecastData.model.metrics.mape.toFixed(2)}%
+            </span>
+          )}
+
+          {/* Training Samples */}
+          {forecastData.model.metrics?.train_samples !== undefined && (
+            <span className="text-[10px] text-sapphire-400 border border-sapphire-700 px-2 py-0.5 rounded">
+              🎯 {forecastData.model.metrics.train_samples} samples
+            </span>
+          )}
+
+          {/* Forecast Strategy */}
+          {forecastData.model.metrics?.forecast_strategy && (
+            <span className="text-[10px] text-purple-400 border border-purple-500/30 px-2 py-0.5 rounded bg-purple-500/10">
+              {forecastData.model.metrics.forecast_strategy}
+            </span>
+          )}
+
+          {/* Status Badge */}
+          {forecastData.model.is_fallback ? (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              ⚠️ Fallback
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              ✓ Trained
+            </span>
+          )}
+        </div>
+      )}
+
+
       <ResponsiveContainer width="100%" height={400}>
         <LineChart data={chartData} margin={{ top: 10, right: 24, left: 10, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+          {/* Softer gridlines for enterprise look */}
+          <CartesianGrid strokeDasharray="4 4" stroke="#1E293B" strokeOpacity={0.6} vertical={false} />
           <XAxis
             dataKey="date"
             tickFormatter={(date) => formatDateShort(date)}
-            stroke="#94A3B8"
-            style={{ fontSize: '12px' }}
-            tick={{ fill: '#94A3B8' }}
+            stroke="#64748B"
+            style={{ fontSize: '11px' }}
+            tick={{ fill: '#64748B' }}
+            axisLine={{ stroke: '#334155' }}
+            tickLine={{ stroke: '#334155' }}
           />
           <YAxis
             stroke="#94A3B8"
@@ -125,9 +235,9 @@ export function ForecastChart({ forecastData, currency, scenario }: ForecastChar
             align="left"
             wrapperStyle={{ paddingBottom: 20 }}
             payload={[
-              { value: 'Actual', type: 'line', color: '#3B82F6', id: 'actual' },
-              { value: 'Forecast', type: 'line', color: '#FACC15', id: 'forecast' },
-              { value: 'Confidence Band', type: 'rect', color: '#FACC15', id: 'band' },
+              { value: 'Actual', type: 'line', color: '#2563EB', id: 'actual' },
+              { value: 'Forecast', type: 'line', color: '#D97706', id: 'forecast' },
+              { value: 'Confidence Band', type: 'rect', color: '#D97706', id: 'band' },
             ]}
           />
 
@@ -145,46 +255,63 @@ export function ForecastChart({ forecastData, currency, scenario }: ForecastChar
             />
           )}
 
+          {/* Confidence band - soft gradient with fading edges */}
           <Area
             type="monotone"
             dataKey="upper"
             stroke="none"
-            fill="#FACC15"
-            fillOpacity={0.1}
+            fill="url(#confidenceGradient)"
+            fillOpacity={0.15}
             name="Upper band"
-            isAnimationActive={false}
+            isAnimationActive={true}
+            animationDuration={1500}
+            animationEasing="ease-out"
           />
+          <defs>
+            <linearGradient id="confidenceGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#D97706" stopOpacity={0.3} />
+              <stop offset="100%" stopColor="#D97706" stopOpacity={0.05} />
+            </linearGradient>
+          </defs>
           <Area
             type="monotone"
             dataKey="lower"
             stroke="none"
-            fill="#0B1120" // Match background to hide lower part
+            fill="#0A0F1F" // Match background
             fillOpacity={1}
             name="Lower band"
             isAnimationActive={false}
           />
 
+          {/* Actual line - Steel blue */}
           <Line
             type="monotone"
             dataKey="actual"
             name="Actual Rate"
-            stroke="#3B82F6"
+            stroke="#2563EB"
             strokeWidth={2}
             dot={false}
-            activeDot={{ r: 5, fill: '#3B82F6', stroke: '#fff' }}
+            activeDot={{ r: 4, fill: '#2563EB', stroke: '#0A0F1F', strokeWidth: 2 }}
             connectNulls
+            isAnimationActive={true}
+            animationDuration={1200}
+            animationEasing="ease-out"
           />
 
+          {/* Forecast line - Soft amber */}
           <Line
             type="monotone"
             dataKey="forecast"
             name="Forecast"
-            stroke="#FACC15"
+            stroke="#D97706"
             strokeWidth={2}
-            strokeDasharray="5 4"
-            dot={{ r: 3, fill: '#FACC15' }}
-            activeDot={{ r: 5, fill: '#FACC15', stroke: '#fff' }}
+            strokeDasharray="6 4"
+            dot={{ r: 2.5, fill: '#D97706', stroke: '#0A0F1F', strokeWidth: 1 }}
+            activeDot={{ r: 4, fill: '#D97706', stroke: '#0A0F1F', strokeWidth: 2 }}
             connectNulls
+            isAnimationActive={true}
+            animationDuration={1500}
+            animationEasing="ease-out"
           />
         </LineChart>
       </ResponsiveContainer>

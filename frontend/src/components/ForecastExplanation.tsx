@@ -43,17 +43,17 @@ export function ForecastExplanation({
   return (
     <SurfaceCard className="space-y-4">
       <div className="flex items-center gap-2">
-        <Lightbulb className="h-5 w-5 text-brand-primary" />
+        <Lightbulb className="h-5 w-5 text-sapphire-400" />
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-brand-slate">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sapphire-400">
             Why this forecast?
           </p>
-          <h3 className="text-lg font-semibold text-brand-navy">
+          <h3 className="text-lg font-semibold text-sapphire-50">
             Signals driving the USD/{currency} outlook
           </h3>
         </div>
       </div>
-      <ul className="space-y-2 text-sm text-brand-midnight">
+      <ul className="space-y-2 text-sm text-sapphire-100">
         {derivedBullets.map((bullet, index) => (
           <li key={`${bullet}-${index}`} className="leading-relaxed">
             • {bullet}

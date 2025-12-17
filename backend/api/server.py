@@ -31,6 +31,42 @@ from analytics.anomalies import AnomalyDetector
 from insights.narrative_engine import NarrativeEngine
 from alerts.slack_notifier import SlackNotifier, AlertManager, AlertTrigger
 
+# Supabase integration
+from core.database import (
+    is_supabase_configured,
+    check_database_health,
+    save_fx_rates_batch,
+    get_all_fx_rates,
+    save_alert
+)
+from data.sync import sync_treasury_to_supabase
+
+# Risk Analytics
+from analytics.var import VaRCalculator, calculate_returns
+from analytics.recommendations import HedgingRecommendationEngine
+
+# Background Jobs
+from jobs.scheduler import get_scheduler, start_scheduler, stop_scheduler
+
+# Explainability
+from ml.explainability.shap_explainer import ForecastExplainer, is_available as shap_available
+
+# Regime Detection
+from analytics.regime import RegimeDetector, is_available as hmm_available
+
+# PDF Reports
+from reports.pdf_generator import PDFReportGenerator, is_available as pdf_available
+
+# Model Registry and Trainers
+from ml.registry import ModelRegistry, TrainingOrchestrator
+from ml.trainers import ProphetTrainer, ARIMATrainer, XGBoostTrainer, EnsembleTrainer
+
+# Intelligent Alerting
+from alerts.engine import AlertEngine, create_alert_engine
+
+# Production Forecast Service (load-only, no training in endpoints)
+from ml.services.forecast_service import ForecastService, ModelNotFoundError, ModelLoadError
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -65,6 +101,7 @@ class LatestRatesResponse(BaseModel):
     yoy_change: Optional[float]
     direction: str
     fmp_available: Optional[bool] = None
+    period_start_rate: Optional[float] = None  # Rate at start of selected period
 
 
 class VolatilityMetricsResponse(BaseModel):
@@ -87,6 +124,24 @@ class ConfidenceBandPoint(BaseModel):
     upper: float
 
 
+class LastActualPoint(BaseModel):
+    """Last actual data point for anchoring forecast."""
+    date: str
+    value: float
+
+
+class ModelMetadata(BaseModel):
+    """Metadata about the model that produced the forecast."""
+    model_type: str  # prophet, arima, xgboost, ensemble
+    model_version: Optional[str] = None
+    trained_at: Optional[str] = None
+    is_fallback: bool = False
+    fallback_reason: Optional[str] = None
+    data_window_start: Optional[str] = None
+    data_window_end: Optional[str] = None
+    metrics: Optional[dict] = None
+
+
 class ForecastResponse(BaseModel):
     currency: str
     forecast_start: Optional[str]
@@ -94,6 +149,9 @@ class ForecastResponse(BaseModel):
     forecast: List[ForecastPoint]
     confidence: Optional[List[ConfidenceBandPoint]]
     insight: Optional[str]
+    model: Optional[ModelMetadata] = None  # Model provenance
+    last_actual: Optional[LastActualPoint] = None  # For chart anchoring
+    frequency: Optional[str] = "M"  # M=monthly, Q=quarterly
 
 
 class InsightResponse(BaseModel):
@@ -126,10 +184,137 @@ class SlackSummaryRequest(BaseModel):
     end_date: Optional[str] = None
 
 
+# =============================================================================
+# Interactive Model Selection for Server Startup
+# =============================================================================
+
+def interactive_model_selection() -> tuple:
+    """Interactive CLI for model selection during server startup."""
+    import sys
+    
+    print("\n" + "="*60)
+    print("  🧠 Currency Intelligence - Model Configuration")
+    print("="*60 + "\n")
+    
+    # Check available models
+    available = TrainingOrchestrator.get_available_models()
+    print("📦 Available Models:")
+    for name, is_avail in available.items():
+        status = "✅" if is_avail else "❌"
+        print(f"   {status} {name.upper()}")
+    print()
+    
+    # Model selection
+    print("Select forecasting model:")
+    print("-"*40)
+    print("  [1] Prophet    - Best for trends & seasonality")
+    print("  [2] ARIMA      - Best for short-term momentum")
+    print("  [3] XGBoost    - Best for feature-rich prediction")
+    print("  [4] Ensemble   - Combines all models (recommended)")
+    print("  [5] Skip       - Use default Prophet (fastest)")
+    print("-"*40)
+    
+    while True:
+        try:
+            choice = input("Enter choice (1-5) [default: 5]: ").strip() or "5"
+            
+            if choice == "1":
+                model_type = "prophet"
+                break
+            elif choice == "2":
+                model_type = "arima"
+                break
+            elif choice == "3":
+                model_type = "xgboost"
+                break
+            elif choice == "4":
+                model_type = "ensemble"
+                break
+            elif choice == "5":
+                return None, None  # Skip interactive training
+            else:
+                print("Invalid choice. Please enter 1-5.")
+        except (EOFError, KeyboardInterrupt):
+            print("\nUsing default Prophet model...")
+            return None, None
+    
+    # Currency selection
+    print("\nSelect currencies to train:")
+    print("-"*40)
+    print("  [1] All (EUR, GBP, CAD)")
+    print("  [2] EUR only")
+    print("  [3] GBP only")
+    print("  [4] CAD only")
+    print("-"*40)
+    
+    while True:
+        try:
+            choice = input("Enter choice (1-4) [default: 1]: ").strip() or "1"
+            
+            if choice == "1":
+                currencies = ["EUR", "GBP", "CAD"]
+                break
+            elif choice == "2":
+                currencies = ["EUR"]
+                break
+            elif choice == "3":
+                currencies = ["GBP"]
+                break
+            elif choice == "4":
+                currencies = ["CAD"]
+                break
+            else:
+                print("Invalid choice. Please enter 1-4.")
+        except (EOFError, KeyboardInterrupt):
+            currencies = ["EUR", "GBP", "CAD"]
+            break
+    
+    print(f"\n📋 Configuration:")
+    print(f"   Model: {model_type.upper()}")
+    print(f"   Currencies: {', '.join(currencies)}")
+    
+    try:
+        confirm = input("\nProceed with training? (y/n) [default: y]: ").strip().lower() or "y"
+        if confirm != 'y':
+            print("Training skipped. Using default Prophet.")
+            return None, None
+    except (EOFError, KeyboardInterrupt):
+        return None, None
+    
+    return model_type, currencies
+
+
+def train_selected_models(model_type: str, currencies: list, df: pd.DataFrame) -> None:
+    """Train selected models for specified currencies."""
+    print(f"\n🚀 Training {model_type.upper()} for {', '.join(currencies)}...")
+    
+    registry = ModelRegistry("trained_models", use_supabase=False)
+    
+    for currency in currencies:
+        try:
+            currency_df = df[df["currency"] == currency]
+            if currency_df.empty:
+                logger.warning(f"No data for {currency}, skipping")
+                continue
+            
+            print(f"\n  Training {currency}...")
+            orchestrator = TrainingOrchestrator(model_type=model_type)
+            metrics = orchestrator.train(currency_df, currency)
+            orchestrator.save(set_active=True)
+            
+            print(f"  ✅ {currency}: MAPE={metrics.mape:.2f}%, Dir. Acc={metrics.directional_accuracy:.1%}")
+            
+        except Exception as e:
+            logger.error(f"Training failed for {currency}: {e}")
+            print(f"  ❌ {currency}: Training failed - {e}")
+    
+    print("\n✅ Training complete! Models saved to trained_models/")
+
+
 # Lifespan context manager for startup/shutdown
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize app state on startup."""
+    """Initialize app state on startup with interactive model selection."""
     logger.info("Initializing Currency Intelligence Platform API...")
     
     # Initialize components
@@ -140,11 +325,23 @@ async def lifespan(app: FastAPI):
     app_state["narrative_engine"] = NarrativeEngine()
     app_state["alert_manager"] = AlertManager()
     
+    # Interactive model selection
+    import sys
+    if sys.stdin.isatty():  # Only prompt if running interactively
+        model_type, currencies = interactive_model_selection()
+    else:
+        model_type, currencies = None, None
+    
     # Load initial data
     try:
         logger.info("Loading initial currency data...")
         refresh_data()
         logger.info("Initial data loaded successfully")
+        
+        # Train selected models if not skipped
+        if model_type and currencies and app_state.get("data") is not None:
+            train_selected_models(model_type, currencies, app_state["data"])
+        
     except Exception as e:
         logger.error(f"Failed to load initial data: {e}")
     
@@ -413,6 +610,791 @@ async def refresh_data_endpoint(days_back: int = Query(1460, ge=30, le=3650)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# =============================================================================
+# Database (Supabase) Endpoints
+# =============================================================================
+
+@app.get("/api/database/health")
+async def database_health():
+    """Check Supabase database connectivity and stats."""
+    return check_database_health()
+
+
+@app.post("/api/database/sync")
+async def sync_to_database(
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)")
+):
+    """
+    Sync Treasury API data to Supabase database.
+    This fetches data from Treasury and persists to Supabase for faster queries.
+    """
+    if not is_supabase_configured():
+        raise HTTPException(
+            status_code=503, 
+            detail="Supabase not configured. Set SUPABASE_URL and SUPABASE_KEY in .env"
+        )
+    
+    try:
+        result = sync_treasury_to_supabase(start_date, end_date)
+        
+        if result["status"] == "error":
+            raise HTTPException(status_code=500, detail=result["message"])
+        
+        # Also save an alert about the sync
+        save_alert(
+            title="Data Sync Complete",
+            message=f"Synced {result.get('records_synced', 0)} records to database",
+            severity="info"
+        )
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Sync failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Risk Analytics Endpoints
+# =============================================================================
+
+@app.get("/api/risk/var")
+async def get_var_analysis(
+    confidence: float = Query(0.95, ge=0.90, le=0.99, description="Confidence level"),
+    horizon: int = Query(1, ge=1, le=30, description="Horizon in days")
+):
+    """
+    Calculate Value-at-Risk for all currencies.
+    Returns parametric, historical, and Monte Carlo VaR with CVaR.
+    """
+    df = app_state.get("data")
+    if df is None or df.empty:
+        raise HTTPException(status_code=503, detail="Data not loaded")
+    
+    try:
+        var_calc = VaRCalculator(confidence=confidence, horizon_days=horizon)
+        results = {}
+        
+        for currency in df["currency"].unique():
+            currency_df = df[df["currency"] == currency].copy()
+            returns = calculate_returns(currency_df, currency)
+            var_result = var_calc.calculate_currency_var(returns, currency)
+            results[currency] = var_result.to_dict()
+        
+        return {
+            "confidence": confidence,
+            "horizon_days": horizon,
+            "currencies": results
+        }
+    except Exception as e:
+        logger.error(f"VaR calculation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/risk/stress-test")
+async def get_stress_test():
+    """
+    Run stress tests against historical scenarios.
+    """
+    df = app_state.get("data")
+    if df is None or df.empty:
+        raise HTTPException(status_code=503, detail="Data not loaded")
+    
+    try:
+        from analytics.var import STRESS_SCENARIOS
+        
+        scenarios = []
+        for scenario in STRESS_SCENARIOS:
+            scenarios.append({
+                "name": scenario.name,
+                "description": scenario.description,
+                "impacts": scenario.get_shocks()
+            })
+        
+        return {"scenarios": scenarios}
+    except Exception as e:
+        logger.error(f"Stress test failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/risk/recommendations")
+async def get_hedging_recommendations():
+    """
+    Generate hedging recommendations based on current risk metrics.
+    """
+    df = app_state.get("data")
+    if df is None or df.empty:
+        raise HTTPException(status_code=503, detail="Data not loaded")
+    
+    try:
+        # Calculate VaR for each currency
+        var_calc = VaRCalculator(confidence=0.95, horizon_days=1)
+        var_results = {}
+        volatility_metrics = {}
+        
+        for currency in df["currency"].unique():
+            currency_df = df[df["currency"] == currency].copy()
+            returns = calculate_returns(currency_df, currency)
+            var_result = var_calc.calculate_currency_var(returns, currency)
+            var_results[currency] = var_result
+            volatility_metrics[currency] = {
+                "volatility": var_result.volatility,
+                "mean_return": var_result.mean_return
+            }
+        
+        # Calculate correlations
+        pivot_df = df.pivot_table(
+            index="record_date",
+            columns="currency",
+            values="exchange_rate"
+        ).pct_change().dropna()
+        correlations = pivot_df.corr().to_dict()
+        
+        # Generate recommendations
+        engine = HedgingRecommendationEngine()
+        recommendations = engine.generate_recommendations(
+            var_results=var_results,
+            volatility_metrics=volatility_metrics,
+            correlations=correlations
+        )
+        
+        return recommendations.to_dict()
+    except Exception as e:
+        logger.error(f"Recommendations failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Scheduler Endpoints
+# =============================================================================
+
+@app.get("/api/scheduler/jobs")
+async def get_scheduled_jobs():
+    """Get list of scheduled background jobs."""
+    try:
+        scheduler = get_scheduler()
+        jobs = scheduler.get_jobs()
+        return {
+            "status": "running" if scheduler._is_running else "stopped",
+            "jobs": jobs
+        }
+    except Exception as e:
+        logger.error(f"Failed to get jobs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/scheduler/jobs/{job_id}/run")
+async def trigger_job(job_id: str):
+    """Manually trigger a scheduled job."""
+    try:
+        scheduler = get_scheduler()
+        success = scheduler.run_job_now(job_id)
+        
+        if success:
+            return {"status": "triggered", "job_id": job_id}
+        else:
+            raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to trigger job {job_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/scheduler/start")
+async def start_scheduler_endpoint():
+    """Start the background scheduler."""
+    try:
+        start_scheduler()
+        return {"status": "started"}
+    except Exception as e:
+        logger.error(f"Failed to start scheduler: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/scheduler/stop")
+async def stop_scheduler_endpoint():
+    """Stop the background scheduler."""
+    try:
+        stop_scheduler()
+        return {"status": "stopped"}
+    except Exception as e:
+        logger.error(f"Failed to stop scheduler: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Explainability Endpoints
+# =============================================================================
+
+@app.get("/api/explain/status")
+async def get_explainability_status():
+    """Check if SHAP explainability is available."""
+    return {
+        "shap_available": shap_available(),
+        "features": [
+            "XGBoost feature importance",
+            "SHAP value decomposition",
+            "Model agreement analysis"
+        ] if shap_available() else []
+    }
+
+
+# =============================================================================
+# Forecast Endpoints (with Model Registry)
+# =============================================================================
+
+# Global model registry
+_model_registry = ModelRegistry("trained_models", use_supabase=False)
+
+
+@app.get("/api/forecasts")
+async def get_forecasts(
+    currency: str = Query("EUR", description="Currency code"),
+    horizon: int = Query(30, description="Forecast horizon in days"),
+    model: Optional[str] = Query(None, description="Model to use (or active model from registry)")
+):
+    """
+    Generate forecasts using trained models.
+    
+    Returns predictions with confidence intervals and model metadata.
+    """
+    df = app_state.get("data")
+    if df is None or df.empty:
+        raise HTTPException(status_code=503, detail="Data not loaded")
+    
+    try:
+        currency_df = df[df["currency"] == currency]
+        if currency_df.empty:
+            raise HTTPException(status_code=404, detail=f"Currency not found: {currency}")
+        
+        # Determine which model to use
+        if model is None:
+            # Try to load active model from registry
+            active_model = _model_registry.get_active_model(currency)
+            if active_model:
+                model = active_model.model_name
+                logger.info(f"Using active model: {model} for {currency}")
+            else:
+                model = "ensemble"
+                logger.info(f"No active model, defaulting to ensemble for {currency}")
+        
+        # Create trainer and train on available data
+        model_lower = model.lower()
+        
+        if model_lower == "prophet":
+            trainer = ProphetTrainer("trained_models")
+        elif model_lower == "arima":
+            trainer = ARIMATrainer("trained_models")
+        elif model_lower == "xgboost":
+            trainer = XGBoostTrainer("trained_models")
+        elif model_lower == "ensemble":
+            trainer = EnsembleTrainer("trained_models")
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown model: {model}")
+        
+        # Train and predict
+        trainer.train(currency_df, currency, train_ratio=1.0)  # Use all data
+        forecast = trainer.predict(horizon)
+        
+        return {
+            "currency": currency,
+            "horizon": horizon,
+            "model_used": model_lower,
+            "generated_at": datetime.now().isoformat(),
+            **forecast
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Forecast failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/models/registry")
+async def get_model_registry():
+    """Get summary of registered models."""
+    try:
+        return _model_registry.get_registry_summary()
+    except Exception as e:
+        logger.error(f"Registry query failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/models/available")
+async def get_available_models():
+    """Get list of available models and their status."""
+    return TrainingOrchestrator.get_available_models()
+
+
+@app.post("/api/models/train")
+async def train_model_endpoint(
+    currency: str = Query("EUR", description="Currency to train"),
+    model_type: str = Query("ensemble", description="Model type to train")
+):
+    """
+    Train a model for a specific currency.
+    
+    Note: For large-scale training, use the CLI instead:
+    python ml/cli/train_models.py
+    """
+    from fastapi import BackgroundTasks
+    
+    df = app_state.get("data")
+    if df is None or df.empty:
+        raise HTTPException(status_code=503, detail="Data not loaded")
+    
+    try:
+        currency_df = df[df["currency"] == currency]
+        if currency_df.empty:
+            raise HTTPException(status_code=404, detail=f"Currency not found: {currency}")
+        
+        orchestrator = TrainingOrchestrator(model_type=model_type)
+        metrics = orchestrator.train(currency_df, currency)
+        model_path = orchestrator.save(set_active=True)
+        
+        return {
+            "status": "success",
+            "currency": currency,
+            "model_type": model_type,
+            "metrics": metrics.to_dict(),
+            "model_path": model_path,
+            "message": f"Model trained and set as active for {currency}"
+        }
+        
+    except Exception as e:
+        logger.error(f"Training failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Intelligent Alerting Endpoints
+# =============================================================================
+
+# Global alert engine
+_alert_engine = create_alert_engine(dashboard_url="http://localhost:3000")
+
+
+@app.get("/api/alerts/active")
+async def get_active_alerts(currency: Optional[str] = Query(None, description="Currency filter")):
+    """Get all active intelligent alerts."""
+    try:
+        alerts = _alert_engine.get_active_alerts(currency)
+        return {"alerts": alerts, "count": len(alerts)}
+    except Exception as e:
+        logger.error(f"Failed to get alerts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/alerts/trigger/volatility")
+async def trigger_volatility_alert(
+    currency: str = Query("EUR", description="Currency code")
+):
+    """
+    Manually trigger volatility alert check for a currency.
+    Will generate alert if conditions met.
+    """
+    df = app_state.get("data")
+    if df is None or df.empty:
+        raise HTTPException(status_code=503, detail="Data not loaded")
+    
+    try:
+        currency_df = df[df["currency"] == currency]
+        if currency_df.empty:
+            raise HTTPException(status_code=404, detail=f"Currency not found: {currency}")
+        
+        # Calculate volatility metrics
+        returns = currency_df["exchange_rate"].pct_change().dropna()
+        current_vol = returns.tail(30).std() * np.sqrt(252) * 100
+        mean_vol = returns.std() * np.sqrt(252) * 100
+        
+        # Calculate percentile
+        rolling_vols = returns.rolling(30).std() * np.sqrt(252) * 100
+        percentile = (rolling_vols < current_vol).mean() * 100
+        
+        # Create and process alert
+        alert = _alert_engine.create_volatility_alert(
+            currency=currency,
+            current_volatility=current_vol,
+            mean_volatility=mean_vol,
+            volatility_percentile=percentile
+        )
+        
+        if alert:
+            sent = _alert_engine.process_alert(alert)
+            return {
+                "status": "triggered" if sent else "suppressed",
+                "alert": alert.to_dict() if alert else None,
+                "sent_to_slack": sent
+            }
+        else:
+            return {"status": "no_alert", "reason": "Volatility within normal range"}
+            
+    except Exception as e:
+        logger.error(f"Alert trigger failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/alerts/trigger/var")
+async def trigger_var_alert(
+    currency: str = Query("EUR", description="Currency code"),
+    confidence: float = Query(0.95, description="VaR confidence level")
+):
+    """
+    Trigger VaR breach alert check for a currency.
+    """
+    df = app_state.get("data")
+    if df is None or df.empty:
+        raise HTTPException(status_code=503, detail="Data not loaded")
+    
+    try:
+        currency_df = df[df["currency"] == currency]
+        if currency_df.empty:
+            raise HTTPException(status_code=404, detail=f"Currency not found: {currency}")
+        
+        # Calculate VaR
+        returns = calculate_returns(currency_df, currency)
+        var_calc = VaRCalculator(confidence=confidence, horizon_days=1)
+        var_result = var_calc.calculate_currency_var(returns, currency)
+        
+        # Create and process alert
+        alert = _alert_engine.create_var_breach_alert(
+            currency=currency,
+            var_95=var_result.var_parametric * 100,
+            var_99=var_result.var_parametric * 100 * 1.3,  # Approximation
+            cvar=var_result.cvar * 100,
+            threshold=2.0
+        )
+        
+        if alert:
+            sent = _alert_engine.process_alert(alert)
+            return {
+                "status": "triggered" if sent else "suppressed",
+                "alert": alert.to_dict(),
+                "sent_to_slack": sent
+            }
+        else:
+            return {"status": "no_alert", "reason": "VaR within threshold"}
+            
+    except Exception as e:
+        logger.error(f"VaR alert trigger failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/alerts/trigger/regime")
+async def trigger_regime_alert(
+    currency: str = Query("EUR", description="Currency code")
+):
+    """
+    Trigger regime change alert check for a currency.
+    """
+    df = app_state.get("data")
+    if df is None or df.empty:
+        raise HTTPException(status_code=503, detail="Data not loaded")
+    
+    try:
+        currency_df = df[df["currency"] == currency]
+        if currency_df.empty:
+            raise HTTPException(status_code=404, detail=f"Currency not found: {currency}")
+        
+        # Detect regime
+        detector = RegimeDetector(n_regimes=4)
+        detector.fit(currency_df, currency)
+        regime = detector.detect(currency_df, currency)
+        
+        # Create alert (assuming we track previous regime)
+        previous_regime = "Low Volatility"  # Would be stored in state normally
+        
+        if regime.regime_name != previous_regime:
+            alert = _alert_engine.create_regime_change_alert(
+                currency=currency,
+                old_regime=previous_regime,
+                new_regime=regime.regime_name,
+                confidence=regime.confidence,
+                model_name="hmm"
+            )
+            
+            if alert:
+                sent = _alert_engine.process_alert(alert)
+                return {
+                    "status": "triggered" if sent else "suppressed",
+                    "alert": alert.to_dict(),
+                    "sent_to_slack": sent
+                }
+        
+        return {
+            "status": "no_change",
+            "current_regime": regime.regime_name,
+            "confidence": regime.confidence
+        }
+            
+    except Exception as e:
+        logger.error(f"Regime alert trigger failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/alerts/{alert_id}/acknowledge")
+async def acknowledge_alert(alert_id: str, user: str = Query("api_user")):
+    """Acknowledge an alert."""
+    success = _alert_engine.acknowledge_alert(alert_id, user)
+    if success:
+        return {"status": "acknowledged", "alert_id": alert_id}
+    raise HTTPException(status_code=404, detail="Alert not found")
+
+
+@app.post("/api/alerts/{alert_id}/resolve")
+async def resolve_alert(alert_id: str):
+    """Resolve an alert."""
+    success = _alert_engine.resolve_alert(alert_id)
+    if success:
+        return {"status": "resolved", "alert_id": alert_id}
+    raise HTTPException(status_code=404, detail="Alert not found")
+
+
+@app.post("/api/alerts/{alert_id}/snooze")
+async def snooze_alert(alert_id: str, hours: int = Query(4)):
+    """Snooze an alert for specified hours."""
+    success = _alert_engine.snooze_alert(alert_id, hours)
+    if success:
+        return {"status": "snoozed", "alert_id": alert_id, "hours": hours}
+    raise HTTPException(status_code=404, detail="Alert not found")
+
+
+@app.post("/api/alerts/summary")
+async def send_alert_summary():
+    """Send daily alert summary to Slack."""
+    success = _alert_engine.send_daily_summary()
+    return {"status": "sent" if success else "failed"}
+
+
+@app.post("/api/alerts/portfolio")
+async def set_portfolio_exposure(
+    currency: str = Query(..., description="Currency code"),
+    amount: float = Query(..., description="Exposure amount in USD"),
+    direction: str = Query("long", description="Position direction")
+):
+    """Update portfolio exposure for a currency (affects alert impact calculations)."""
+    _alert_engine.set_portfolio_exposure(currency, amount, direction)
+    return {"status": "updated", "currency": currency, "amount": amount, "direction": direction}
+
+
+# =============================================================================
+# Regime Detection Endpoints
+# =============================================================================
+
+@app.get("/api/regime/detect")
+async def detect_regime(currency: str = Query("EUR", description="Currency code")):
+    """
+    Detect current market regime using Hidden Markov Models.
+    """
+    df = app_state.get("data")
+    if df is None or df.empty:
+        raise HTTPException(status_code=503, detail="Data not loaded")
+    
+    try:
+        currency_df = df[df["currency"] == currency]
+        if currency_df.empty:
+            raise HTTPException(status_code=404, detail=f"Currency not found: {currency}")
+        
+        detector = RegimeDetector(n_regimes=4)
+        detector.fit(currency_df, currency)
+        regime = detector.detect(currency_df, currency)
+        
+        return {
+            "currency": currency,
+            "hmm_available": hmm_available(),
+            **regime.to_dict()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Regime detection failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/regime/all")
+async def detect_all_regimes():
+    """
+    Detect regimes for all currencies.
+    """
+    df = app_state.get("data")
+    if df is None or df.empty:
+        raise HTTPException(status_code=503, detail="Data not loaded")
+    
+    try:
+        results = {}
+        for currency in df["currency"].unique():
+            currency_df = df[df["currency"] == currency]
+            detector = RegimeDetector(n_regimes=4)
+            detector.fit(currency_df, currency)
+            regime = detector.detect(currency_df, currency)
+            results[currency] = regime.to_dict()
+        
+        return {"regimes": results, "hmm_available": hmm_available()}
+    except Exception as e:
+        logger.error(f"Regime detection failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# PDF Export Endpoints
+# =============================================================================
+
+@app.get("/api/reports/executive-summary")
+async def generate_executive_summary():
+    """
+    Generate executive summary PDF report.
+    Returns PDF as binary download.
+    """
+    from fastapi.responses import Response
+    
+    if not pdf_available():
+        raise HTTPException(status_code=503, detail="PDF generation not available")
+    
+    df = app_state.get("data")
+    if df is None or df.empty:
+        raise HTTPException(status_code=503, detail="Data not loaded")
+    
+    try:
+        # Get recommendations
+        var_calc = VaRCalculator(confidence=0.95, horizon_days=1)
+        var_results = {}
+        volatility_metrics = {}
+        
+        for currency in df["currency"].unique():
+            currency_df = df[df["currency"] == currency]
+            returns = calculate_returns(currency_df, currency)
+            var_result = var_calc.calculate_currency_var(returns, currency)
+            var_results[currency] = var_result
+            volatility_metrics[currency] = {"volatility": var_result.volatility}
+        
+        pivot_df = df.pivot_table(
+            index="record_date",
+            columns="currency",
+            values="exchange_rate"
+        ).pct_change().dropna()
+        correlations = pivot_df.corr().to_dict()
+        
+        engine = HedgingRecommendationEngine()
+        recommendations = engine.generate_recommendations(
+            var_results=var_results,
+            volatility_metrics=volatility_metrics,
+            correlations=correlations
+        ).to_dict()
+        
+        # Get regime
+        first_currency = df["currency"].iloc[0]
+        currency_df = df[df["currency"] == first_currency]
+        detector = RegimeDetector()
+        detector.fit(currency_df, first_currency)
+        regime = detector.detect(currency_df, first_currency).to_dict()
+        
+        # Generate PDF
+        generator = PDFReportGenerator(title="Sapphire Intelligence")
+        pdf_bytes = generator.generate_executive_summary(
+            kpis={},
+            recommendations=recommendations,
+            regime=regime
+        )
+        
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": "attachment; filename=executive_summary.pdf"}
+        )
+    except Exception as e:
+        logger.error(f"PDF generation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/reports/risk-report")
+async def generate_risk_report():
+    """
+    Generate detailed risk report PDF.
+    Returns PDF as binary download.
+    """
+    from fastapi.responses import Response
+    from analytics.var import STRESS_SCENARIOS
+    
+    if not pdf_available():
+        raise HTTPException(status_code=503, detail="PDF generation not available")
+    
+    df = app_state.get("data")
+    if df is None or df.empty:
+        raise HTTPException(status_code=503, detail="Data not loaded")
+    
+    try:
+        # Get VaR data
+        var_calc = VaRCalculator(confidence=0.95, horizon_days=1)
+        var_results = {}
+        volatility_metrics = {}
+        
+        for currency in df["currency"].unique():
+            currency_df = df[df["currency"] == currency]
+            returns = calculate_returns(currency_df, currency)
+            var_result = var_calc.calculate_currency_var(returns, currency)
+            var_results[currency] = var_result.to_dict()
+            volatility_metrics[currency] = {"volatility": var_result.volatility}
+        
+        # Stress tests
+        stress_tests = [
+            {"name": s.name, "description": s.description, "impacts": s.get_shocks()}
+            for s in STRESS_SCENARIOS
+        ]
+        
+        # Recommendations
+        pivot_df = df.pivot_table(
+            index="record_date",
+            columns="currency",
+            values="exchange_rate"
+        ).pct_change().dropna()
+        correlations = pivot_df.corr().to_dict()
+        
+        # Re-get var_results as objects for recommendations
+        var_results_obj = {}
+        for currency in df["currency"].unique():
+            currency_df = df[df["currency"] == currency]
+            returns = calculate_returns(currency_df, currency)
+            var_results_obj[currency] = var_calc.calculate_currency_var(returns, currency)
+        
+        engine = HedgingRecommendationEngine()
+        recommendations = engine.generate_recommendations(
+            var_results=var_results_obj,
+            volatility_metrics=volatility_metrics,
+            correlations=correlations
+        ).to_dict()
+        
+        # Generate PDF
+        generator = PDFReportGenerator(title="Sapphire Intelligence - Risk Report")
+        pdf_bytes = generator.generate_risk_report(
+            var_data={"currencies": var_results},
+            stress_tests=stress_tests,
+            recommendations=recommendations
+        )
+        
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": "attachment; filename=risk_report.pdf"}
+        )
+    except Exception as e:
+        logger.error(f"PDF generation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/data/timeseries")
 async def get_timeseries_data(
     currencies: Optional[str] = Query(None, description="Comma-separated currency codes"),
@@ -462,7 +1444,8 @@ async def get_latest_rates(
     if filtered.empty:
         return []
     
-    currencies = filtered["currency"].unique()
+    # Ensure consistent currency ordering (alphabetical: CAD, EUR, GBP)
+    currencies = sorted(filtered["currency"].unique())
     results = []
     fmp_available = bool(app_state.get("fmp_available", False))
     
@@ -547,18 +1530,32 @@ async def get_forecast(
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)")
 ):
-    """Get forecast for a specific currency."""
+    """
+    Get forecast for a specific currency.
+    
+    PRODUCTION BEHAVIOR:
+    - Loads trained model from registry (NEVER trains)
+    - Returns 422 if no trained model exists
+    - No silent fallbacks
+    
+    Train models via terminal before using this endpoint.
+    """
     df = app_state.get("data")
     
     if df is None or df.empty:
         raise HTTPException(status_code=503, detail="No data available")
     
     currency = currency.upper()
+    
+    # Get historical data for display
     filtered = filter_dataframe_by_date(df, start_date, end_date)
     currency_display_df = filtered[filtered["currency"] == currency].copy()
     
     if currency_display_df.empty:
         currency_display_df = df[df["currency"] == currency].copy()
+    
+    if currency_display_df.empty:
+        raise HTTPException(status_code=404, detail=f"Currency not found: {currency}")
     
     currency_display_df = currency_display_df.sort_values("record_date")
     historical_df = currency_display_df.dropna(subset=["exchange_rate"]).tail(120)
@@ -570,45 +1567,47 @@ async def get_forecast(
         for _, row in historical_df.iterrows()
     ]
     
+    # Use ForecastService to generate predictions (NEVER trains)
+    forecast_service = ForecastService(_model_registry)
+    
     try:
-        forecast_df, confidence = app_state["forecaster"].forecast_rates(
-            df, currency, horizon
+        # Generate forecast using trained model from registry
+        result = forecast_service.generate_forecast(
+            currency=currency,
+            horizon=horizon,
+            confidence=0.80,
+            historical_data=currency_display_df
         )
         
-        forecast_points: List[ForecastPoint] = []
-        confidence_points: Optional[List[ConfidenceBandPoint]] = None
-        forecast_start: Optional[str] = None
+        # Convert to response format
+        forecast_points = [
+            ForecastPoint(date=fc.date, value=fc.value)
+            for fc in result.forecasts
+        ]
         
-        if forecast_df is not None and not forecast_df.empty:
-            forecast_copy = forecast_df.copy()
-            forecast_copy["date"] = pd.to_datetime(forecast_copy["date"]).dt.strftime("%Y-%m-%d")
-            
-            forecast_points = [
-                ForecastPoint(
-                    date=row["date"],
-                    value=float(row["forecast"])
-                )
-                for _, row in forecast_copy.iterrows()
-            ]
-            
-            forecast_start = forecast_points[0].date if forecast_points else None
-            
-            if confidence and confidence.get("dates"):
-                confidence_points = []
-                for idx, date in enumerate(confidence.get("dates", [])):
-                    lower = confidence["lower"][idx]
-                    upper = confidence["upper"][idx]
-                    mean_val = confidence["mean"][idx] if confidence.get("mean") else None
-                    confidence_points.append(
-                        ConfidenceBandPoint(
-                            date=date,
-                            lower=float(lower) if lower is not None else float(mean_val) if mean_val is not None else 0.0,
-                            upper=float(upper) if upper is not None else float(mean_val) if mean_val is not None else 0.0
-                        )
-                    )
-        else:
-            forecast_points = []
-            confidence_points = None
+        confidence_points = [
+            ConfidenceBandPoint(date=fc.date, lower=fc.lower, upper=fc.upper)
+            for fc in result.forecasts
+        ]
+        
+        forecast_start = forecast_points[0].date if forecast_points else None
+        
+        # Build model metadata from ForecastService result
+        model_meta = ModelMetadata(
+            model_type=result.metadata.model_type,
+            model_version=result.metadata.model_id,
+            trained_at=result.metadata.trained_at,
+            is_fallback=result.metadata.is_fallback,
+            data_window_start=result.metadata.data_window_start,
+            data_window_end=result.metadata.data_window_end,
+            metrics={
+                "mape": result.metadata.validation_mape,
+                "rmse": result.metadata.validation_rmse,
+                "train_samples": result.metadata.training_samples,
+                "test_samples": result.metadata.test_samples,
+                "forecast_strategy": result.metadata.forecast_strategy
+            }
+        )
         
         # Generate narrative insight
         insight = None
@@ -631,8 +1630,16 @@ async def get_forecast(
                 confidence=0.65,
                 horizon=f"next {horizon} months"
             )
-        elif not forecast_points:
-            insight = "Insufficient historical data to generate a reliable forecast for this range."
+        
+        logger.info(f"Generated forecast for {currency} using {result.metadata.model_type} (no training)")
+        
+        # Compute last_actual from historical points for chart anchoring
+        last_actual_point = None
+        if historical_points:
+            last_actual_point = LastActualPoint(
+                date=historical_points[-1].date,
+                value=historical_points[-1].value
+            )
         
         return ForecastResponse(
             currency=currency,
@@ -640,11 +1647,41 @@ async def get_forecast(
             historical=historical_points,
             forecast=forecast_points,
             confidence=confidence_points,
-            insight=insight
+            insight=insight,
+            model=model_meta,
+            last_actual=last_actual_point,
+            frequency="M"  # Monthly data
+        )
+        
+    except ModelNotFoundError as e:
+        # No trained model - return explicit error (NO FALLBACK)
+        logger.warning(f"No trained model for {currency}: {e}")
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "model_not_trained",
+                "message": f"No trained model found for currency: {currency}",
+                "currency": currency,
+                "action": "Train a model via terminal using: python -c \"from ml.registry import TrainingOrchestrator; ...\"",
+                "hint": "Models must be trained before forecasts can be generated. Use the terminal training menu on server startup."
+            }
+        )
+        
+    except ModelLoadError as e:
+        logger.error(f"Failed to load model for {currency}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "model_load_failed",
+                "message": f"Failed to load model: {e.reason}",
+                "model_id": e.model_id
+            }
         )
         
     except Exception as e:
         logger.error(f"Error generating forecast for {currency}: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 

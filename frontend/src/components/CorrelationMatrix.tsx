@@ -1,12 +1,19 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useTimeSeriesData } from '@/hooks/useCurrencyData';
 import { groupDataByCurrency, alignTimeSeries, calculateCorrelation } from '@/lib/analysis';
 import { SkeletonBlock } from '@/components/SkeletonBlock';
 import { getCurrencyColor } from '@/lib/utils';
 
 export function CorrelationMatrix() {
+    // Track if component has mounted on client to prevent hydration mismatch
+    const [hasMounted, setHasMounted] = useState(false);
+
+    useEffect(() => {
+        setHasMounted(true);
+    }, []);
+
     // Fetch data for the last 90 days for correlation analysis
     const endDate = new Date().toISOString().split('T')[0];
     const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -37,7 +44,8 @@ export function CorrelationMatrix() {
         return matrix;
     }, [timeSeriesData]);
 
-    if (isLoading) {
+    // Show skeleton on server AND during initial client mount to prevent hydration mismatch
+    if (!hasMounted || isLoading) {
         return <SkeletonBlock className="h-[300px] w-full" />;
     }
 

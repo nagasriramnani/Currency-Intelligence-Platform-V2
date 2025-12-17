@@ -77,6 +77,18 @@ export function Header({
             Analysis
           </Link>
           <Link
+            href="/risk"
+            className={cn(
+              'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all',
+              pathname === '/risk'
+                ? 'bg-sapphire-800/50 text-white shadow-sm ring-1 ring-sapphire-700/50'
+                : 'text-sapphire-200 hover:bg-sapphire-800/30 hover:text-white',
+            )}
+          >
+            <Activity className="h-4 w-4" />
+            Risk
+          </Link>
+          <Link
             href="/settings"
             className={cn(
               'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all',

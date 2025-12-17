@@ -9,31 +9,49 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Enterprise-grade color palette - Bloomberg calm + Stripe clarity
         sapphire: {
           950: '#020617', // Deepest background
-          900: '#0B1120', // Deep background
-          800: '#1e293b', // Card background
-          700: '#334155', // Lighter card
-          600: '#475569', // Borders
-          500: '#3B82F6', // Primary Brand
-          400: '#60A5FA', // Lighter Brand
-          300: '#93C5FD', // Accent
-          200: '#BFDBFE', // Highlight
-          100: '#DBEAFE', // Text Light
-          50: '#EFF6FF',  // Text White
+          900: '#0A0F1F', // Deep navy - calmer than before
+          800: '#141B2D', // Card background - slightly warmer
+          700: '#1E293B', // Lighter card
+          600: '#334155', // Borders - muted
+          500: '#2563EB', // Primary steel blue - less saturated
+          400: '#3B82F6', // Lighter steel
+          300: '#60A5FA', // Accent - softer
+          200: '#93C5FD', // Highlight
+          100: '#C7D2E4', // Text secondary
+          50: '#E2E8F0',  // Text primary
         },
         brand: {
-          navy: '#0B1120',
-          primary: '#3B82F6',
-          accent: '#60A5FA',
-          sky: '#E0F2FE',
-          soft: '#F8FAFC',
+          navy: '#0A0F1F',
+          primary: '#2563EB',
+          accent: '#3B82F6',
+          sky: '#DBEAFE',
+          soft: '#F1F5F9',
           slate: '#64748B',
           midnight: '#020617',
         },
-        success: '#10B981',
-        warning: '#F59E0B',
-        danger: '#EF4444',
+        // Enterprise signal colors - muted, authoritative
+        success: '#059669',    // Deep emerald (was #10B981)
+        warning: '#D97706',    // Soft amber (was #F59E0B)
+        danger: '#DC2626',     // Dark crimson (was #EF4444)
+        // Additional enterprise colors
+        emerald: {
+          500: '#059669',
+          400: '#10B981',
+          300: '#34D399',
+        },
+        amber: {
+          500: '#D97706',
+          400: '#F59E0B',
+          300: '#FBBF24',
+        },
+        crimson: {
+          500: '#DC2626',
+          400: '#EF4444',
+          300: '#F87171',
+        },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],

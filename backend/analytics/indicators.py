@@ -206,11 +206,12 @@ def get_latest_metrics(df: pd.DataFrame, currency: str) -> dict:
     Extract latest key metrics for a specific currency.
     
     Args:
-        df: DataFrame with all indicators calculated
+        df: DataFrame with all indicators calculated (filtered by date range)
         currency: Currency code (e.g., "EUR", "GBP", "CAD")
         
     Returns:
-        Dictionary with latest metrics
+        Dictionary with latest metrics including period_change
+        (change from first to last data point in the filtered range)
     """
     currency_df = df[df["currency"] == currency].copy()
     
@@ -225,19 +226,35 @@ def get_latest_metrics(df: pd.DataFrame, currency: str) -> dict:
             "direction": "Flat"
         }
     
-    # Sort by date descending
-    currency_df = currency_df.sort_values("record_date", ascending=False)
-    latest = currency_df.iloc[0]
+    # Sort by date (oldest first for period calculation)
+    currency_df = currency_df.sort_values("record_date", ascending=True)
+    
+    # Get first and last data points in the filtered range
+    first_point = currency_df.iloc[0]
+    last_point = currency_df.iloc[-1]
+    
+    first_rate = float(first_point["exchange_rate"])
+    last_rate = float(last_point["exchange_rate"])
+    
+    # Calculate period change (change over the entire filtered range)
+    if first_rate != 0:
+        period_change = ((last_rate - first_rate) / first_rate) * 100
+    else:
+        period_change = None
     
     return {
         "currency": currency,
         "pair": f"USD/{currency}",
-        "latest_rate": float(latest["exchange_rate"]),
-        "latest_date": latest["record_date"].strftime("%Y-%m-%d"),
-        "mom_change": float(latest.get("mom_change", 0)) if pd.notna(latest.get("mom_change")) else None,
-        "qoq_change": float(latest.get("qoq_change", 0)) if pd.notna(latest.get("qoq_change")) else None,
-        "yoy_change": float(latest.get("yoy_change", 0)) if pd.notna(latest.get("yoy_change")) else None,
-        "direction": get_direction_from_series(currency_df["exchange_rate"], window=3)
+        "latest_rate": last_rate,
+        "latest_date": last_point["record_date"].strftime("%Y-%m-%d"),
+        "mom_change": float(last_point.get("mom_change", 0)) if pd.notna(last_point.get("mom_change")) else None,
+        "qoq_change": float(last_point.get("qoq_change", 0)) if pd.notna(last_point.get("qoq_change")) else None,
+        # Use period_change instead of the pre-calculated yoy_change
+        # This shows change over the selected date range (1Y, 3Y, 5Y, etc.)
+        "yoy_change": period_change,
+        "direction": get_direction_from_series(currency_df["exchange_rate"].iloc[::-1], window=3),
+        # Include the starting rate so UI can display "from X.XXXX"
+        "period_start_rate": first_rate
     }
 
 

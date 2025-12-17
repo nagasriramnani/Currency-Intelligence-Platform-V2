@@ -27,12 +27,22 @@ export function SurfaceCard({
   return (
     <div
       className={cn(
-        'rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow duration-200 hover:shadow-md',
+        // Enterprise dark glass styling - matches other dashboard cards
+        'rounded-xl border border-sapphire-700/30 bg-sapphire-800/40 backdrop-blur-md',
+        'shadow-lg shadow-sapphire-950/20',
+        // Enhanced hover animations - lift, scale, and glow
+        'transition-all duration-500 ease-out',
+        'hover:bg-sapphire-800/50 hover:border-sapphire-600/40',
+        'hover:-translate-y-1 hover:shadow-xl hover:shadow-sapphire-500/10',
+        // Relative for shimmer effect
+        'relative overflow-hidden group',
         paddingMap[padding],
         className,
       )}
     >
       {children}
+      {/* Shimmer effect on hover */}
+      <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/[0.03] to-transparent pointer-events-none"></div>
     </div>
   );
 }

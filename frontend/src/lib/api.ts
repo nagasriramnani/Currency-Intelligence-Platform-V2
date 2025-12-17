@@ -15,6 +15,7 @@ export interface LatestRate {
   yoy_change: number | null;
   direction: 'Rising' | 'Falling' | 'Flat';
   fmp_available?: boolean;
+  period_start_rate?: number | null;  // Rate at start of selected period
 }
 
 export interface TimeSeriesDataPoint {
@@ -48,6 +49,36 @@ export interface ConfidenceBandPoint {
   upper: number;
 }
 
+export interface ModelMetadata {
+  model_type: string;
+  model_version?: string | null;
+  trained_at?: string | null;
+  is_fallback: boolean;
+  fallback_reason?: string | null;
+  data_window_start?: string | null;
+  data_window_end?: string | null;
+  metrics?: {
+    mape?: number;
+    rmse?: number;
+    train_samples?: number;
+    test_samples?: number;
+    forecast_strategy?: 'native' | 'recursive' | 'direct';
+  } | null;
+}
+
+export interface ForecastError {
+  error: 'model_not_trained' | 'model_load_failed' | string;
+  message: string;
+  currency?: string;
+  action?: string;
+  hint?: string;
+}
+
+export interface LastActualPoint {
+  date: string;
+  value: number;
+}
+
 export interface ForecastData {
   currency: string;
   forecast_start: string | null;
@@ -55,6 +86,10 @@ export interface ForecastData {
   forecast: ForecastPoint[];
   confidence?: ConfidenceBandPoint[];
   insight?: string | null;
+  model?: ModelMetadata | null;
+  error?: ForecastError | null;
+  last_actual?: LastActualPoint | null;  // For chart anchoring
+  frequency?: 'M' | 'Q' | string;  // Monthly or Quarterly
 }
 
 export interface Insight {

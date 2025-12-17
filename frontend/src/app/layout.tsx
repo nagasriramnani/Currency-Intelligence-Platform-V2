@@ -7,6 +7,11 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'Currency Intelligence Platform | Sapphire Capital Partners',
   description: 'Advanced currency intelligence and forecasting platform',
+  icons: {
+    icon: '/icon.png',
+    shortcut: '/icon.png',
+    apple: '/icon.png',
+  },
 };
 
 import { Providers } from '@/components/Providers';

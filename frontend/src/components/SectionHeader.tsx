@@ -33,8 +33,8 @@ export function SectionHeader({
     >
       <div className="flex items-start gap-3">
         {Icon && (
-          <div className="p-2 rounded-lg bg-sapphire-800/50 border border-sapphire-700/50 text-sapphire-400">
-            <Icon className="h-5 w-5" />
+          <div className="p-2 rounded-lg accent-bg-subtle border accent-border-light">
+            <Icon className="h-5 w-5 accent-text-light" />
           </div>
         )}
         <div>

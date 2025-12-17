@@ -5,7 +5,7 @@
  * Currency Intelligence Platform for Sapphire Capital Partners
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Header } from '@/components/Header';
 import { KPICard } from '@/components/KPICard';
 import { MultiCurrencyTrendChart } from '@/components/MultiCurrencyTrendChart';
@@ -14,8 +14,8 @@ import { VolatilityChart } from '@/components/VolatilityChart';
 import { ForecastChart } from '@/components/ForecastChart';
 import { ReturnDistributionChart } from '@/components/ReturnDistributionChart';
 import { InsightsPanel } from '@/components/InsightsPanel';
-import { AlertsPanel } from '@/components/AlertsPanel';
 import { HighlightsPanel } from '@/components/HighlightsPanel';
+import { IntelligentAlertsPanel } from '@/components/IntelligentAlertsPanel';
 import { ScenarioToggle } from '@/components/ScenarioToggle';
 import { ForecastExplanation } from '@/components/ForecastExplanation';
 import { ForecastScenario, generateForecastBullets, buildBoardSummary } from '@/lib/insights';
@@ -24,6 +24,7 @@ import { Info, Download, ClipboardCopy, Check, TrendingUp, Activity, BarChart3 }
 import { SectionHeader } from '@/components/SectionHeader';
 import { SurfaceCard } from '@/components/SurfaceCard';
 import { SkeletonBlock } from '@/components/SkeletonBlock';
+import { CampingLoader } from '@/components/CampingLoader';
 import {
   useLatestRates,
   useTimeSeriesData,
@@ -70,6 +71,17 @@ function DashboardContent() {
     startDate: subtractYears(MAX_AVAILABLE_DATE, 3),
     endDate: MAX_AVAILABLE_DATE,
   });
+
+  // Artificial delay to showcase the loading animation (5 seconds on initial load)
+  const [showDelayLoader, setShowDelayLoader] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowDelayLoader(false);
+    }, 5000); // 5 second delay
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const startFilter = dateRange.startDate ?? undefined;
   const endFilter = dateRange.endDate ?? undefined;
@@ -207,20 +219,14 @@ function DashboardContent() {
   // In React Query v5 with enabled: false (SSR), isLoading is false but data is undefined.
   // We check for missing data without error to show loading state during hydration.
   const isInitialLoading =
+    showDelayLoader ||
     ratesLoading ||
     timeSeriesLoading ||
     (!latestRates && !ratesError) ||
     (!timeSeriesData && !timeSeriesError);
 
   if (isInitialLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-sapphire-950">
-        <div className="text-center">
-          <div className="mx-auto mb-4 h-16 w-16 animate-spin rounded-full border-4 border-sapphire-500 border-t-transparent" />
-          <p className="text-sapphire-300 font-medium">Initializing Currency Intelligence...</p>
-        </div>
-      </div>
-    );
+    return <CampingLoader />;
   }
 
   const handleDownloadCsv = () => {
@@ -317,7 +323,7 @@ function DashboardContent() {
               />
             </div>
 
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-3 animate-stagger-fade">
               {latestRates?.map((rate) => (
                 <KPICard
                   key={rate.currency}
@@ -327,6 +333,7 @@ function DashboardContent() {
                   changeLabel="YoY"
                   direction={rate.direction}
                   currency={rate.currency}
+                  periodStartRate={rate.period_start_rate}
                 />
               ))}
             </div>
@@ -508,11 +515,7 @@ function DashboardContent() {
                   </button>
                 </div>
 
-                <AlertsPanel
-                  alerts={alertHistory?.alerts || []}
-                  isLoading={alertsLoading}
-                  onTestAlert={handleTestAlert}
-                  testAlertLoading={testAlertMutation.isPending}
+                <IntelligentAlertsPanel
                   onSendSummary={handleSendSlackSummary}
                   sendSummaryLoading={slackSummaryMutation.isPending}
                   summaryStatus={
