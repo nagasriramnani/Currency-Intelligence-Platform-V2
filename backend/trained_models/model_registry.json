@@ -486,6 +486,42 @@
         "test_samples": 7
       },
       "model_path": "trained_models\\xgboost_EUR_20251218_001956.pkl",
+      "is_active": false
+    },
+    {
+      "model_id": "xgboost_EUR_20251218_020030",
+      "model_name": "xgboost",
+      "currency_pair": "EUR",
+      "trained_at": "2025-12-18T02:00:30.271338",
+      "data_window_start": "2020-03-31",
+      "data_window_end": "2025-09-30",
+      "metrics": {
+        "rmse": 0.064635,
+        "mape": 7.0234,
+        "mae": 0.059877,
+        "directional_accuracy": 0.6667,
+        "train_samples": 24,
+        "test_samples": 7
+      },
+      "model_path": "trained_models\\xgboost_EUR_20251218_020030.pkl",
+      "is_active": false
+    },
+    {
+      "model_id": "xgboost_EUR_20251218_020746",
+      "model_name": "xgboost",
+      "currency_pair": "EUR",
+      "trained_at": "2025-12-18T02:07:46.382869",
+      "data_window_start": "2020-03-31",
+      "data_window_end": "2025-09-30",
+      "metrics": {
+        "rmse": 0.064635,
+        "mape": 7.0234,
+        "mae": 0.059877,
+        "directional_accuracy": 0.6667,
+        "train_samples": 24,
+        "test_samples": 7
+      },
+      "model_path": "trained_models\\xgboost_EUR_20251218_020746.pkl",
       "is_active": true
     }
   ],
@@ -976,6 +1012,42 @@
         "test_samples": 7
       },
       "model_path": "trained_models\\xgboost_GBP_20251218_001956.pkl",
+      "is_active": false
+    },
+    {
+      "model_id": "xgboost_GBP_20251218_020030",
+      "model_name": "xgboost",
+      "currency_pair": "GBP",
+      "trained_at": "2025-12-18T02:00:30.508191",
+      "data_window_start": "2020-03-31",
+      "data_window_end": "2025-09-30",
+      "metrics": {
+        "rmse": 0.034235,
+        "mape": 3.8507,
+        "mae": 0.028509,
+        "directional_accuracy": 0.8333,
+        "train_samples": 24,
+        "test_samples": 7
+      },
+      "model_path": "trained_models\\xgboost_GBP_20251218_020030.pkl",
+      "is_active": false
+    },
+    {
+      "model_id": "xgboost_GBP_20251218_020746",
+      "model_name": "xgboost",
+      "currency_pair": "GBP",
+      "trained_at": "2025-12-18T02:07:46.635006",
+      "data_window_start": "2020-03-31",
+      "data_window_end": "2025-09-30",
+      "metrics": {
+        "rmse": 0.034235,
+        "mape": 3.8507,
+        "mae": 0.028509,
+        "directional_accuracy": 0.8333,
+        "train_samples": 24,
+        "test_samples": 7
+      },
+      "model_path": "trained_models\\xgboost_GBP_20251218_020746.pkl",
       "is_active": true
     }
   ],
@@ -1466,6 +1538,42 @@
         "test_samples": 7
       },
       "model_path": "trained_models\\xgboost_CAD_20251218_001957.pkl",
+      "is_active": false
+    },
+    {
+      "model_id": "xgboost_CAD_20251218_020030",
+      "model_name": "xgboost",
+      "currency_pair": "CAD",
+      "trained_at": "2025-12-18T02:00:30.740451",
+      "data_window_start": "2020-03-31",
+      "data_window_end": "2025-09-30",
+      "metrics": {
+        "rmse": 0.052496,
+        "mape": 3.4445,
+        "mae": 0.047416,
+        "directional_accuracy": 0.5,
+        "train_samples": 24,
+        "test_samples": 7
+      },
+      "model_path": "trained_models\\xgboost_CAD_20251218_020030.pkl",
+      "is_active": false
+    },
+    {
+      "model_id": "xgboost_CAD_20251218_020746",
+      "model_name": "xgboost",
+      "currency_pair": "CAD",
+      "trained_at": "2025-12-18T02:07:46.876132",
+      "data_window_start": "2020-03-31",
+      "data_window_end": "2025-09-30",
+      "metrics": {
+        "rmse": 0.052496,
+        "mape": 3.4445,
+        "mae": 0.047416,
+        "directional_accuracy": 0.5,
+        "train_samples": 24,
+        "test_samples": 7
+      },
+      "model_path": "trained_models\\xgboost_CAD_20251218_020746.pkl",
       "is_active": true
     }
   ]
