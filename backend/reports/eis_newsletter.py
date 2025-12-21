@@ -308,11 +308,12 @@ class EISNewsletterGenerator:
         
         total = len(companies)
         
-        # EIS breakdown
-        eis_eligible = sum(1 for c in companies if c['eis']['status'] == 'EIS Eligible')
-        seis_eligible = sum(1 for c in companies if c['eis']['status'] == 'SEIS Eligible')
-        review = sum(1 for c in companies if c['eis']['status'] == 'Review Required')
-        ineligible = sum(1 for c in companies if c['eis']['status'] == 'Ineligible')
+        # EIS breakdown - use flexible matching for both old and new status formats
+        # New format: "Likely Eligible", "Review Required", "Likely Ineligible"
+        # Old format: "EIS Eligible", "SEIS Eligible", "Ineligible"
+        likely_eligible = sum(1 for c in companies if 'Eligible' in c['eis'].get('status', '') and 'Ineligible' not in c['eis'].get('status', ''))
+        review_required = sum(1 for c in companies if 'Review' in c['eis'].get('status', ''))
+        likely_ineligible = sum(1 for c in companies if 'Ineligible' in c['eis'].get('status', ''))
         
         # Risk breakdown
         low_risk = sum(1 for c in companies if c['risk']['level'] == 'Low')
@@ -329,9 +330,9 @@ class EISNewsletterGenerator:
         summary_data = [
             ["Metric", "Value", "Notes"],
             ["Total Companies", str(total), "Companies in this report"],
-            ["EIS Eligible", str(eis_eligible), f"{eis_eligible/max(total,1)*100:.0f}% of portfolio"],
-            ["SEIS Eligible", str(seis_eligible), "Companies under 2 years"],
-            ["Review Required", str(review), "Over 7 years, needs assessment"],
+            ["Likely EIS Eligible*", str(likely_eligible), f"{likely_eligible/max(total,1)*100:.0f}% of portfolio (heuristic assessment)"],
+            ["Review Required", str(review_required), "Needs manual verification"],
+            ["Likely Ineligible", str(likely_ineligible), "Exclusion factors identified"],
             ["Low Risk", str(low_risk), "Established, no flags"],
             ["Medium Risk", str(med_risk), "Young or has charges"],
             ["High Risk", str(high_risk), "Insolvency or non-active"],
@@ -374,7 +375,7 @@ class EISNewsletterGenerator:
                 sector_data[sector]['eis'] += 1
             sector_data[sector]['companies'].append(c.get('company_name', 'Unknown'))
         
-        table_data = [["Sector", "Companies", "EIS Eligible", "% of Portfolio"]]
+        table_data = [["Sector", "Companies", "Likely Eligible*", "% of Portfolio"]]
         total = len(companies)
         
         for sector in sorted(sector_data.keys()):
