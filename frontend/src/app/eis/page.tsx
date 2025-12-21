@@ -4,9 +4,11 @@
  * EIS Companies Dashboard
  * Monitors Enterprise Investment Scheme companies for Sapphire Capital Partners
  * Stage 1 deliverable for KTP project
+ * 
+ * NOW USES LIVE COMPANIES HOUSE API DATA
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { SurfaceCard } from '@/components/SurfaceCard';
 import { CampingLoader } from '@/components/CampingLoader';
@@ -26,86 +28,172 @@ import {
     Loader2,
     ExternalLink,
     BarChart3,
-    PieChart
+    PieChart,
+    RefreshCw,
+    Database
 } from 'lucide-react';
 
-// Types
-interface EISCompany {
+// Types for Companies House API response
+interface CompanySearchResult {
     company_number: string;
-    company_name: string;
+    title: string;
     company_status: string;
     company_type: string;
-    date_of_creation: string;
-    sector: string;
-    sic_codes: string[];
-    registered_office_address: {
-        address_line_1?: string;
-        locality?: string;
-        postal_code?: string;
-        country?: string;
-    };
-    directors: { name: string; role: string }[];
-    eis_status: string;
-    investment_stage: string;
-    amount_raised: number;
-    risk_score: string;
+    date_of_creation?: string;
+    address_snippet?: string;
+    description?: string;
 }
 
-interface EISSummary {
-    total_companies: number;
-    eis_approved: number;
-    eis_pending: number;
-    total_raised: number;
-    average_raised: number;
-    risk_breakdown: {
-        low: number;
-        medium: number;
-        high: number;
+interface CompanyDetails {
+    company: {
+        company_number: string;
+        company_name: string;
+        company_status: string;
+        company_type: string;
+        date_of_creation?: string;
+        jurisdiction: string;
+        registered_office_address: {
+            address_line_1?: string;
+            locality?: string;
+            postal_code?: string;
+            country?: string;
+        };
+        sic_codes: string[];
+        has_charges: boolean;
+        has_insolvency_history: boolean;
     };
-    sectors: Record<string, number>;
-    investment_stages: Record<string, number>;
+    directors: Array<{
+        name: string;
+        officer_role: string;
+        appointed_on?: string;
+        nationality?: string;
+        occupation?: string;
+    }>;
+    recent_filings: any[];
+    director_count: number;
+    total_officers: number;
 }
 
 // API URL
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+// SIC code to sector mapping (common business categories)
+const sicToSector: Record<string, string> = {
+    '62': 'Technology',
+    '63': 'Technology',
+    '72': 'Research & Development',
+    '58': 'Media & Publishing',
+    '61': 'Telecommunications',
+    '64': 'Financial Services',
+    '65': 'Financial Services',
+    '66': 'Financial Services',
+    '85': 'Education',
+    '86': 'Healthcare',
+    '21': 'Pharmaceuticals',
+    '35': 'Energy',
+    '01': 'Agriculture',
+    '10': 'Food & Beverages',
+    '41': 'Construction',
+    '45': 'Automotive',
+    '47': 'Retail',
+};
+
+function getSectorFromSIC(sicCodes: string[] | undefined): string {
+    if (!sicCodes || sicCodes.length === 0) return 'Other';
+    const firstTwo = sicCodes[0]?.substring(0, 2) || '';
+    return sicToSector[firstTwo] || 'Other';
+}
+
 export default function EISPage() {
     const [isLoading, setIsLoading] = useState(true);
-    const [companies, setCompanies] = useState<EISCompany[]>([]);
-    const [summary, setSummary] = useState<EISSummary | null>(null);
-    const [isGeneratingNewsletter, setIsGeneratingNewsletter] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedSector, setSelectedSector] = useState<string>('all');
+    const [searchResults, setSearchResults] = useState<CompanySearchResult[]>([]);
+    const [selectedCompanies, setSelectedCompanies] = useState<CompanyDetails[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [isGeneratingNewsletter, setIsGeneratingNewsletter] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [apiConfigured, setApiConfigured] = useState(true);
+    const [lastSearchQuery, setLastSearchQuery] = useState('');
 
-    // Fetch EIS data
+    // Check API health on mount
     useEffect(() => {
-        const fetchData = async () => {
+        const checkHealth = async () => {
             try {
-                // Fetch companies
-                const companiesRes = await fetch(`${API_BASE}/api/eis/companies`);
-                if (companiesRes.ok) {
-                    const data = await companiesRes.json();
-                    setCompanies(data.companies || []);
-                }
-
-                // Fetch summary
-                const summaryRes = await fetch(`${API_BASE}/api/eis/summary`);
-                if (summaryRes.ok) {
-                    const data = await summaryRes.json();
-                    setSummary(data);
+                const res = await fetch(`${API_BASE}/api/eis/health`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setApiConfigured(data.companies_house_configured);
+                    if (!data.companies_house_configured) {
+                        setError('Companies House API key not configured. Add COMPANIES_HOUSE_API_KEY to .env');
+                    }
                 }
             } catch (err) {
-                console.error('Failed to fetch EIS data:', err);
                 setError('Failed to connect to backend. Please ensure the server is running.');
             } finally {
-                // Artificial delay for loading animation
-                setTimeout(() => setIsLoading(false), 2500);
+                setTimeout(() => setIsLoading(false), 1500);
             }
         };
-
-        fetchData();
+        checkHealth();
     }, []);
+
+    // Search companies from Companies House API
+    const handleSearch = useCallback(async () => {
+        if (!searchQuery.trim() || searchQuery.length < 2) {
+            setError('Please enter at least 2 characters to search');
+            return;
+        }
+
+        setIsSearching(true);
+        setError(null);
+        setLastSearchQuery(searchQuery);
+
+        try {
+            const res = await fetch(`${API_BASE}/api/eis/search?query=${encodeURIComponent(searchQuery)}&limit=20`);
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.detail || 'Search failed');
+            }
+
+            const data = await res.json();
+            setSearchResults(data.results || []);
+
+            if (data.results.length === 0) {
+                setError(`No companies found for "${searchQuery}"`);
+            }
+        } catch (err: any) {
+            console.error('Search failed:', err);
+            setError(err.message || 'Search failed');
+            setSearchResults([]);
+        } finally {
+            setIsSearching(false);
+        }
+    }, [searchQuery]);
+
+    // Handle Enter key in search
+    const handleKeyPress = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            handleSearch();
+        }
+    };
+
+    // Load company details
+    const loadCompanyDetails = async (companyNumber: string) => {
+        try {
+            const res = await fetch(`${API_BASE}/api/eis/company/${companyNumber}`);
+            if (res.ok) {
+                const details: CompanyDetails = await res.json();
+                // Add to selected companies if not already there
+                setSelectedCompanies(prev => {
+                    const exists = prev.some(c => c.company.company_number === companyNumber);
+                    if (exists) return prev;
+                    return [...prev, details];
+                });
+            }
+        } catch (err) {
+            console.error('Failed to load company details:', err);
+        }
+    };
 
     // Download newsletter
     const handleDownloadNewsletter = async () => {
@@ -125,48 +213,22 @@ export default function EISPage() {
             a.remove();
         } catch (err) {
             console.error('Newsletter download failed:', err);
-            alert('Failed to generate newsletter. Please ensure the backend is running.');
+            alert('Failed to generate newsletter');
         } finally {
             setIsGeneratingNewsletter(false);
         }
     };
 
-    // Filter companies
-    const filteredCompanies = companies.filter(company => {
-        const matchesSearch = searchQuery === '' ||
-            company.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            company.company_number.includes(searchQuery);
-        const matchesSector = selectedSector === 'all' || company.sector === selectedSector;
-        return matchesSearch && matchesSector;
-    });
-
-    // Get unique sectors
-    const sectors = [...new Set(companies.map(c => c.sector))];
-
-    // Risk badge color
-    const getRiskColor = (risk: string) => {
-        switch (risk) {
-            case 'Low': return 'bg-green-500/20 text-green-400 border-green-500/30';
-            case 'Medium': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-            case 'High': return 'bg-red-500/20 text-red-400 border-red-500/30';
-            default: return 'bg-sapphire-500/20 text-sapphire-400 border-sapphire-500/30';
-        }
-    };
-
-    // EIS status badge
+    // Get status badge
     const getStatusBadge = (status: string) => {
-        if (status === 'Approved') {
-            return (
-                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 text-xs">
-                    <CheckCircle2 className="h-3 w-3" />
-                    EIS Approved
-                </span>
-            );
-        }
+        const isActive = status === 'active';
         return (
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-xs">
-                <Clock className="h-3 w-3" />
-                Pending
+            <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${isActive
+                    ? 'bg-green-500/20 text-green-400'
+                    : 'bg-yellow-500/20 text-yellow-400'
+                }`}>
+                {isActive ? <CheckCircle2 className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+                {status === 'active' ? 'Active' : status}
             </span>
         );
     };
@@ -177,7 +239,7 @@ export default function EISPage() {
 
     return (
         <div className="min-h-screen bg-sapphire-950 text-white">
-            {/* Simple EIS Header */}
+            {/* Header */}
             <header className="sticky top-0 z-50 w-full border-b border-sapphire-700/50 bg-sapphire-900/80 backdrop-blur-xl">
                 <div className="container mx-auto px-4 h-16 flex items-center justify-between">
                     <Link href="/" className="flex items-center gap-3">
@@ -213,258 +275,280 @@ export default function EISPage() {
                             EIS <span className="accent-text-light">Companies</span>
                         </h1>
                         <p className="text-sapphire-300 mt-1">
-                            Enterprise Investment Scheme company monitoring and newsletter automation
+                            Search Companies House for EIS-eligible companies
                         </p>
                     </div>
 
-                    {/* Newsletter Download Button */}
-                    <button
-                        onClick={handleDownloadNewsletter}
-                        disabled={isGeneratingNewsletter}
-                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl accent-bg text-white font-medium
-                                   hover:opacity-90 transition-all duration-200 accent-glow-sm disabled:opacity-50
-                                   self-start md:self-auto"
-                    >
-                        {isGeneratingNewsletter ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                            <FileText className="h-4 w-4" />
-                        )}
-                        <span>{isGeneratingNewsletter ? 'Generating...' : 'Download Newsletter'}</span>
-                        <Download className="h-4 w-4" />
-                    </button>
+                    {/* API Status + Newsletter Button */}
+                    <div className="flex items-center gap-3">
+                        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm ${apiConfigured
+                                ? 'bg-green-500/20 text-green-400'
+                                : 'bg-red-500/20 text-red-400'
+                            }`}>
+                            <Database className="h-4 w-4" />
+                            {apiConfigured ? 'API Connected' : 'API Not Configured'}
+                        </div>
+
+                        <button
+                            onClick={handleDownloadNewsletter}
+                            disabled={isGeneratingNewsletter || selectedCompanies.length === 0}
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl accent-bg text-white font-medium
+                                       hover:opacity-90 transition-all duration-200 disabled:opacity-50"
+                        >
+                            {isGeneratingNewsletter ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <FileText className="h-4 w-4" />
+                            )}
+                            <span>Download Newsletter</span>
+                            <Download className="h-4 w-4" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Error Banner */}
                 {error && (
                     <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 flex items-center gap-3">
-                        <AlertTriangle className="h-5 w-5" />
+                        <AlertTriangle className="h-5 w-5 flex-shrink-0" />
                         <span>{error}</span>
                     </div>
                 )}
 
-                {/* KPI Cards */}
-                {summary && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 animate-stagger-fade">
-                        <SurfaceCard className="p-4 bg-gradient-to-br from-sapphire-800/50 to-sapphire-900/50">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg accent-bg-subtle">
-                                    <Building2 className="h-5 w-5 accent-text-light" />
-                                </div>
-                                <div>
-                                    <p className="text-xs text-sapphire-400">Total Companies</p>
-                                    <p className="text-2xl font-bold text-white">{summary.total_companies}</p>
-                                </div>
-                            </div>
-                        </SurfaceCard>
-
-                        <SurfaceCard className="p-4 bg-gradient-to-br from-green-900/30 to-sapphire-900/50">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg bg-green-500/20">
-                                    <CheckCircle2 className="h-5 w-5 text-green-400" />
-                                </div>
-                                <div>
-                                    <p className="text-xs text-sapphire-400">EIS Approved</p>
-                                    <p className="text-2xl font-bold text-green-400">{summary.eis_approved}</p>
-                                </div>
-                            </div>
-                        </SurfaceCard>
-
-                        <SurfaceCard className="p-4 bg-gradient-to-br from-sapphire-800/50 to-sapphire-900/50">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg bg-emerald-500/20">
-                                    <PoundSterling className="h-5 w-5 text-emerald-400" />
-                                </div>
-                                <div>
-                                    <p className="text-xs text-sapphire-400">Total Raised</p>
-                                    <p className="text-2xl font-bold text-white">£{(summary.total_raised / 1000000).toFixed(1)}M</p>
-                                </div>
-                            </div>
-                        </SurfaceCard>
-
-                        <SurfaceCard className="p-4 bg-gradient-to-br from-sapphire-800/50 to-sapphire-900/50">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg bg-blue-500/20">
-                                    <TrendingUp className="h-5 w-5 text-blue-400" />
-                                </div>
-                                <div>
-                                    <p className="text-xs text-sapphire-400">Avg Investment</p>
-                                    <p className="text-2xl font-bold text-white">£{(summary.average_raised / 1000).toFixed(0)}K</p>
-                                </div>
-                            </div>
-                        </SurfaceCard>
-                    </div>
-                )}
-
-                {/* Summary Charts Row */}
-                {summary && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                        {/* Sector Breakdown */}
-                        <SurfaceCard className="p-5">
-                            <div className="flex items-center gap-2 mb-4">
-                                <PieChart className="h-5 w-5 accent-text-light" />
-                                <h3 className="font-semibold text-white">Sector Breakdown</h3>
-                            </div>
-                            <div className="space-y-3">
-                                {Object.entries(summary.sectors).map(([sector, count]) => (
-                                    <div key={sector} className="flex items-center justify-between">
-                                        <span className="text-sapphire-300">{sector}</span>
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-24 h-2 bg-sapphire-800 rounded-full overflow-hidden">
-                                                <div
-                                                    className="h-full accent-bg rounded-full transition-all duration-500"
-                                                    style={{ width: `${(count / summary.total_companies) * 100}%` }}
-                                                />
-                                            </div>
-                                            <span className="text-sm text-white font-medium w-6">{count}</span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </SurfaceCard>
-
-                        {/* Risk Distribution */}
-                        <SurfaceCard className="p-5">
-                            <div className="flex items-center gap-2 mb-4">
-                                <BarChart3 className="h-5 w-5 accent-text-light" />
-                                <h3 className="font-semibold text-white">Risk Distribution</h3>
-                            </div>
-                            <div className="flex gap-4 h-32">
-                                {['low', 'medium', 'high'].map((risk) => {
-                                    const count = summary.risk_breakdown[risk as keyof typeof summary.risk_breakdown];
-                                    const percentage = (count / summary.total_companies) * 100;
-                                    const colors = {
-                                        low: 'bg-green-500',
-                                        medium: 'bg-yellow-500',
-                                        high: 'bg-red-500'
-                                    };
-                                    return (
-                                        <div key={risk} className="flex-1 flex flex-col items-center justify-end">
-                                            <span className="text-lg font-bold text-white mb-2">{count}</span>
-                                            <div
-                                                className={`w-full ${colors[risk as keyof typeof colors]} rounded-t-lg transition-all duration-500`}
-                                                style={{ height: `${Math.max(percentage, 10)}%` }}
-                                            />
-                                            <span className="text-xs text-sapphire-400 mt-2 capitalize">{risk}</span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </SurfaceCard>
-                    </div>
-                )}
-
-                {/* Filters */}
-                <div className="flex flex-col md:flex-row gap-4 mb-6">
-                    {/* Search */}
-                    <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-sapphire-400" />
-                        <input
-                            type="text"
-                            placeholder="Search companies..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-sapphire-800/50 border border-sapphire-700/50
-                                       text-white placeholder-sapphire-400 focus:outline-none focus:ring-2 focus:ring-sapphire-500/50"
-                        />
+                {/* Search Section */}
+                <SurfaceCard className="p-6 mb-8">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Search className="h-5 w-5 accent-text-light" />
+                        <h2 className="font-semibold text-white">Search Companies House</h2>
                     </div>
 
-                    {/* Sector Filter */}
-                    <select
-                        value={selectedSector}
-                        onChange={(e) => setSelectedSector(e.target.value)}
-                        className="px-4 py-2.5 rounded-xl bg-sapphire-800/50 border border-sapphire-700/50
-                                   text-white focus:outline-none focus:ring-2 focus:ring-sapphire-500/50"
-                    >
-                        <option value="all">All Sectors</option>
-                        {sectors.map(sector => (
-                            <option key={sector} value={sector}>{sector}</option>
-                        ))}
-                    </select>
-                </div>
-
-                {/* Company Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-stagger-fade">
-                    {filteredCompanies.map((company) => (
-                        <SurfaceCard
-                            key={company.company_number}
-                            className="p-5 hover:border-sapphire-600/50 transition-all duration-300 group"
+                    <div className="flex gap-3">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-sapphire-400" />
+                            <input
+                                type="text"
+                                placeholder="Enter company name, number, or keyword..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onKeyPress={handleKeyPress}
+                                className="w-full pl-10 pr-4 py-3 rounded-xl bg-sapphire-800/50 border border-sapphire-700/50
+                                           text-white placeholder-sapphire-400 focus:outline-none focus:ring-2 focus:ring-sapphire-500/50
+                                           text-lg"
+                            />
+                        </div>
+                        <button
+                            onClick={handleSearch}
+                            disabled={isSearching || !apiConfigured}
+                            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-sapphire-600 text-white font-medium
+                                       hover:bg-sapphire-500 transition-all duration-200 disabled:opacity-50"
                         >
-                            {/* Header */}
-                            <div className="flex items-start justify-between mb-3">
-                                <div className="flex-1 min-w-0">
-                                    <h3 className="font-semibold text-white truncate group-hover:accent-text-light transition-colors">
-                                        {company.company_name}
-                                    </h3>
-                                    <p className="text-xs text-sapphire-400">#{company.company_number}</p>
-                                </div>
-                                {getStatusBadge(company.eis_status)}
-                            </div>
-
-                            {/* Sector & Location */}
-                            <div className="flex flex-wrap gap-2 mb-4">
-                                <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-sapphire-800/50 text-xs text-sapphire-300">
-                                    <TrendingUp className="h-3 w-3" />
-                                    {company.sector}
-                                </span>
-                                <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-sapphire-800/50 text-xs text-sapphire-300">
-                                    <MapPin className="h-3 w-3" />
-                                    {company.registered_office_address?.locality || 'UK'}
-                                </span>
-                            </div>
-
-                            {/* Metrics */}
-                            <div className="grid grid-cols-3 gap-3 mb-4">
-                                <div className="text-center p-2 rounded-lg bg-sapphire-800/30">
-                                    <p className="text-xs text-sapphire-400">Raised</p>
-                                    <p className="text-sm font-semibold text-white">
-                                        £{(company.amount_raised / 1000).toFixed(0)}K
-                                    </p>
-                                </div>
-                                <div className="text-center p-2 rounded-lg bg-sapphire-800/30">
-                                    <p className="text-xs text-sapphire-400">Stage</p>
-                                    <p className="text-sm font-semibold text-white">{company.investment_stage}</p>
-                                </div>
-                                <div className="text-center p-2 rounded-lg bg-sapphire-800/30">
-                                    <p className="text-xs text-sapphire-400">Risk</p>
-                                    <span className={`text-sm font-semibold px-2 py-0.5 rounded border ${getRiskColor(company.risk_score)}`}>
-                                        {company.risk_score}
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* Directors */}
-                            {company.directors && company.directors.length > 0 && (
-                                <div className="pt-3 border-t border-sapphire-700/30">
-                                    <div className="flex items-center gap-2 text-xs text-sapphire-400 mb-2">
-                                        <Users className="h-3 w-3" />
-                                        <span>Key Directors</span>
-                                    </div>
-                                    <div className="space-y-1">
-                                        {company.directors.slice(0, 2).map((director, i) => (
-                                            <p key={i} className="text-sm text-sapphire-200 truncate">
-                                                {director.name}
-                                            </p>
-                                        ))}
-                                    </div>
-                                </div>
+                            {isSearching ? (
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                            ) : (
+                                <Search className="h-5 w-5" />
                             )}
+                            <span>Search</span>
+                        </button>
+                    </div>
 
-                            {/* Founded Date */}
-                            <div className="flex items-center gap-2 mt-3 text-xs text-sapphire-500">
-                                <Calendar className="h-3 w-3" />
-                                <span>Founded {company.date_of_creation}</span>
-                            </div>
-                        </SurfaceCard>
-                    ))}
-                </div>
+                    <p className="text-sm text-sapphire-500 mt-3">
+                        💡 Try searching: "tech startup", "fintech", "clean energy", or a specific company number
+                    </p>
+                </SurfaceCard>
+
+                {/* Search Results */}
+                {searchResults.length > 0 && (
+                    <div className="mb-8">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-lg font-semibold text-white">
+                                Search Results for "{lastSearchQuery}"
+                            </h2>
+                            <span className="text-sm text-sapphire-400">
+                                {searchResults.length} companies found
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {searchResults.map((company) => (
+                                <SurfaceCard
+                                    key={company.company_number}
+                                    className="p-4 hover:border-sapphire-600/50 transition-all duration-300 cursor-pointer group"
+                                >
+                                    <div className="flex items-start justify-between mb-2">
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="font-semibold text-white truncate group-hover:accent-text-light transition-colors">
+                                                {company.title}
+                                            </h3>
+                                            <p className="text-xs text-sapphire-400">#{company.company_number}</p>
+                                        </div>
+                                        {getStatusBadge(company.company_status)}
+                                    </div>
+
+                                    {company.address_snippet && (
+                                        <p className="text-sm text-sapphire-300 mb-3 line-clamp-2">
+                                            <MapPin className="h-3 w-3 inline mr-1" />
+                                            {company.address_snippet}
+                                        </p>
+                                    )}
+
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs text-sapphire-500">
+                                            {company.company_type} • Est. {company.date_of_creation || 'N/A'}
+                                        </span>
+                                        <button
+                                            onClick={() => loadCompanyDetails(company.company_number)}
+                                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-sapphire-700/50 
+                                                       text-sm text-white hover:bg-sapphire-600/50 transition-colors"
+                                        >
+                                            <ExternalLink className="h-3 w-3" />
+                                            Details
+                                        </button>
+                                    </div>
+                                </SurfaceCard>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Selected Companies (Detailed View) */}
+                {selectedCompanies.length > 0 && (
+                    <div>
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-lg font-semibold text-white">
+                                Company Details ({selectedCompanies.length})
+                            </h2>
+                            <button
+                                onClick={() => setSelectedCompanies([])}
+                                className="text-sm text-sapphire-400 hover:text-white"
+                            >
+                                Clear all
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {selectedCompanies.map((details) => (
+                                <SurfaceCard
+                                    key={details.company.company_number}
+                                    className="p-6"
+                                >
+                                    {/* Company Header */}
+                                    <div className="flex items-start justify-between mb-4">
+                                        <div>
+                                            <h3 className="text-xl font-bold text-white">
+                                                {details.company.company_name}
+                                            </h3>
+                                            <p className="text-sm text-sapphire-400">
+                                                #{details.company.company_number} • {details.company.company_type}
+                                            </p>
+                                        </div>
+                                        {getStatusBadge(details.company.company_status)}
+                                    </div>
+
+                                    {/* Key Metrics */}
+                                    <div className="grid grid-cols-3 gap-3 mb-4">
+                                        <div className="text-center p-3 rounded-lg bg-sapphire-800/30">
+                                            <p className="text-xs text-sapphire-400">Sector</p>
+                                            <p className="text-sm font-semibold text-white">
+                                                {getSectorFromSIC(details.company.sic_codes)}
+                                            </p>
+                                        </div>
+                                        <div className="text-center p-3 rounded-lg bg-sapphire-800/30">
+                                            <p className="text-xs text-sapphire-400">Directors</p>
+                                            <p className="text-sm font-semibold text-white">
+                                                {details.director_count}
+                                            </p>
+                                        </div>
+                                        <div className="text-center p-3 rounded-lg bg-sapphire-800/30">
+                                            <p className="text-xs text-sapphire-400">Founded</p>
+                                            <p className="text-sm font-semibold text-white">
+                                                {details.company.date_of_creation || 'N/A'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Address */}
+                                    {details.company.registered_office_address && (
+                                        <div className="mb-4">
+                                            <div className="flex items-center gap-2 text-xs text-sapphire-400 mb-1">
+                                                <MapPin className="h-3 w-3" />
+                                                <span>Registered Office</span>
+                                            </div>
+                                            <p className="text-sm text-sapphire-200">
+                                                {details.company.registered_office_address.address_line_1}
+                                                {details.company.registered_office_address.locality &&
+                                                    `, ${details.company.registered_office_address.locality}`}
+                                                {details.company.registered_office_address.postal_code &&
+                                                    ` ${details.company.registered_office_address.postal_code}`}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {/* Directors */}
+                                    {details.directors && details.directors.length > 0 && (
+                                        <div className="pt-3 border-t border-sapphire-700/30">
+                                            <div className="flex items-center gap-2 text-xs text-sapphire-400 mb-2">
+                                                <Users className="h-3 w-3" />
+                                                <span>Directors</span>
+                                            </div>
+                                            <div className="space-y-1">
+                                                {details.directors.slice(0, 3).map((director, i) => (
+                                                    <p key={i} className="text-sm text-sapphire-200">
+                                                        {director.name}
+                                                        <span className="text-sapphire-500 ml-2">
+                                                            ({director.officer_role})
+                                                        </span>
+                                                    </p>
+                                                ))}
+                                                {details.directors.length > 3 && (
+                                                    <p className="text-xs text-sapphire-500">
+                                                        +{details.directors.length - 3} more
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* SIC Codes */}
+                                    {details.company.sic_codes && details.company.sic_codes.length > 0 && (
+                                        <div className="mt-3 pt-3 border-t border-sapphire-700/30">
+                                            <p className="text-xs text-sapphire-500">
+                                                SIC: {details.company.sic_codes.join(', ')}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {/* Risk Flags */}
+                                    <div className="mt-3 flex gap-2">
+                                        {details.company.has_insolvency_history && (
+                                            <span className="px-2 py-1 rounded bg-red-500/20 text-red-400 text-xs">
+                                                ⚠️ Insolvency History
+                                            </span>
+                                        )}
+                                        {details.company.has_charges && (
+                                            <span className="px-2 py-1 rounded bg-yellow-500/20 text-yellow-400 text-xs">
+                                                📋 Has Charges
+                                            </span>
+                                        )}
+                                        {!details.company.has_insolvency_history && !details.company.has_charges && (
+                                            <span className="px-2 py-1 rounded bg-green-500/20 text-green-400 text-xs">
+                                                ✅ No Flags
+                                            </span>
+                                        )}
+                                    </div>
+                                </SurfaceCard>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Empty State */}
-                {filteredCompanies.length === 0 && !error && (
+                {searchResults.length === 0 && selectedCompanies.length === 0 && !error && (
                     <div className="text-center py-16">
-                        <Building2 className="h-12 w-12 text-sapphire-600 mx-auto mb-4" />
-                        <h3 className="text-lg font-medium text-sapphire-300 mb-2">No companies found</h3>
-                        <p className="text-sapphire-500">Try adjusting your search or filter criteria</p>
+                        <Building2 className="h-16 w-16 text-sapphire-600 mx-auto mb-4" />
+                        <h3 className="text-xl font-medium text-white mb-2">Search for Companies</h3>
+                        <p className="text-sapphire-400 max-w-md mx-auto">
+                            Use the search box above to find companies from the UK Companies House registry.
+                            Search by company name, number, or keywords like "fintech" or "clean energy".
+                        </p>
                     </div>
                 )}
             </main>
