@@ -272,7 +272,7 @@ class EISNewsletterGenerator:
         
         cover_data = [
             ["Portfolio Overview"],
-            [f"{total} Companies | {eis_eligible} EIS Eligible | {sectors} Sectors | {active} Active"],
+            [f"{total} Companies | {eis_eligible} Likely EIS Eligible* | {sectors} Sectors | {active} Active"],
             [f"Data Source: UK Companies House Registry"],
         ]
         
@@ -577,26 +577,43 @@ class EISNewsletterGenerator:
         return elements
     
     def _create_footer(self) -> List:
-        """Create professional footer."""
+        """Create professional footer with explicit EIS-status disclaimer."""
         elements = []
         
         elements.append(Spacer(1, 30))
         elements.append(Paragraph("─" * 80, self._styles['SmallText']))
         elements.append(Spacer(1, 10))
         
+        # EIS-STATUS DISCLAIMER (prominent)
+        elements.append(Paragraph(
+            "<b>⚠️ EIS STATUS DISCLAIMER</b>",
+            ParagraphStyle(name='DisclaimerHeader', fontSize=9, textColor=self.WARNING_COLOR, alignment=TA_CENTER)
+        ))
+        elements.append(Spacer(1, 5))
+        elements.append(Paragraph(
+            "The EIS eligibility indicators in this report are HEURISTIC-BASED ASSESSMENTS derived from UK Companies House data. "
+            "HMRC does not provide a public API for EIS registration verification. "
+            "<b>EIS registration status cannot be programmatically verified.</b> "
+            "Terms such as 'Likely Eligible' indicate heuristic likelihood only, NOT official HMRC confirmation. "
+            "Actual EIS eligibility requires formal HMRC Advance Assurance application.",
+            ParagraphStyle(name='EISDisclaimer', fontSize=8, textColor=colors.HexColor('#dd6b20'), alignment=TA_CENTER)
+        ))
+        elements.append(Spacer(1, 10))
+        
         # Data source note
         elements.append(Paragraph(
             "<b>Data Source:</b> All company information is sourced directly from the UK Companies House Registry. "
-            "Risk assessments and EIS eligibility estimates are calculated based on publicly available data including "
-            "company status, incorporation date, insolvency history, and outstanding charges.",
+            "EIS-likelihood scores are calculated using 10 heuristic factors including: company age, status, "
+            "SIC codes, insolvency history, charges, and filing patterns.",
             ParagraphStyle(name='DataNote', fontSize=8, textColor=colors.HexColor('#718096'), alignment=TA_CENTER)
         ))
         elements.append(Spacer(1, 10))
         
         elements.append(Paragraph(
             "IMPORTANT: This report is for informational purposes only and does not constitute investment advice. "
-            "EIS investments carry significant risk including potential loss of capital. Past performance is not indicative of future results. "
-            "Investors should conduct their own due diligence and consult with qualified financial advisors.",
+            "EIS investments carry significant risk including potential loss of capital. "
+            "Investors must verify EIS status directly with HMRC or the company before investing. "
+            "Do not rely solely on this assessment for investment decisions.",
             ParagraphStyle(name='Disclaimer', fontSize=7, textColor=colors.HexColor('#a0aec0'), alignment=TA_CENTER)
         ))
         elements.append(Spacer(1, 15))
