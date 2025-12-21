@@ -2339,11 +2339,11 @@ async def get_sector_companies():
 try:
     from automation.scanner import EISScanner
     from automation.writer import EISWriter
-    from automation.mailer import EISMailer
+    from automation.slack_sender import EISSlackSender
     AUTOMATION_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     AUTOMATION_AVAILABLE = False
-    logger.warning("Automation modules not available")
+    logger.warning(f"Automation modules not available: {e}")
 
 
 @app.get("/api/eis/automation/status")
@@ -2560,29 +2560,19 @@ async def send_newsletter_email(request: Dict = Body(default={})):
     if not AUTOMATION_AVAILABLE:
         raise HTTPException(status_code=503, detail="Automation modules not available")
     
-    from pathlib import Path
-    import json
-    
     try:
-        # Load subscribers
-        subscribers_file = Path(__file__).parent.parent / "automation" / "subscribers.json"
-        if not subscribers_file.exists():
-            raise HTTPException(status_code=400, detail="No subscribers configured")
-        
-        with open(subscribers_file, 'r') as f:
-            subs_data = json.load(f)
-        
-        subscribers = subs_data.get("subscribers", [])
-        if not subscribers:
-            raise HTTPException(status_code=400, detail="No subscribers to send to")
-        
         # Extract companies from request
         companies = request.get("companies", [])
         if not companies:
             raise HTTPException(status_code=400, detail="No companies provided")
         
+        # Check Slack configuration
+        slack_sender = EISSlackSender()
+        if not slack_sender.is_configured():
+            raise HTTPException(status_code=400, detail="Slack webhook not configured. Set SLACK_WEBHOOK_URL environment variable.")
+        
         # Generate newsletter content from companies
-        writer = EISWriter(use_ai=False)
+        writer = EISWriter(use_ai=True)  # Try AI first, falls back to templates
         
         # Format companies for the writer
         formatted_companies = []
@@ -2601,15 +2591,15 @@ async def send_newsletter_email(request: Dict = Body(default={})):
         
         newsletter = writer.generate_newsletter_content(formatted_companies)
         
-        # Send via mailer
-        mailer = EISMailer()
-        results = mailer.send_newsletter(newsletter, recipients=subscribers)
+        # Send to Slack
+        results = slack_sender.send_newsletter(newsletter)
         
         return {
-            "success": True,
+            "success": results.get("success", False),
             "sent": results.get("sent", 0),
-            "failed": results.get("failed", 0),
-            "recipients": len(subscribers)
+            "method": "slack",
+            "ai_generated": newsletter.get("ai_generated", False),
+            "companies": len(companies)
         }
         
     except HTTPException:

@@ -21,7 +21,7 @@ import {
     CheckCircle2, Clock, Users, MapPin, Loader2, ExternalLink,
     BarChart3, PieChart, Database, X, ChevronDown, ChevronUp,
     Shield, Info, Award, FileCheck, Briefcase, Scale, AlertCircle,
-    Target, DollarSign, User, Mail, Play, Settings, Zap, Send, Plus, Trash2
+    Target, DollarSign, User, MessageSquare, Play, Settings, Zap, Send, Plus, Trash2, Hash
 } from 'lucide-react';
 
 // === TYPES ===
@@ -444,10 +444,6 @@ export default function EISPage() {
             alert('Please add companies to your portfolio first');
             return;
         }
-        if (subscribers.length === 0) {
-            alert('Please add at least one subscriber email');
-            return;
-        }
 
         setIsSendingEmail(true);
         try {
@@ -768,8 +764,8 @@ export default function EISPage() {
                                         className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                                         title={`Send newsletter with ${selectedCompanies.length} portfolio companies`}
                                     >
-                                        {isSendingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-                                        Send Portfolio ({selectedCompanies.length})
+                                        {isSendingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Hash className="h-4 w-4" />}
+                                        Send to Slack ({selectedCompanies.length})
                                     </button>
                                 </div>
 
@@ -800,8 +796,8 @@ export default function EISPage() {
                             {/* Subscribers */}
                             <div className="p-4 rounded-lg bg-sapphire-800/30 border border-sapphire-700/30">
                                 <h4 className="font-semibold text-white mb-3 flex items-center gap-2">
-                                    <Mail className="h-4 w-4 text-blue-400" />
-                                    Newsletter Subscribers
+                                    <Hash className="h-4 w-4 text-blue-400" />
+                                    Slack Channel Delivery
                                 </h4>
                                 <div className="flex gap-2 mb-3">
                                     <input
