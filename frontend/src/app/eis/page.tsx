@@ -21,7 +21,7 @@ import {
     CheckCircle2, Clock, Users, MapPin, Loader2, ExternalLink,
     BarChart3, PieChart, Database, X, ChevronDown, ChevronUp,
     Shield, Info, Award, FileCheck, Briefcase, Scale, AlertCircle,
-    Target, DollarSign, User
+    Target, DollarSign, User, Mail, Play, Settings, Zap, Send, Plus, Trash2
 } from 'lucide-react';
 
 // === TYPES ===
@@ -140,6 +140,15 @@ export default function EISPage() {
     const [loadingDetails, setLoadingDetails] = useState<Set<string>>(new Set());
     const [expandedCompanies, setExpandedCompanies] = useState<Set<string>>(new Set());
     const [expandedSections, setExpandedSections] = useState<Record<string, Set<string>>>({});
+
+    // Automation state
+    const [showAutomation, setShowAutomation] = useState(false);
+    const [automationStatus, setAutomationStatus] = useState<any>(null);
+    const [isScanning, setIsScanning] = useState(false);
+    const [scanResults, setScanResults] = useState<any>(null);
+    const [subscribers, setSubscribers] = useState<string[]>([]);
+    const [newSubscriberEmail, setNewSubscriberEmail] = useState('');
+    const [scanDays, setScanDays] = useState(7);
 
     // Calculate portfolio analytics
     const portfolioStats = useMemo(() => {
@@ -316,6 +325,89 @@ export default function EISPage() {
         } finally {
             setIsGeneratingNewsletter(false);
         }
+    };
+
+    // Automation handlers
+    const loadAutomationStatus = async () => {
+        try {
+            const [statusRes, subsRes] = await Promise.all([
+                fetch(`${API_BASE}/api/eis/automation/status`),
+                fetch(`${API_BASE}/api/eis/automation/subscribers`)
+            ]);
+            if (statusRes.ok) {
+                const status = await statusRes.json();
+                setAutomationStatus(status);
+            }
+            if (subsRes.ok) {
+                const subs = await subsRes.json();
+                setSubscribers(subs.subscribers || []);
+            }
+        } catch (err) {
+            console.error('Failed to load automation status:', err);
+        }
+    };
+
+    const runScan = async () => {
+        setIsScanning(true);
+        setScanResults(null);
+        try {
+            const response = await fetch(
+                `${API_BASE}/api/eis/automation/scan?days=${scanDays}&min_score=50&limit=20`,
+                { method: 'POST' }
+            );
+            if (response.ok) {
+                const results = await response.json();
+                setScanResults(results);
+                loadAutomationStatus();
+            } else {
+                alert('Scan failed: ' + (await response.text()));
+            }
+        } catch (err: any) {
+            alert('Scan error: ' + err.message);
+        } finally {
+            setIsScanning(false);
+        }
+    };
+
+    const addSubscriber = async () => {
+        if (!newSubscriberEmail || !newSubscriberEmail.includes('@')) {
+            alert('Please enter a valid email address');
+            return;
+        }
+        try {
+            const response = await fetch(`${API_BASE}/api/eis/automation/subscribers`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: newSubscriberEmail, action: 'add' })
+            });
+            if (response.ok) {
+                setSubscribers(prev => [...prev, newSubscriberEmail]);
+                setNewSubscriberEmail('');
+                loadAutomationStatus();
+            }
+        } catch (err) {
+            console.error('Failed to add subscriber:', err);
+        }
+    };
+
+    const removeSubscriber = async (email: string) => {
+        try {
+            const response = await fetch(`${API_BASE}/api/eis/automation/subscribers`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, action: 'remove' })
+            });
+            if (response.ok) {
+                setSubscribers(prev => prev.filter(e => e !== email));
+                loadAutomationStatus();
+            }
+        } catch (err) {
+            console.error('Failed to remove subscriber:', err);
+        }
+    };
+
+    const addScannedToPortfolio = async (companyNumber: string) => {
+        await loadFullProfile(companyNumber);
     };
 
     // Toggle section
@@ -507,6 +599,161 @@ export default function EISPage() {
                     </div>
                 )}
 
+                {/* Automation Panel */}
+                <div className="mb-8">
+                    <button
+                        onClick={() => {
+                            setShowAutomation(!showAutomation);
+                            if (!automationStatus) loadAutomationStatus();
+                        }}
+                        className="w-full flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-purple-600/20 to-blue-600/20 border border-purple-500/30 hover:border-purple-500/50 transition-all"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-purple-500/20">
+                                <Zap className="h-5 w-5 text-purple-400" />
+                            </div>
+                            <div className="text-left">
+                                <h3 className="font-semibold text-white">Newsletter Automation</h3>
+                                <p className="text-sm text-purple-300/70">Auto-scan for SH01 filings, generate narratives, send to subscribers</p>
+                            </div>
+                        </div>
+                        {showAutomation ? <ChevronUp className="h-5 w-5 text-purple-400" /> : <ChevronDown className="h-5 w-5 text-purple-400" />}
+                    </button>
+
+                    {showAutomation && (
+                        <SurfaceCard className="mt-4 p-6">
+                            {/* Status Cards */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                <div className="p-4 rounded-lg bg-sapphire-800/50 border border-sapphire-700/30">
+                                    <p className="text-xs text-sapphire-400 mb-1">Last Scan</p>
+                                    <p className="text-lg font-semibold text-white">
+                                        {automationStatus?.last_scan?.timestamp
+                                            ? new Date(automationStatus.last_scan.timestamp).toLocaleDateString()
+                                            : 'Never'}
+                                    </p>
+                                </div>
+                                <div className="p-4 rounded-lg bg-sapphire-800/50 border border-sapphire-700/30">
+                                    <p className="text-xs text-sapphire-400 mb-1">Companies Found</p>
+                                    <p className="text-lg font-semibold text-green-400">
+                                        {automationStatus?.last_scan?.total_found || 0}
+                                    </p>
+                                </div>
+                                <div className="p-4 rounded-lg bg-sapphire-800/50 border border-sapphire-700/30">
+                                    <p className="text-xs text-sapphire-400 mb-1">Subscribers</p>
+                                    <p className="text-lg font-semibold text-blue-400">
+                                        {automationStatus?.subscriber_count || 0}
+                                    </p>
+                                </div>
+                                <div className="p-4 rounded-lg bg-sapphire-800/50 border border-sapphire-700/30">
+                                    <p className="text-xs text-sapphire-400 mb-1">Newsletters Sent</p>
+                                    <p className="text-lg font-semibold text-purple-400">
+                                        {automationStatus?.newsletters_generated || 0}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Scanner Control */}
+                            <div className="mb-6 p-4 rounded-lg bg-gradient-to-r from-green-500/10 to-blue-500/10 border border-green-500/30">
+                                <h4 className="font-semibold text-white mb-3 flex items-center gap-2">
+                                    <Play className="h-4 w-4 text-green-400" />
+                                    Run SH01 Scanner
+                                </h4>
+                                <div className="flex flex-wrap items-end gap-4">
+                                    <div>
+                                        <label className="block text-xs text-sapphire-400 mb-1">Days to scan</label>
+                                        <select
+                                            value={scanDays}
+                                            onChange={(e) => setScanDays(parseInt(e.target.value))}
+                                            className="px-3 py-2 rounded-lg bg-sapphire-800 border border-sapphire-700 text-white"
+                                        >
+                                            <option value={1}>1 day</option>
+                                            <option value={7}>7 days</option>
+                                            <option value={14}>14 days</option>
+                                            <option value={30}>30 days</option>
+                                        </select>
+                                    </div>
+                                    <button
+                                        onClick={runScan}
+                                        disabled={isScanning}
+                                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white font-medium disabled:opacity-50"
+                                    >
+                                        {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                                        {isScanning ? 'Scanning...' : 'Start Scan'}
+                                    </button>
+                                </div>
+
+                                {/* Scan Results */}
+                                {scanResults && (
+                                    <div className="mt-4 pt-4 border-t border-sapphire-700/50">
+                                        <p className="text-sm text-green-400 mb-2">
+                                            ✅ Found {scanResults.scan_results?.likely_eligible || 0} EIS-likely companies
+                                        </p>
+                                        {scanResults.companies?.slice(0, 5).map((c: any, i: number) => (
+                                            <div key={i} className="flex items-center justify-between py-2 border-b border-sapphire-800/50">
+                                                <div>
+                                                    <p className="text-white font-medium">{c.company_name}</p>
+                                                    <p className="text-xs text-sapphire-400">Score: {c.eis_score}/100 - {c.eis_status}</p>
+                                                </div>
+                                                <button
+                                                    onClick={() => addScannedToPortfolio(c.company_number)}
+                                                    className="text-xs px-2 py-1 rounded bg-blue-600/20 text-blue-400 hover:bg-blue-600/40"
+                                                >
+                                                    + Add
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Subscribers */}
+                            <div className="p-4 rounded-lg bg-sapphire-800/30 border border-sapphire-700/30">
+                                <h4 className="font-semibold text-white mb-3 flex items-center gap-2">
+                                    <Mail className="h-4 w-4 text-blue-400" />
+                                    Newsletter Subscribers
+                                </h4>
+                                <div className="flex gap-2 mb-3">
+                                    <input
+                                        type="email"
+                                        placeholder="email@example.com"
+                                        value={newSubscriberEmail}
+                                        onChange={(e) => setNewSubscriberEmail(e.target.value)}
+                                        className="flex-1 px-3 py-2 rounded-lg bg-sapphire-800 border border-sapphire-700 text-white placeholder-sapphire-500"
+                                    />
+                                    <button
+                                        onClick={addSubscriber}
+                                        className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white"
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                    </button>
+                                </div>
+                                {subscribers.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {subscribers.map((email, i) => (
+                                            <div key={i} className="flex items-center justify-between py-1 px-2 rounded bg-sapphire-800/50">
+                                                <span className="text-sapphire-200">{email}</span>
+                                                <button onClick={() => removeSubscriber(email)} className="text-red-400 hover:text-red-300">
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-sapphire-500">No subscribers yet. Add email addresses to receive automated newsletters.</p>
+                                )}
+                            </div>
+
+                            {/* Gmail Config Note */}
+                            {!automationStatus?.gmail_configured && (
+                                <div className="mt-4 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-sm flex items-start gap-2">
+                                    <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                                    <span>Gmail not configured. Set GMAIL_ADDRESS and GMAIL_APP_PASSWORD environment variables to enable email delivery.</span>
+                                </div>
+                            )}
+                        </SurfaceCard>
+                    )}
+                </div>
+
                 {/* Search */}
                 <SurfaceCard className="p-6 mb-8">
                     <div className="flex gap-3">
@@ -671,7 +918,7 @@ export default function EISPage() {
                                                                 {profile.eis_assessment?.factors?.map((factor, i) => (
                                                                     <div key={i} className="flex items-start gap-3">
                                                                         <div className={`p-1 rounded ${factor.impact === 'positive' ? 'bg-green-500/20' :
-                                                                                factor.impact === 'negative' ? 'bg-red-500/20' : 'bg-yellow-500/20'
+                                                                            factor.impact === 'negative' ? 'bg-red-500/20' : 'bg-yellow-500/20'
                                                                             }`}>
                                                                             {factor.impact === 'positive' ? <CheckCircle2 className="h-4 w-4 text-green-400" /> :
                                                                                 factor.impact === 'negative' ? <X className="h-4 w-4 text-red-400" /> :

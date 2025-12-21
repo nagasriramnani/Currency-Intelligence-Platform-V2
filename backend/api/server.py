@@ -2331,6 +2331,229 @@ async def get_sector_companies():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# =============================================================================
+# EIS AUTOMATION ENDPOINTS
+# =============================================================================
+
+# Import automation modules
+try:
+    from automation.scanner import EISScanner
+    from automation.writer import EISWriter
+    from automation.mailer import EISMailer
+    AUTOMATION_AVAILABLE = True
+except ImportError:
+    AUTOMATION_AVAILABLE = False
+    logger.warning("Automation modules not available")
+
+
+@app.get("/api/eis/automation/status")
+async def get_automation_status():
+    """Get the status of the newsletter automation system."""
+    from pathlib import Path
+    import json
+    
+    automation_dir = Path(__file__).parent.parent / "automation"
+    output_dir = automation_dir / "output"
+    scans_dir = output_dir / "scans" if output_dir.exists() else automation_dir / "scans"
+    
+    # Get last scan info
+    last_scan = None
+    scan_files = list(scans_dir.glob("eis_scan_*.json")) if scans_dir.exists() else []
+    if scan_files:
+        latest_scan_file = max(scan_files, key=lambda f: f.stat().st_mtime)
+        try:
+            with open(latest_scan_file, 'r') as f:
+                scan_data = json.load(f)
+                last_scan = {
+                    "file": latest_scan_file.name,
+                    "timestamp": scan_data.get("scan_timestamp"),
+                    "total_found": scan_data.get("total_found", 0),
+                    "companies": len(scan_data.get("companies", []))
+                }
+        except:
+            pass
+    
+    # Get subscriber count
+    subscribers_file = automation_dir / "subscribers.json"
+    subscriber_count = 0
+    if subscribers_file.exists():
+        try:
+            with open(subscribers_file, 'r') as f:
+                data = json.load(f)
+                subscriber_count = len(data.get("subscribers", []))
+        except:
+            pass
+    
+    # Get newsletter history
+    newsletter_files = list(output_dir.glob("newsletter_*.json")) if output_dir.exists() else []
+    
+    return {
+        "automation_available": AUTOMATION_AVAILABLE,
+        "last_scan": last_scan,
+        "subscriber_count": subscriber_count,
+        "newsletters_generated": len(newsletter_files),
+        "scans_available": len(scan_files),
+        "gmail_configured": bool(os.environ.get("GMAIL_ADDRESS")),
+        "companies_house_configured": bool(os.environ.get("COMPANIES_HOUSE_API_KEY"))
+    }
+
+
+@app.post("/api/eis/automation/scan")
+async def run_automation_scan(
+    days: int = Query(default=7, ge=1, le=30),
+    min_score: int = Query(default=50, ge=0, le=100),
+    limit: int = Query(default=20, ge=1, le=100)
+):
+    """Run the SH01 scanner to find companies with recent investment activity."""
+    if not AUTOMATION_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Automation modules not available")
+    
+    try:
+        from pathlib import Path
+        output_dir = Path(__file__).parent.parent / "automation" / "output"
+        output_dir.mkdir(exist_ok=True)
+        scans_dir = output_dir / "scans"
+        scans_dir.mkdir(exist_ok=True)
+        
+        scanner = EISScanner(output_dir=str(scans_dir))
+        results = scanner.run_scan(days=days, min_score=min_score, limit=limit)
+        
+        # Generate newsletter content if companies found
+        newsletter_content = None
+        if results.get("companies"):
+            writer = EISWriter(use_ai=False)
+            newsletter_content = writer.generate_newsletter_content(results["companies"])
+        
+        return {
+            "success": True,
+            "scan_results": {
+                "candidates": results.get("total_candidates", 0),
+                "likely_eligible": results.get("likely_eligible", 0),
+                "output_file": results.get("output_file")
+            },
+            "newsletter_generated": newsletter_content is not None,
+            "companies": [
+                {
+                    "company_name": c.get("company_name"),
+                    "company_number": c.get("company_number"),
+                    "eis_score": c.get("eis_assessment", {}).get("score", 0),
+                    "eis_status": c.get("eis_assessment", {}).get("status", "Unknown"),
+                    "narrative": newsletter_content["deal_highlights"][i].get("narrative") if newsletter_content and i < len(newsletter_content.get("deal_highlights", [])) else None
+                }
+                for i, c in enumerate(results.get("companies", [])[:20])
+            ]
+        }
+        
+    except Exception as e:
+        logger.error(f"Automation scan failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/eis/automation/subscribers")
+async def get_subscribers():
+    """Get the list of newsletter subscribers."""
+    from pathlib import Path
+    import json
+    
+    subscribers_file = Path(__file__).parent.parent / "automation" / "subscribers.json"
+    
+    if not subscribers_file.exists():
+        return {"subscribers": [], "count": 0}
+    
+    try:
+        with open(subscribers_file, 'r') as f:
+            data = json.load(f)
+        return {
+            "subscribers": data.get("subscribers", []),
+            "count": len(data.get("subscribers", [])),
+            "updated": data.get("updated")
+        }
+    except Exception as e:
+        logger.error(f"Failed to read subscribers: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/eis/automation/subscribers")
+async def manage_subscriber(
+    email: str = Body(..., embed=True),
+    action: str = Body(default="add", embed=True)
+):
+    """Add or remove a subscriber."""
+    from pathlib import Path
+    import json
+    from datetime import datetime
+    
+    subscribers_file = Path(__file__).parent.parent / "automation" / "subscribers.json"
+    
+    # Load existing
+    if subscribers_file.exists():
+        with open(subscribers_file, 'r') as f:
+            data = json.load(f)
+    else:
+        data = {"subscribers": [], "updated": datetime.now().isoformat()}
+    
+    subscribers = data.get("subscribers", [])
+    
+    if action == "add":
+        if email not in subscribers:
+            subscribers.append(email)
+            message = f"Added {email}"
+        else:
+            message = f"{email} already subscribed"
+    elif action == "remove":
+        if email in subscribers:
+            subscribers.remove(email)
+            message = f"Removed {email}"
+        else:
+            message = f"{email} not found"
+    else:
+        raise HTTPException(status_code=400, detail="Invalid action. Use 'add' or 'remove'")
+    
+    # Save
+    data["subscribers"] = subscribers
+    data["updated"] = datetime.now().isoformat()
+    
+    with open(subscribers_file, 'w') as f:
+        json.dump(data, f, indent=2)
+    
+    return {
+        "success": True,
+        "message": message,
+        "count": len(subscribers)
+    }
+
+
+@app.get("/api/eis/automation/history")
+async def get_scan_history(limit: int = Query(default=10, ge=1, le=50)):
+    """Get history of past scans."""
+    from pathlib import Path
+    import json
+    
+    automation_dir = Path(__file__).parent.parent / "automation"
+    output_dir = automation_dir / "output"
+    scans_dir = output_dir / "scans" if output_dir.exists() else automation_dir / "scans"
+    
+    if not scans_dir.exists():
+        return {"scans": [], "count": 0}
+    
+    scan_files = sorted(scans_dir.glob("eis_scan_*.json"), key=lambda f: f.stat().st_mtime, reverse=True)[:limit]
+    
+    history = []
+    for scan_file in scan_files:
+        try:
+            with open(scan_file, 'r') as f:
+                data = json.load(f)
+                history.append({
+                    "file": scan_file.name,
+                    "timestamp": data.get("scan_timestamp"),
+                    "total_found": data.get("total_found", 0)
+                })
+        except:
+            continue
+    
+    return {"scans": history, "count": len(history)}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
