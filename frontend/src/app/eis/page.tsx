@@ -217,25 +217,55 @@ export default function EISPage() {
         }
     };
 
-    // Download newsletter
+    // Download newsletter with selected company data
     const handleDownloadNewsletter = async () => {
         setIsGeneratingNewsletter(true);
         try {
-            const response = await fetch(`${API_BASE}/api/eis/newsletter`);
-            if (!response.ok) throw new Error('Newsletter generation failed');
+            let response;
+
+            if (selectedCompanies.length > 0) {
+                // Use POST with selected company data for real newsletter
+                const companies = selectedCompanies.map(details => ({
+                    company_number: details.company.company_number,
+                    company_name: details.company.company_name,
+                    company_status: details.company.company_status,
+                    company_type: details.company.company_type,
+                    date_of_creation: details.company.date_of_creation,
+                    jurisdiction: details.company.jurisdiction,
+                    registered_office_address: details.company.registered_office_address,
+                    sic_codes: details.company.sic_codes,
+                    has_charges: details.company.has_charges,
+                    has_insolvency_history: details.company.has_insolvency_history,
+                    directors: details.directors
+                }));
+
+                response = await fetch(`${API_BASE}/api/eis/newsletter`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(companies)
+                });
+            } else {
+                // Fallback to sample data
+                response = await fetch(`${API_BASE}/api/eis/newsletter`);
+            }
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Newsletter generation failed');
+            }
 
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `eis_newsletter_${new Date().toISOString().split('T')[0]}.pdf`;
+            a.download = `eis_portfolio_report_${new Date().toISOString().split('T')[0]}.pdf`;
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);
             a.remove();
-        } catch (err) {
+        } catch (err: any) {
             console.error('Newsletter download failed:', err);
-            alert('Failed to generate newsletter');
+            alert(err.message || 'Failed to generate newsletter. Please select companies first.');
         } finally {
             setIsGeneratingNewsletter(false);
         }

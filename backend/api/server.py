@@ -5,11 +5,11 @@ Exposes REST endpoints for data, analytics, forecasts, and alerts.
 
 import logging
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import pandas as pd
@@ -2113,10 +2113,10 @@ async def get_eis_summary():
 
 
 @app.get("/api/eis/newsletter")
-async def generate_eis_newsletter_pdf():
+async def generate_eis_newsletter_pdf_sample():
     """
-    Generate EIS Newsletter PDF.
-    Downloads a professionally formatted newsletter with company profiles.
+    Generate EIS Newsletter PDF with sample data.
+    Use POST /api/eis/newsletter with company data for real companies.
     """
     from fastapi.responses import Response
     
@@ -2132,10 +2132,63 @@ async def generate_eis_newsletter_pdf():
         generator = EISNewsletterGenerator()
         pdf_bytes = generator.generate_newsletter(
             companies=companies,
-            title="EIS Investment Newsletter"
+            title="EIS Investment Due Diligence Report"
         )
         
         filename = f"eis_newsletter_{datetime.now().strftime('%Y%m%d')}.pdf"
+        
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Newsletter generation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/eis/newsletter")
+async def generate_eis_newsletter_pdf_custom(companies: List[Dict[str, Any]] = Body(...)):
+    """
+    Generate EIS Newsletter PDF with custom company data.
+    
+    Accepts a list of company objects from Companies House API.
+    Each company should have:
+    - company_number: str
+    - company_name: str
+    - company_status: str
+    - date_of_creation: str (optional)
+    - sic_codes: list (optional)
+    - registered_office_address: dict (optional)
+    - directors: list (optional)
+    - has_charges: bool (optional)
+    - has_insolvency_history: bool (optional)
+    """
+    from fastapi.responses import Response
+    
+    try:
+        if not eis_newsletter_available():
+            raise HTTPException(
+                status_code=503,
+                detail="PDF generation not available. Install reportlab."
+            )
+        
+        if not companies or len(companies) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="No companies provided. Please select at least one company."
+            )
+        
+        generator = EISNewsletterGenerator()
+        pdf_bytes = generator.generate_newsletter(
+            companies=companies,
+            title="EIS Investment Due Diligence Report"
+        )
+        
+        filename = f"eis_portfolio_report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
         
         return Response(
             content=pdf_bytes,
