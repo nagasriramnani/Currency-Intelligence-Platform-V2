@@ -239,24 +239,53 @@ class CompaniesHouseClient:
         Get comprehensive company information including officers and filings.
         
         Returns combined data for EIS newsletter display.
+        Gracefully handles cases where officers data is unavailable.
         """
-        company = self.get_company(company_number)
-        if not company:
+        try:
+            company = self.get_company(company_number)
+            if not company:
+                return None
+            
+            # Officers endpoint can fail - handle gracefully
+            try:
+                officers = self.get_officers(company_number, active_only=False)
+            except Exception as e:
+                logger.warning(f"Failed to get officers for {company_number}: {e}")
+                officers = []
+            
+            # Filings endpoint can fail - handle gracefully  
+            try:
+                filings = self.get_filing_history(company_number, items_per_page=5)
+            except Exception as e:
+                logger.warning(f"Failed to get filings for {company_number}: {e}")
+                filings = []
+            
+            # Get directors only
+            directors = [o for o in officers if "director" in o.officer_role.lower()]
+            
+            return {
+                "company": company.to_dict(),
+                "directors": [d.to_dict() for d in directors],
+                "recent_filings": filings[:5] if filings else [],
+                "director_count": len(directors),
+                "total_officers": len(officers)
+            }
+        except Exception as e:
+            logger.error(f"Failed to get company details for {company_number}: {e}")
             return None
+    
+    def search_by_sector(self, sector_keyword: str, items_per_page: int = 20) -> List[Dict[str, Any]]:
+        """
+        Search for companies by sector/industry keyword.
         
-        officers = self.get_officers(company_number)
-        filings = self.get_filing_history(company_number, items_per_page=5)
-        
-        # Get directors only
-        directors = [o for o in officers if "director" in o.officer_role.lower()]
-        
-        return {
-            "company": company.to_dict(),
-            "directors": [d.to_dict() for d in directors],
-            "recent_filings": filings[:5],
-            "director_count": len(directors),
-            "total_officers": len(officers)
-        }
+        Args:
+            sector_keyword: Industry keyword like 'technology', 'fintech', 'healthcare'
+            items_per_page: Number of results
+            
+        Returns:
+            List of company search results
+        """
+        return self.search_companies(sector_keyword, items_per_page)
 
 
 # Sample EIS Companies for testing/demo

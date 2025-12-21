@@ -2165,6 +2165,57 @@ async def eis_health_check():
     }
 
 
+@app.get("/api/eis/sectors")
+async def get_sector_companies():
+    """
+    Get top companies from each major investment sector.
+    Returns companies grouped by sector for initial page display.
+    """
+    try:
+        client = get_companies_house_client()
+        
+        if not client.is_configured():
+            # Return sample data if API not configured
+            return {
+                "sectors": {},
+                "total_count": 0,
+                "api_configured": False
+            }
+        
+        # Define sectors to search for
+        sector_keywords = [
+            ("Technology", "technology startup"),
+            ("Fintech", "fintech"),
+            ("Healthcare", "healthcare innovation"),
+            ("Clean Energy", "clean energy"),
+            ("Agriculture", "agritech"),
+        ]
+        
+        sectors = {}
+        total_count = 0
+        
+        for sector_name, keyword in sector_keywords:
+            try:
+                results = client.search_companies(keyword, items_per_page=10)
+                # Filter to only active companies
+                active_results = [r for r in results if r.get('company_status') == 'active'][:10]
+                sectors[sector_name] = active_results
+                total_count += len(active_results)
+            except Exception as e:
+                logger.warning(f"Failed to search sector {sector_name}: {e}")
+                sectors[sector_name] = []
+        
+        return {
+            "sectors": sectors,
+            "total_count": total_count,
+            "api_configured": True
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get sector companies: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
