@@ -734,37 +734,60 @@ class IXBRLParser:
     def _try_ocr_extraction(self, pdf_content: bytes) -> Optional[str]:
         """
         Try to extract text from image-based PDF using OCR.
-        Requires: pytesseract, pdf2image, and Tesseract-OCR installed on system.
+        Requires: pytesseract, pdf2image, Tesseract-OCR, and Poppler installed on system.
         """
         try:
             import pytesseract
             from pdf2image import convert_from_bytes
             import io
+            import os
             
-            # Check if Tesseract is available
-            try:
-                pytesseract.get_tesseract_version()
-            except Exception:
-                # Try common Windows installation path
-                import os
-                tesseract_paths = [
-                    r'C:\Program Files\Tesseract-OCR\tesseract.exe',
-                    r'C:\Program Files (x86)\Tesseract-OCR\tesseract.exe',
-                    r'C:\Users\{}\AppData\Local\Programs\Tesseract-OCR\tesseract.exe'.format(os.getenv('USERNAME', '')),
-                ]
-                for path in tesseract_paths:
-                    if os.path.exists(path):
-                        pytesseract.pytesseract.tesseract_cmd = path
-                        break
-                else:
+            # Configure Tesseract path
+            tesseract_paths = [
+                r'C:\Program Files\Tesseract-OCR\tesseract.exe',
+                r'C:\Program Files (x86)\Tesseract-OCR\tesseract.exe',
+            ]
+            
+            tesseract_found = False
+            for path in tesseract_paths:
+                if os.path.exists(path):
+                    pytesseract.pytesseract.tesseract_cmd = path
+                    tesseract_found = True
+                    logger.info(f"Using Tesseract at: {path}")
+                    break
+            
+            if not tesseract_found:
+                # Try system PATH
+                try:
+                    pytesseract.get_tesseract_version()
+                    tesseract_found = True
+                except Exception:
                     logger.warning("Tesseract-OCR not found. Install from: https://github.com/UB-Mannheim/tesseract/wiki")
                     return None
+            
+            # Configure Poppler path for pdf2image
+            poppler_paths = [
+                r'C:\Program Files (x86)\poppler-24.08.0\Library\bin',
+                r'C:\Program Files (x86)\poppler-windows-25.11.0-0\Library\bin',
+                r'C:\Program Files\poppler\Library\bin',
+                r'C:\Program Files\poppler\bin',
+            ]
+            
+            poppler_path = None
+            for path in poppler_paths:
+                if os.path.exists(path):
+                    poppler_path = path
+                    logger.info(f"Using Poppler at: {path}")
+                    break
             
             logger.info("Converting PDF to images for OCR...")
             
             # Convert PDF pages to images (first 5 pages only to save time)
             try:
-                images = convert_from_bytes(pdf_content, first_page=1, last_page=5, dpi=150)
+                if poppler_path:
+                    images = convert_from_bytes(pdf_content, first_page=1, last_page=5, dpi=150, poppler_path=poppler_path)
+                else:
+                    images = convert_from_bytes(pdf_content, first_page=1, last_page=5, dpi=150)
             except Exception as e:
                 logger.warning(f"pdf2image conversion failed: {e}")
                 logger.info("Tip: Install poppler from https://github.com/oschwartz10612/poppler-windows/releases")
