@@ -439,6 +439,46 @@ export default function EISPage() {
         }
     };
 
+    const sendPortfolioNewsletter = async () => {
+        if (selectedCompanies.length === 0) {
+            alert('Please add companies to your portfolio first');
+            return;
+        }
+        if (subscribers.length === 0) {
+            alert('Please add at least one subscriber email');
+            return;
+        }
+
+        setIsSendingEmail(true);
+        try {
+            // Format portfolio companies for the email
+            const companies = selectedCompanies.map(c => ({
+                company_name: c.company.company_name,
+                company_number: c.company.company_number,
+                eis_score: c.eis_assessment?.score || 0,
+                eis_status: c.eis_assessment?.status || 'Unknown'
+            }));
+
+            const response = await fetch(`${API_BASE}/api/eis/automation/send`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ companies })
+            });
+            if (response.ok) {
+                const result = await response.json();
+                alert(`✅ Portfolio newsletter sent successfully to ${result.sent} subscriber(s)!`);
+                loadAutomationStatus();
+            } else {
+                const error = await response.text();
+                alert('Failed to send newsletter: ' + error);
+            }
+        } catch (err: any) {
+            alert('Error sending newsletter: ' + err.message);
+        } finally {
+            setIsSendingEmail(false);
+        }
+    };
+
     const addScannedToPortfolio = async (companyNumber: string) => {
         await loadFullProfile(companyNumber);
     };
@@ -720,7 +760,16 @@ export default function EISPage() {
                                         title={subscribers.length === 0 ? "Add subscribers first" : scanResults?.companies?.length ? "Send to subscribers" : "Run scan first"}
                                     >
                                         {isSendingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                                        {isSendingEmail ? 'Sending...' : 'Send Email Now'}
+                                        {isSendingEmail ? 'Sending...' : 'Send Scan Results'}
+                                    </button>
+                                    <button
+                                        onClick={sendPortfolioNewsletter}
+                                        disabled={isSendingEmail || selectedCompanies.length === 0 || subscribers.length === 0}
+                                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                        title={`Send newsletter with ${selectedCompanies.length} portfolio companies`}
+                                    >
+                                        {isSendingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                                        Send Portfolio ({selectedCompanies.length})
                                     </button>
                                 </div>
 
