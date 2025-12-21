@@ -956,7 +956,7 @@ export default function EISPage() {
                                             </div>
 
                                             {/* Quick Stats */}
-                                            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
+                                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mt-4">
                                                 <div className="p-2 rounded bg-sapphire-800/30 text-center">
                                                     <p className="text-xs text-sapphire-400">Status</p>
                                                     <p className={`text-sm font-medium ${profile.company.company_status === 'active' ? 'text-green-400' : 'text-yellow-400'}`}>
@@ -980,6 +980,30 @@ export default function EISPage() {
                                                 <div className="p-2 rounded bg-sapphire-800/30 text-center">
                                                     <p className="text-xs text-sapphire-400">Filings</p>
                                                     <p className="text-sm font-medium text-white">{profile.filings?.analysis?.total_filings || 0}</p>
+                                                </div>
+                                                {/* NEW: Accounts Type */}
+                                                <div className="p-2 rounded bg-sapphire-800/30 text-center">
+                                                    <p className="text-xs text-sapphire-400">Accounts</p>
+                                                    <p className={`text-sm font-medium ${profile.accounts?.accounts_type === 'micro-entity' ? 'text-green-400' :
+                                                            profile.accounts?.accounts_type === 'small' ? 'text-green-400' :
+                                                                profile.accounts?.accounts_type === 'full' ? 'text-yellow-400' :
+                                                                    profile.accounts?.accounts_type === 'dormant' ? 'text-red-400' :
+                                                                        'text-sapphire-300'
+                                                        }`}>
+                                                        {profile.accounts?.accounts_type || 'N/A'}
+                                                    </p>
+                                                </div>
+                                                {/* NEW: EIS Size Eligible */}
+                                                <div className="p-2 rounded bg-sapphire-800/30 text-center">
+                                                    <p className="text-xs text-sapphire-400">Size Eligible</p>
+                                                    <p className={`text-sm font-medium ${profile.accounts?.eis_checks?.assets_eligible === true ? 'text-green-400' :
+                                                            profile.accounts?.eis_checks?.assets_eligible === false ? 'text-red-400' :
+                                                                'text-sapphire-300'
+                                                        }`}>
+                                                        {profile.accounts?.eis_checks?.assets_eligible === true ? '✓ Yes' :
+                                                            profile.accounts?.eis_checks?.assets_eligible === false ? '✗ No' :
+                                                                '? Unknown'}
+                                                    </p>
                                                 </div>
                                             </div>
                                         </div>
