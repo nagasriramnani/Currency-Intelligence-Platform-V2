@@ -467,7 +467,15 @@ class IXBRLParser:
             content = self.download_ixbrl_content(doc_url)
             
             if not content:
-                result['notes'].append("Failed to download accounts document")
+                result['notes'].append("Failed to download iXBRL content - trying PDF fallback")
+                
+                # Try PDF fallback
+                pdf_result = self.try_pdf_fallback(doc_url)
+                if pdf_result and pdf_result.get('parse_success'):
+                    result.update(pdf_result)
+                    result['source'] = 'pdf_parsing'
+                    return result
+                
                 return result
             
             # Step 3: Parse iXBRL
@@ -503,13 +511,215 @@ class IXBRLParser:
             if result['parse_success']:
                 result['notes'].append(f"Extracted {len(parsed.get('raw_facts', {}))} financial facts from iXBRL")
             else:
-                result['notes'].append("iXBRL parsing returned no data")
+                result['notes'].append("iXBRL parsing returned no data - trying PDF fallback")
+                # Try PDF fallback
+                pdf_result = self.try_pdf_fallback(doc_url)
+                if pdf_result and pdf_result.get('parse_success'):
+                    result.update(pdf_result)
+                    result['source'] = 'pdf_parsing'
             
         except Exception as e:
             logger.error(f"Error getting financial data: {e}")
             result['notes'].append(f"Error: {str(e)}")
         
         return result
+    
+    def try_pdf_fallback(self, document_metadata_url: str) -> Optional[Dict[str, Any]]:
+        """
+        Fallback: Try to download and parse PDF accounts.
+        Uses pdfplumber if available, otherwise regex on raw text.
+        """
+        try:
+            if not document_metadata_url.startswith('http'):
+                document_metadata_url = f"{CH_FILING_API}{document_metadata_url}"
+            
+            # Get document metadata
+            meta_response = requests.get(
+                document_metadata_url,
+                auth=(self.api_key, ''),
+                timeout=30,
+                headers={'Accept': 'application/json'}
+            )
+            
+            if meta_response.status_code != 200:
+                return None
+            
+            meta_data = meta_response.json()
+            links = meta_data.get('links', {})
+            document_url = links.get('document')
+            
+            if not document_url:
+                return None
+            
+            if not document_url.startswith('http'):
+                document_url = f"{CH_DOCUMENT_API}{document_url}"
+            
+            # Download as PDF
+            logger.info(f"Attempting PDF download from {document_url}")
+            pdf_response = requests.get(
+                document_url,
+                auth=(self.api_key, ''),
+                timeout=60,
+                headers={'Accept': 'application/pdf'}
+            )
+            
+            if pdf_response.status_code != 200:
+                logger.warning(f"PDF download failed: {pdf_response.status_code}")
+                return None
+            
+            content_type = pdf_response.headers.get('Content-Type', '').lower()
+            if 'pdf' not in content_type:
+                logger.info(f"Response is not PDF: {content_type}")
+                return None
+            
+            # Parse the PDF
+            return self.parse_pdf_for_financials(pdf_response.content)
+            
+        except Exception as e:
+            logger.error(f"PDF fallback failed: {e}")
+            return None
+    
+    def parse_pdf_for_financials(self, pdf_content: bytes) -> Dict[str, Any]:
+        """
+        Parse PDF content to extract financial figures.
+        Uses pdfplumber if available, falls back to basic extraction.
+        """
+        result = {
+            'parse_success': False,
+            'data_available': False,
+            'turnover': None,
+            'total_assets': None,
+            'net_assets': None,
+            'employees': None,
+            'profit': None,
+            'notes': [],
+            'eis_checks': {
+                'assets_eligible': None,
+                'employees_eligible': None,
+            }
+        }
+        
+        text = ""
+        
+        try:
+            # Try pdfplumber first (best for tables)
+            import pdfplumber
+            import io
+            
+            with pdfplumber.open(io.BytesIO(pdf_content)) as pdf:
+                for page in pdf.pages[:10]:  # First 10 pages
+                    page_text = page.extract_text() or ""
+                    text += page_text + "\n"
+            
+            result['notes'].append("Extracted text using pdfplumber")
+            
+        except ImportError:
+            logger.info("pdfplumber not available, trying PyPDF2")
+            try:
+                import PyPDF2
+                import io
+                
+                reader = PyPDF2.PdfReader(io.BytesIO(pdf_content))
+                for page in reader.pages[:10]:
+                    text += page.extract_text() or ""
+                
+                result['notes'].append("Extracted text using PyPDF2")
+                
+            except ImportError:
+                logger.warning("No PDF library available (pdfplumber or PyPDF2)")
+                result['notes'].append("No PDF parsing library installed")
+                return result
+        except Exception as e:
+            logger.error(f"PDF text extraction failed: {e}")
+            result['notes'].append(f"PDF extraction error: {str(e)}")
+            return result
+        
+        if not text:
+            result['notes'].append("No text extracted from PDF")
+            return result
+        
+        # Extract financial figures using regex
+        extracted = self._extract_financials_from_text(text)
+        
+        if extracted:
+            result.update(extracted)
+            result['parse_success'] = True
+            result['data_available'] = True
+            
+            # EIS checks
+            if result['total_assets'] is not None:
+                result['eis_checks']['assets_eligible'] = result['total_assets'] < 15_000_000
+            elif result['net_assets'] is not None:
+                result['eis_checks']['assets_eligible'] = result['net_assets'] < 15_000_000
+            
+            if result['employees'] is not None:
+                result['eis_checks']['employees_eligible'] = result['employees'] < 250
+        
+        return result
+    
+    def _extract_financials_from_text(self, text: str) -> Dict[str, Any]:
+        """
+        Extract financial values from text using regex patterns.
+        """
+        result = {}
+        
+        # Normalize text
+        text = text.replace(',', '').replace('£', '').replace('$', '')
+        text = re.sub(r'\s+', ' ', text)
+        
+        # Patterns for different financial metrics
+        patterns = {
+            'turnover': [
+                r'(?:turnover|revenue|sales)[:\s]*(\d+(?:\.\d+)?)\s*(?:000|m|million)?',
+                r'total\s+(?:turnover|revenue)[:\s]*(\d+(?:\.\d+)?)',
+            ],
+            'total_assets': [
+                r'total\s+assets[:\s]*(\d+(?:\.\d+)?)\s*(?:000|m)?',
+                r'assets[:\s]*(\d+(?:\.\d+)?)\s*(?:000|m)?',
+            ],
+            'net_assets': [
+                r'net\s+assets[:\s]*[\(]?(\d+(?:\.\d+)?)[\)]?',
+                r'shareholders[\'\s]+funds[:\s]*[\(]?(\d+(?:\.\d+)?)[\)]?',
+                r'total\s+equity[:\s]*[\(]?(\d+(?:\.\d+)?)[\)]?',
+            ],
+            'employees': [
+                r'(?:average\s+)?(?:number\s+of\s+)?employees[:\s]*(\d+)',
+                r'average\s+staff[:\s]*(\d+)',
+                r'(\d+)\s+employees',
+            ],
+            'profit': [
+                r'profit\s+for\s+(?:the\s+)?(?:financial\s+)?year[:\s]*[\(]?(\d+(?:\.\d+)?)[\)]?',
+                r'(?:net\s+)?profit[:\s]*[\(]?(\d+(?:\.\d+)?)[\)]?',
+                r'profit\s+before\s+tax[:\s]*[\(]?(\d+(?:\.\d+)?)[\)]?',
+            ],
+        }
+        
+        text_lower = text.lower()
+        
+        for field, field_patterns in patterns.items():
+            for pattern in field_patterns:
+                match = re.search(pattern, text_lower)
+                if match:
+                    try:
+                        value = float(match.group(1))
+                        
+                        # Check context for thousands/millions
+                        context = text_lower[max(0, match.start()-50):match.end()+50]
+                        if 'million' in context or ' m ' in context or 'm\n' in context:
+                            value *= 1_000_000
+                        elif '000' in context or 'thousand' in context:
+                            value *= 1_000
+                        
+                        # Handle negative in parentheses
+                        if match.group(0).startswith('(') or '(' in match.group(0):
+                            value = -abs(value)
+                        
+                        result[field] = value
+                        break
+                    except (ValueError, IndexError):
+                        continue
+        
+        return result if result else None
 
 
 def format_currency(value: Optional[float], currency: str = 'GBP') -> str:
