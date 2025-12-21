@@ -611,7 +611,10 @@ class IXBRLParser:
                     page_text = page.extract_text() or ""
                     text += page_text + "\n"
             
-            result['notes'].append("Extracted text using pdfplumber")
+            if text.strip():
+                result['notes'].append("Extracted text using pdfplumber")
+            else:
+                result['notes'].append("pdfplumber found no text - trying OCR")
             
         except ImportError:
             logger.info("pdfplumber not available, trying PyPDF2")
@@ -623,19 +626,26 @@ class IXBRLParser:
                 for page in reader.pages[:10]:
                     text += page.extract_text() or ""
                 
-                result['notes'].append("Extracted text using PyPDF2")
+                if text.strip():
+                    result['notes'].append("Extracted text using PyPDF2")
                 
             except ImportError:
                 logger.warning("No PDF library available (pdfplumber or PyPDF2)")
                 result['notes'].append("No PDF parsing library installed")
-                return result
         except Exception as e:
             logger.error(f"PDF text extraction failed: {e}")
             result['notes'].append(f"PDF extraction error: {str(e)}")
-            return result
         
-        if not text:
-            result['notes'].append("No text extracted from PDF")
+        # If no text extracted, try OCR
+        if not text.strip():
+            logger.info("No text from standard PDF parsing - trying OCR")
+            ocr_text = self._try_ocr_extraction(pdf_content)
+            if ocr_text:
+                text = ocr_text
+                result['notes'].append("Extracted text using OCR (Tesseract)")
+        
+        if not text.strip():
+            result['notes'].append("No text could be extracted from PDF (even with OCR)")
             return result
         
         # Extract financial figures using regex
@@ -720,6 +730,63 @@ class IXBRLParser:
                         continue
         
         return result if result else None
+    
+    def _try_ocr_extraction(self, pdf_content: bytes) -> Optional[str]:
+        """
+        Try to extract text from image-based PDF using OCR.
+        Requires: pytesseract, pdf2image, and Tesseract-OCR installed on system.
+        """
+        try:
+            import pytesseract
+            from pdf2image import convert_from_bytes
+            import io
+            
+            # Check if Tesseract is available
+            try:
+                pytesseract.get_tesseract_version()
+            except Exception:
+                # Try common Windows installation path
+                import os
+                tesseract_paths = [
+                    r'C:\Program Files\Tesseract-OCR\tesseract.exe',
+                    r'C:\Program Files (x86)\Tesseract-OCR\tesseract.exe',
+                    r'C:\Users\{}\AppData\Local\Programs\Tesseract-OCR\tesseract.exe'.format(os.getenv('USERNAME', '')),
+                ]
+                for path in tesseract_paths:
+                    if os.path.exists(path):
+                        pytesseract.pytesseract.tesseract_cmd = path
+                        break
+                else:
+                    logger.warning("Tesseract-OCR not found. Install from: https://github.com/UB-Mannheim/tesseract/wiki")
+                    return None
+            
+            logger.info("Converting PDF to images for OCR...")
+            
+            # Convert PDF pages to images (first 5 pages only to save time)
+            try:
+                images = convert_from_bytes(pdf_content, first_page=1, last_page=5, dpi=150)
+            except Exception as e:
+                logger.warning(f"pdf2image conversion failed: {e}")
+                logger.info("Tip: Install poppler from https://github.com/oschwartz10612/poppler-windows/releases")
+                return None
+            
+            logger.info(f"Running OCR on {len(images)} pages...")
+            text = ""
+            
+            for i, image in enumerate(images):
+                logger.info(f"   OCR page {i+1}/{len(images)}")
+                page_text = pytesseract.image_to_string(image, lang='eng')
+                text += page_text + "\n"
+            
+            return text if text.strip() else None
+            
+        except ImportError as e:
+            logger.info(f"OCR dependencies not available: {e}")
+            logger.info("Install with: pip install pytesseract pdf2image")
+            return None
+        except Exception as e:
+            logger.error(f"OCR extraction failed: {e}")
+            return None
 
 
 def format_currency(value: Optional[float], currency: str = 'GBP') -> str:
