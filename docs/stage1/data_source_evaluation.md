@@ -141,7 +141,7 @@ We explicitly **do NOT use**:
 
 ## EIS-Likelihood Scoring Methodology
 
-### Scoring Algorithm (100 points)
+### Scoring Algorithm (110 points)
 
 | Factor | Max Points | Data Source | Logic |
 |--------|------------|-------------|-------|
@@ -150,6 +150,7 @@ We explicitly **do NOT use**:
 | Insolvency History | 15 | Profile | None: 15pts, Has: 0pts |
 | SIC Code Analysis | 15 | Profile | Qualifying: 15pts, Excluded: 0pts |
 | Share Allotments | 10 | Filings | Has SH01: 10pts, None: 3pts |
+| **Financial Size (NEW)** | **10** | **Accounts** | **Assets <£15m: 10pts** |
 | Outstanding Charges | 5 | Charges API | None: 5pts, Has: 0pts |
 | Director Structure | 5 | Officers | 2+: 5pts, 1: 3pts |
 | UK Jurisdiction | 5 | Profile | UK: 5pts, Other: 0pts |
@@ -160,9 +161,9 @@ We explicitly **do NOT use**:
 
 | Score | Status | Meaning |
 |-------|--------|---------|
-| 75-100 | Likely Eligible | High likelihood based on available data |
-| 50-74 | Review Required | Some factors need manual verification |
-| 0-49 | Likely Ineligible | Exclusion factors identified |
+| 82-110 | Likely Eligible | High likelihood based on available data |
+| 55-81 | Review Required | Some factors need manual verification |
+| 0-54 | Likely Ineligible | Exclusion factors identified |
 
 ### Confidence Levels
 
@@ -258,8 +259,9 @@ We explicitly **do NOT use**:
 
 Stage 1 successfully delivers:
 
-✅ Comprehensive Companies House integration (5 endpoints)  
-✅ EIS-likelihood heuristic scoring (10 factors)  
+✅ Comprehensive Companies House integration (6 endpoints)  
+✅ EIS-likelihood heuristic scoring (11 factors, 110 points)  
+✅ **NEW: Accounts data extraction for financial eligibility**  
 ✅ Explainable factor-by-factor assessment  
 ✅ Automated PDF newsletter generation  
 ✅ Clear documentation of limitations  

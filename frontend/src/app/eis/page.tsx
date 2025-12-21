@@ -109,6 +109,22 @@ interface FullCompanyProfile {
         recommendations: string[];
         disclaimer: string;
     };
+    accounts?: {
+        company_number: string;
+        data_available: boolean;
+        accounts_type?: string;
+        accounts_date?: string;
+        gross_assets?: number;
+        net_assets?: number;
+        employees?: number;
+        turnover?: number;
+        eis_checks?: {
+            assets_eligible?: boolean;
+            employees_eligible?: boolean;
+            employees_kic_eligible?: boolean;
+        };
+        notes?: string[];
+    };
     data_sources: string[];
     retrieved_at: string;
 }
@@ -985,10 +1001,10 @@ export default function EISPage() {
                                                 <div className="p-2 rounded bg-sapphire-800/30 text-center">
                                                     <p className="text-xs text-sapphire-400">Accounts</p>
                                                     <p className={`text-sm font-medium ${profile.accounts?.accounts_type === 'micro-entity' ? 'text-green-400' :
-                                                            profile.accounts?.accounts_type === 'small' ? 'text-green-400' :
-                                                                profile.accounts?.accounts_type === 'full' ? 'text-yellow-400' :
-                                                                    profile.accounts?.accounts_type === 'dormant' ? 'text-red-400' :
-                                                                        'text-sapphire-300'
+                                                        profile.accounts?.accounts_type === 'small' ? 'text-green-400' :
+                                                            profile.accounts?.accounts_type === 'full' ? 'text-yellow-400' :
+                                                                profile.accounts?.accounts_type === 'dormant' ? 'text-red-400' :
+                                                                    'text-sapphire-300'
                                                         }`}>
                                                         {profile.accounts?.accounts_type || 'N/A'}
                                                     </p>
@@ -997,8 +1013,8 @@ export default function EISPage() {
                                                 <div className="p-2 rounded bg-sapphire-800/30 text-center">
                                                     <p className="text-xs text-sapphire-400">Size Eligible</p>
                                                     <p className={`text-sm font-medium ${profile.accounts?.eis_checks?.assets_eligible === true ? 'text-green-400' :
-                                                            profile.accounts?.eis_checks?.assets_eligible === false ? 'text-red-400' :
-                                                                'text-sapphire-300'
+                                                        profile.accounts?.eis_checks?.assets_eligible === false ? 'text-red-400' :
+                                                            'text-sapphire-300'
                                                         }`}>
                                                         {profile.accounts?.eis_checks?.assets_eligible === true ? '✓ Yes' :
                                                             profile.accounts?.eis_checks?.assets_eligible === false ? '✗ No' :

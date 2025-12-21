@@ -74,6 +74,8 @@ class EISSlackSender:
             for deal in highlights:
                 score = deal.get('eis_score', 0)
                 status = deal.get('eis_status', 'Unknown')
+                accounts_type = deal.get('accounts_type', 'N/A')
+                size_eligible = deal.get('size_eligible', None)
                 
                 # Score emoji
                 if score >= 70:
@@ -83,11 +85,19 @@ class EISSlackSender:
                 else:
                     emoji = "🔴"
                 
+                # Size eligibility indicator
+                if size_eligible is True:
+                    size_text = "✓ Size OK"
+                elif size_eligible is False:
+                    size_text = "✗ Size Exceeds"
+                else:
+                    size_text = "? Size Unknown"
+                
                 blocks.append({
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": f"*{deal.get('company_name', 'Unknown')}*\n{emoji} Score: {score}/100 | {status}\n_{deal.get('narrative', '')[:200]}_"
+                        "text": f"*{deal.get('company_name', 'Unknown')}*\n{emoji} Score: {score}/110 | {status}\n📊 Accounts: {accounts_type} | {size_text}\n_{deal.get('narrative', '')[:180]}_"
                     }
                 })
         
