@@ -1058,10 +1058,10 @@ export default function EISPage() {
                                                         <div>
                                                             <p className="text-xs text-sapphire-400">Total Assets</p>
                                                             <p className={`text-lg font-bold ${profile.accounts?.eis_checks?.assets_eligible === true
-                                                                    ? 'text-green-400'
-                                                                    : profile.accounts?.eis_checks?.assets_eligible === false
-                                                                        ? 'text-red-400'
-                                                                        : 'text-white'
+                                                                ? 'text-green-400'
+                                                                : profile.accounts?.eis_checks?.assets_eligible === false
+                                                                    ? 'text-red-400'
+                                                                    : 'text-white'
                                                                 }`}>
                                                                 {formatCurrency(profile.accounts?.total_assets || profile.accounts?.net_assets)}
                                                             </p>
@@ -1069,10 +1069,10 @@ export default function EISPage() {
                                                         <div>
                                                             <p className="text-xs text-sapphire-400">Employees</p>
                                                             <p className={`text-lg font-bold ${profile.accounts?.eis_checks?.employees_eligible === true
-                                                                    ? 'text-green-400'
-                                                                    : profile.accounts?.eis_checks?.employees_eligible === false
-                                                                        ? 'text-red-400'
-                                                                        : 'text-white'
+                                                                ? 'text-green-400'
+                                                                : profile.accounts?.eis_checks?.employees_eligible === false
+                                                                    ? 'text-red-400'
+                                                                    : 'text-white'
                                                                 }`}>
                                                                 {profile.accounts?.employees !== null && profile.accounts?.employees !== undefined
                                                                     ? profile.accounts.employees.toString()
@@ -1082,10 +1082,10 @@ export default function EISPage() {
                                                         <div>
                                                             <p className="text-xs text-sapphire-400">Profit/Loss</p>
                                                             <p className={`text-lg font-bold ${profile.accounts?.profit && profile.accounts.profit > 0
-                                                                    ? 'text-green-400'
-                                                                    : profile.accounts?.profit && profile.accounts.profit < 0
-                                                                        ? 'text-red-400'
-                                                                        : 'text-white'
+                                                                ? 'text-green-400'
+                                                                : profile.accounts?.profit && profile.accounts.profit < 0
+                                                                    ? 'text-red-400'
+                                                                    : 'text-white'
                                                                 }`}>
                                                                 {formatCurrency(profile.accounts?.profit)}
                                                             </p>
@@ -1093,6 +1093,23 @@ export default function EISPage() {
                                                     </div>
                                                     <p className="text-xs text-sapphire-500 mt-2">
                                                         Data extracted from iXBRL accounts filed {profile.accounts?.accounts_date}
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {/* Show message when accounts exist but no parsed data */}
+                                            {profile.accounts?.accounts_type && !profile.accounts?.data_available && (
+                                                <div className="mt-4 p-4 rounded-lg bg-yellow-900/20 border border-yellow-500/30">
+                                                    <h4 className="text-sm font-semibold text-yellow-400 mb-2 flex items-center gap-2">
+                                                        <span>⚠️</span> Manual Review Recommended
+                                                    </h4>
+                                                    <p className="text-xs text-sapphire-300">
+                                                        This company's accounts are filed as PDF (not machine-readable iXBRL).
+                                                        Financial data requires manual review.
+                                                    </p>
+                                                    <p className="text-xs text-sapphire-400 mt-2">
+                                                        Accounts type: <span className="text-yellow-300">{profile.accounts.accounts_type}</span>
+                                                        {profile.accounts.accounts_date && ` • Filed: ${profile.accounts.accounts_date}`}
                                                     </p>
                                                 </div>
                                             )}
