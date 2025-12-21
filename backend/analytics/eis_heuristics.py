@@ -8,20 +8,40 @@ This is a Stage 1 heuristic-based approach - NOT a definitive EIS determination.
 Actual EIS eligibility requires HMRC advance assurance application.
 
 Author: Sapphire Intelligence Platform
-Version: 1.0 (Stage 1 MVP)
+Version: 2.0 (Enhanced with comprehensive requirements)
 """
 
 import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime, date
 
+# Import comprehensive EIS requirements
+from analytics.eis_requirements import (
+    EIS_RULES,
+    EXCLUDED_SIC_CODES_FULL,
+    EXCLUDED_SIC_PREFIXES,
+    POSITIVE_SIC_CODES as POSITIVE_SIC_CODES_NEW,
+    KIC_SIC_CODES,
+    is_excluded_sic,
+    is_kic_sic,
+    is_positive_sic,
+    check_employee_eligibility,
+    check_asset_eligibility,
+    check_age_eligibility,
+    get_requirement_summary,
+    get_hmrc_advance_assurance_url,
+)
+
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# EXCLUDED SIC CODES
+# EXCLUDED SIC CODES (now imports from eis_requirements for comprehensive list)
 # Companies with these SIC codes are typically NOT eligible for EIS
 # Reference: https://www.gov.uk/guidance/venture-capital-schemes-apply-to-use-the-seed-enterprise-investment-scheme
 # ============================================================================
+
+# Use comprehensive list from eis_requirements
+EXCLUDED_SIC_CODES = EXCLUDED_SIC_CODES_FULL
 
 EXCLUDED_SIC_CODES = {
     # Property/Land dealing
@@ -577,6 +597,21 @@ def calculate_eis_likelihood(full_profile: Dict[str, Any]) -> Dict[str, Any]:
     if outstanding_charges > 0:
         recommendations.append("Review outstanding charges for investment risk assessment")
     
+    # =========================================================================
+    # KIC (Knowledge Intensive Company) Detection
+    # =========================================================================
+    sic_codes = company.get("sic_codes", [])
+    is_kic = any(is_kic_sic(sic) for sic in sic_codes)
+    kic_sics = [sic for sic in sic_codes if is_kic_sic(sic)]
+    
+    if is_kic:
+        flags.append(f"🧪 Knowledge Intensive Company indicators found (SIC: {', '.join(kic_sics)})")
+        flags.append("KIC companies qualify for extended limits: 10 years age, 500 employees, £20m lifetime")
+    
+    # Get age eligibility with KIC consideration
+    age = get_company_age_years(company.get("date_of_creation"))
+    age_check = check_age_eligibility(age, is_kic=is_kic)
+    
     return {
         "score": score,
         "max_score": max_score,
@@ -589,6 +624,14 @@ def calculate_eis_likelihood(full_profile: Dict[str, Any]) -> Dict[str, Any]:
         "flags": flags,
         "recommendations": recommendations,
         "sic_analysis": sic_analysis,
+        
+        # New: KIC and requirements info
+        "is_kic": is_kic,
+        "kic_sic_codes": kic_sics,
+        "official_requirements": get_requirement_summary(),
+        "hmrc_advance_assurance_url": get_hmrc_advance_assurance_url(),
+        "age_eligibility": age_check,
+        
         "methodology": "Heuristic-based assessment using Companies House data",
         "disclaimer": "This is an indicative assessment only. Actual EIS eligibility requires HMRC Advance Assurance.",
         "assessed_at": datetime.now().isoformat()

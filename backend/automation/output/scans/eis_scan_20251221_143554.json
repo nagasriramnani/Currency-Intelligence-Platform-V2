@@ -1,0 +1,511 @@
+{
+  "scan_timestamp": "2025-12-21T14:35:54.416922",
+  "total_found": 1,
+  "companies": [
+    {
+      "company_number": "13468741",
+      "company_name": "BIOTECH CAPITAL LIMITED",
+      "search_result": {
+        "kind": "searchresults#company",
+        "description_identifier": [
+          "incorporated-on"
+        ],
+        "company_status": "active",
+        "date_of_creation": "2021-06-21",
+        "company_type": "ltd",
+        "company_number": "13468741",
+        "address": {
+          "address_line_1": "Warfield",
+          "country": "England",
+          "locality": "Bracknell",
+          "postal_code": "RG42 3DP",
+          "premises": "Firdis Jigs Lane South"
+        },
+        "title": "BIOTECH CAPITAL LIMITED",
+        "address_snippet": "Firdis Jigs Lane South, Warfield, Bracknell, England, RG42 3DP",
+        "description": "13468741 - Incorporated on 21 June 2021",
+        "links": {
+          "self": "/company/13468741"
+        },
+        "snippet": "",
+        "matches": {
+          "snippet": []
+        }
+      },
+      "full_profile": {
+        "company": {
+          "company_number": "13468741",
+          "company_name": "BIOTECH CAPITAL LIMITED",
+          "company_status": "active",
+          "company_type": "ltd",
+          "date_of_creation": "2021-06-21",
+          "jurisdiction": "england-wales",
+          "registered_office_address": {
+            "address_line_1": "Firdis Jigs Lane South",
+            "address_line_2": "Warfield",
+            "country": "England",
+            "locality": "Bracknell",
+            "postal_code": "RG42 3DP"
+          },
+          "sic_codes": [
+            "64209"
+          ],
+          "has_charges": false,
+          "has_insolvency_history": false
+        },
+        "officers": {
+          "items": [
+            {
+              "name": "ALI, Kafait",
+              "officer_role": "director",
+              "appointed_on": "2021-06-21",
+              "nationality": "British",
+              "occupation": null
+            },
+            {
+              "name": "COE, Christopher",
+              "officer_role": "director",
+              "appointed_on": "2021-06-21",
+              "nationality": "British",
+              "occupation": null
+            },
+            {
+              "name": "NOLAN, David Patrick",
+              "officer_role": "director",
+              "appointed_on": "2021-06-21",
+              "nationality": "British",
+              "occupation": null
+            },
+            {
+              "name": "SCHUTTE, Klemens",
+              "officer_role": "director",
+              "appointed_on": "2021-06-21",
+              "nationality": "German",
+              "occupation": null
+            }
+          ],
+          "director_count": 4,
+          "total_count": 4,
+          "directors": [
+            {
+              "name": "ALI, Kafait",
+              "officer_role": "director",
+              "appointed_on": "2021-06-21",
+              "nationality": "British",
+              "occupation": null
+            },
+            {
+              "name": "COE, Christopher",
+              "officer_role": "director",
+              "appointed_on": "2021-06-21",
+              "nationality": "British",
+              "occupation": null
+            },
+            {
+              "name": "NOLAN, David Patrick",
+              "officer_role": "director",
+              "appointed_on": "2021-06-21",
+              "nationality": "British",
+              "occupation": null
+            },
+            {
+              "name": "SCHUTTE, Klemens",
+              "officer_role": "director",
+              "appointed_on": "2021-06-21",
+              "nationality": "German",
+              "occupation": null
+            }
+          ]
+        },
+        "pscs": {
+          "items": [
+            {
+              "name": "Mr Kafait Ali",
+              "kind": "individual-person-with-significant-control",
+              "natures_of_control": [
+                "ownership-of-shares-25-to-50-percent",
+                "voting-rights-75-to-100-percent"
+              ],
+              "notified_on": "2025-11-11",
+              "ceased_on": null,
+              "nationality": "British",
+              "country_of_residence": "England",
+              "is_active": true,
+              "ownership_level": "75-100%"
+            },
+            {
+              "name": "Mr Kafait Ali",
+              "kind": "individual-person-with-significant-control",
+              "natures_of_control": [
+                "ownership-of-shares-75-to-100-percent"
+              ],
+              "notified_on": "2025-11-11",
+              "ceased_on": null,
+              "nationality": "British",
+              "country_of_residence": "England",
+              "is_active": true,
+              "ownership_level": "75-100%"
+            },
+            {
+              "name": "Mr Christopher Coe",
+              "kind": "individual-person-with-significant-control",
+              "natures_of_control": [
+                "ownership-of-shares-25-to-50-percent",
+                "voting-rights-25-to-50-percent"
+              ],
+              "notified_on": "2021-06-21",
+              "ceased_on": "2025-11-11",
+              "nationality": "British",
+              "country_of_residence": "England",
+              "is_active": false,
+              "ownership_level": "25-50%"
+            },
+            {
+              "name": "Mr David Patrick Nolan",
+              "kind": "individual-person-with-significant-control",
+              "natures_of_control": [
+                "ownership-of-shares-25-to-50-percent",
+                "voting-rights-25-to-50-percent"
+              ],
+              "notified_on": "2021-06-21",
+              "ceased_on": "2025-11-11",
+              "nationality": "British",
+              "country_of_residence": "England",
+              "is_active": false,
+              "ownership_level": "25-50%"
+            }
+          ],
+          "active_count": 2,
+          "total_count": 4
+        },
+        "charges": {
+          "items": [],
+          "outstanding_count": 0,
+          "total_count": 0,
+          "has_outstanding": false
+        },
+        "filings": {
+          "items": [
+            {
+              "date": "2025-12-16",
+              "type": "SH03",
+              "category": "capital",
+              "description": "capital-return-purchase-own-shares",
+              "action_date": null,
+              "links": {
+                "self": "/company/13468741/filing-history/MzQ5Mzk2MTM5NGFkaXF6a2N4",
+                "document_metadata": "https://document-api.company-information.service.gov.uk/document/mHbQe5E3mDRUE31e9yLZqZhbuwkXsYzMy8cr0t1mBmU"
+              }
+            },
+            {
+              "date": "2025-11-16",
+              "type": "PSC01",
+              "category": "persons-with-significant-control",
+              "description": "notification-of-a-person-with-significant-control",
+              "action_date": "2025-11-11",
+              "links": {
+                "self": "/company/13468741/filing-history/MzQ4OTAwNjY2OWFkaXF6a2N4",
+                "document_metadata": "https://document-api.company-information.service.gov.uk/document/Gj7BD8tIVCJz8DW2A_3ZvLe9SI-tLaC2bdgGGdMNDfM"
+              }
+            },
+            {
+              "date": "2025-11-14",
+              "type": "TM01",
+              "category": "officers",
+              "description": "termination-director-company-with-name-termination-date",
+              "action_date": "2025-11-14",
+              "links": {
+                "self": "/company/13468741/filing-history/MzQ4OTAwNjYzN2FkaXF6a2N4",
+                "document_metadata": "https://document-api.company-information.service.gov.uk/document/f4sl2zDd09mrInWscxZ8zkfs7wDEWvuAFXq16gMUfYg"
+              }
+            },
+            {
+              "date": "2025-11-13",
+              "type": "PSC01",
+              "category": "persons-with-significant-control",
+              "description": "notification-of-a-person-with-significant-control",
+              "action_date": "2025-11-11",
+              "links": {
+                "self": "/company/13468741/filing-history/MzQ4ODY4NTI1MmFkaXF6a2N4",
+                "document_metadata": "https://document-api.company-information.service.gov.uk/document/_GQIGIdkTOJV_gFvIWpMYzYHUDoa7ZArk5J9TQjLc1M"
+              }
+            },
+            {
+              "date": "2025-11-13",
+              "type": "PSC07",
+              "category": "persons-with-significant-control",
+              "description": "cessation-of-a-person-with-significant-control",
+              "action_date": "2025-11-11",
+              "links": {
+                "self": "/company/13468741/filing-history/MzQ4ODY4NTEyM2FkaXF6a2N4",
+                "document_metadata": "https://document-api.company-information.service.gov.uk/document/6IhaUZj-fnAokTfFUQDcaLE-kYYRGMoqCjgPqv8dlp8"
+              }
+            },
+            {
+              "date": "2025-11-13",
+              "type": "PSC07",
+              "category": "persons-with-significant-control",
+              "description": "cessation-of-a-person-with-significant-control",
+              "action_date": "2025-11-11",
+              "links": {
+                "self": "/company/13468741/filing-history/MzQ4ODY4NTEyMWFkaXF6a2N4",
+                "document_metadata": "https://document-api.company-information.service.gov.uk/document/cSGjlV8AUley1LNDaKy0UAaKbWrMQwvA3Ltdfyw2HFg"
+              }
+            },
+            {
+              "date": "2025-11-13",
+              "type": "TM01",
+              "category": "officers",
+              "description": "termination-director-company-with-name-termination-date",
+              "action_date": "2025-11-12",
+              "links": {
+                "self": "/company/13468741/filing-history/MzQ4ODY4NTA1NWFkaXF6a2N4",
+                "document_metadata": "https://document-api.company-information.service.gov.uk/document/CRF_x8C2gfRfK_QUO4JndDu4S1d3rhY0x1PYwD_Bk9k"
+              }
+            },
+            {
+              "date": "2025-11-13",
+              "type": "TM01",
+              "category": "officers",
+              "description": "termination-director-company-with-name-termination-date",
+              "action_date": "2025-11-12",
+              "links": {
+                "self": "/company/13468741/filing-history/MzQ4ODY4NTA0OGFkaXF6a2N4",
+                "document_metadata": "https://document-api.company-information.service.gov.uk/document/y6Gc8Lnj6qNOzkSNl2afz_C9FIqCj-TmsLl7SmmvZpg"
+              }
+            },
+            {
+              "date": "2025-07-14",
+              "type": "AA",
+              "category": "accounts",
+              "description": "accounts-with-accounts-type-unaudited-abridged",
+              "action_date": null,
+              "links": {
+                "self": "/company/13468741/filing-history/MzQ3MzQ3MTQ5NGFkaXF6a2N4",
+                "document_metadata": "https://document-api.company-information.service.gov.uk/document/CSdDdgdFkwIm1Kf4jPemTLVcN-Rr_Frx8viJrwCoCaE"
+              }
+            },
+            {
+              "date": "2025-06-30",
+              "type": "CS01",
+              "category": "confirmation-statement",
+              "description": "confirmation-statement-with-no-updates",
+              "action_date": "2025-06-20",
+              "links": {
+                "self": "/company/13468741/filing-history/MzQ3MTk1OTUxM2FkaXF6a2N4",
+                "document_metadata": "https://document-api.company-information.service.gov.uk/document/-TkJkOZywdS4-hWO4Y8wv1tlvgweaUJCbnrentaQGUQ"
+              }
+            },
+            {
+              "date": "2024-07-03",
+              "type": "AA",
+              "category": "accounts",
+              "description": "accounts-with-accounts-type-unaudited-abridged",
+              "action_date": null,
+              "links": {
+                "self": "/company/13468741/filing-history/MzQyNzUzODQ2M2FkaXF6a2N4",
+                "document_metadata": "https://document-api.company-information.service.gov.uk/document/T6vZ0lXUIXU1749b13ow8dEwT7MMygvN8oKxaMXpfig"
+              }
+            },
+            {
+              "date": "2024-06-20",
+              "type": "CS01",
+              "category": "confirmation-statement",
+              "description": "confirmation-statement-with-no-updates",
+              "action_date": "2024-06-20",
+              "links": {
+                "self": "/company/13468741/filing-history/MzQyNjAwMTk4OGFkaXF6a2N4",
+                "document_metadata": "https://document-api.company-information.service.gov.uk/document/UDRMtwoTsdcmcEgKQTXO172x5R2rrawUl1U2nqVcSqw"
+              }
+            },
+            {
+              "date": "2023-12-08",
+              "type": "AA",
+              "category": "accounts",
+              "description": "accounts-with-accounts-type-unaudited-abridged",
+              "action_date": null,
+              "links": {
+                "self": "/company/13468741/filing-history/MzQwMzE3NjIwN2FkaXF6a2N4",
+                "document_metadata": "https://document-api.company-information.service.gov.uk/document/_SI0yQULMv2z15cmmdc4fpYgc3lKyxH2mbLvhwx2tBE"
+              }
+            },
+            {
+              "date": "2023-06-20",
+              "type": "CS01",
+              "category": "confirmation-statement",
+              "description": "confirmation-statement-with-no-updates",
+              "action_date": "2023-06-20",
+              "links": {
+                "self": "/company/13468741/filing-history/MzM4MzU1NDM5OWFkaXF6a2N4",
+                "document_metadata": "https://document-api.company-information.service.gov.uk/document/WMp0iTjsyrRr2aR26fS1tkY5Q_EutW1UXnnD09j1iOI"
+              }
+            },
+            {
+              "date": "2022-12-29",
+              "type": "AA",
+              "category": "accounts",
+              "description": "accounts-with-accounts-type-unaudited-abridged",
+              "action_date": null,
+              "links": {
+                "self": "/company/13468741/filing-history/MzM2NDA5NDAyNGFkaXF6a2N4",
+                "document_metadata": "https://document-api.company-information.service.gov.uk/document/SmNKyRPnUydN8JJy_A5vb_W_O4t1qkQN_caEnwYGMQc"
+              }
+            },
+            {
+              "date": "2022-06-26",
+              "type": "CS01",
+              "category": "confirmation-statement",
+              "description": "confirmation-statement-with-no-updates",
+              "action_date": "2022-06-20",
+              "links": {
+                "self": "/company/13468741/filing-history/MzM0Mzc1NDk5OGFkaXF6a2N4",
+                "document_metadata": "https://document-api.company-information.service.gov.uk/document/NY7VCbwDldPi0uGCD3orNQRoTpf4qsvpAO-BN91V2B0"
+              }
+            },
+            {
+              "date": "2021-06-21",
+              "type": "NEWINC",
+              "category": "incorporation",
+              "description": "incorporation-company",
+              "action_date": null,
+              "links": {
+                "self": "/company/13468741/filing-history/MzMwNDg5NTgyMGFkaXF6a2N4",
+                "document_metadata": "https://document-api.company-information.service.gov.uk/document/sB7BT7MBbLJfB-CdJYgAUcRSlURhpStii-NyjNi6_-c"
+              }
+            }
+          ],
+          "analysis": {
+            "total_filings": 17,
+            "has_share_allotments": false,
+            "share_allotment_count": 0,
+            "has_annual_accounts": true,
+            "accounts_type": "unknown",
+            "last_accounts_date": "2025-07-14",
+            "last_confirmation_statement": "2025-06-30",
+            "has_charges_filings": false,
+            "filing_types": {
+              "SH03": 1,
+              "PSC01": 2,
+              "TM01": 3,
+              "PSC07": 2,
+              "AA": 4,
+              "CS01": 4,
+              "NEWINC": 1
+            }
+          }
+        },
+        "data_sources": [
+          "companies_house"
+        ],
+        "retrieved_at": "2025-12-21T14:35:54.406611"
+      },
+      "eis_assessment": {
+        "score": 80,
+        "max_score": 100,
+        "percentage": 80.0,
+        "status": "Likely Eligible",
+        "status_description": "High likelihood of EIS eligibility based on available data",
+        "confidence": "High",
+        "confidence_description": "Good data completeness from Companies House",
+        "factors": [
+          {
+            "factor": "Company Age",
+            "value": "4 years",
+            "points": 15,
+            "max_points": 20,
+            "rationale": "Under 7 years - eligible for EIS",
+            "impact": "positive"
+          },
+          {
+            "factor": "Company Status",
+            "value": "Active",
+            "points": 15,
+            "max_points": 15,
+            "rationale": "Company is active and trading",
+            "impact": "positive"
+          },
+          {
+            "factor": "Insolvency History",
+            "value": "None",
+            "points": 15,
+            "max_points": 15,
+            "rationale": "No insolvency proceedings recorded",
+            "impact": "positive"
+          },
+          {
+            "factor": "SIC Code Analysis",
+            "value": "No exclusions found",
+            "points": 10,
+            "max_points": 15,
+            "rationale": "SIC codes: 64209",
+            "impact": "neutral"
+          },
+          {
+            "factor": "Share Allotments",
+            "value": "None recorded",
+            "points": 3,
+            "max_points": 10,
+            "rationale": "No share allotments in recent filings - may indicate limited investment history",
+            "impact": "neutral"
+          },
+          {
+            "factor": "Outstanding Charges",
+            "value": "None",
+            "points": 5,
+            "max_points": 5,
+            "rationale": "No outstanding charges or mortgages",
+            "impact": "positive"
+          },
+          {
+            "factor": "Director Structure",
+            "value": "4 directors",
+            "points": 5,
+            "max_points": 5,
+            "rationale": "Multiple directors indicates structured governance",
+            "impact": "positive"
+          },
+          {
+            "factor": "Jurisdiction",
+            "value": "England-Wales",
+            "points": 5,
+            "max_points": 5,
+            "rationale": "UK jurisdiction - required for EIS",
+            "impact": "positive"
+          },
+          {
+            "factor": "Filing Compliance",
+            "value": "Up to date",
+            "points": 5,
+            "max_points": 5,
+            "rationale": "Recent accounts and confirmation statement filed",
+            "impact": "positive"
+          },
+          {
+            "factor": "Accounts Type",
+            "value": "Unknown",
+            "points": 2,
+            "max_points": 5,
+            "rationale": "Could not determine accounts type",
+            "impact": "neutral"
+          }
+        ],
+        "flags": [],
+        "recommendations": [
+          "Consider applying for HMRC Advance Assurance"
+        ],
+        "sic_analysis": {
+          "has_exclusions": false,
+          "excluded_codes": [],
+          "positive_codes": [],
+          "all_codes": [
+            "64209"
+          ]
+        },
+        "methodology": "Heuristic-based assessment using Companies House data",
+        "disclaimer": "This is an indicative assessment only. Actual EIS eligibility requires HMRC Advance Assurance.",
+        "assessed_at": "2025-12-21T14:35:54.406611"
+      },
+      "scanned_at": "2025-12-21T14:35:54.406611"
+    }
+  ]
+}
