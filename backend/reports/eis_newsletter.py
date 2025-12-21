@@ -266,7 +266,7 @@ class EISNewsletterGenerator:
         
         # Portfolio Stats
         total = len(companies)
-        eis_eligible = sum(1 for c in companies if c['eis']['status'] in ['EIS Eligible', 'SEIS Eligible'])
+        eis_eligible = sum(1 for c in companies if 'Eligible' in c['eis'].get('status', ''))
         sectors = len(set(c['sector'] for c in companies))
         active = sum(1 for c in companies if c.get('company_status') == 'active')
         
@@ -370,7 +370,7 @@ class EISNewsletterGenerator:
             if sector not in sector_data:
                 sector_data[sector] = {'count': 0, 'eis': 0, 'companies': []}
             sector_data[sector]['count'] += 1
-            if c['eis']['status'] in ['EIS Eligible', 'SEIS Eligible']:
+            if 'Eligible' in c['eis'].get('status', ''):
                 sector_data[sector]['eis'] += 1
             sector_data[sector]['companies'].append(c.get('company_name', 'Unknown'))
         
