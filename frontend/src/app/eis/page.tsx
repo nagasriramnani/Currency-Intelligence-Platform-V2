@@ -145,6 +145,7 @@ export default function EISPage() {
     const [showAutomation, setShowAutomation] = useState(false);
     const [automationStatus, setAutomationStatus] = useState<any>(null);
     const [isScanning, setIsScanning] = useState(false);
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
     const [scanResults, setScanResults] = useState<any>(null);
     const [subscribers, setSubscribers] = useState<string[]>([]);
     const [newSubscriberEmail, setNewSubscriberEmail] = useState('');
@@ -403,6 +404,38 @@ export default function EISPage() {
             }
         } catch (err) {
             console.error('Failed to remove subscriber:', err);
+        }
+    };
+
+    const sendNewsletter = async () => {
+        if (!scanResults?.companies?.length) {
+            alert('Please run a scan first to find companies');
+            return;
+        }
+        if (subscribers.length === 0) {
+            alert('Please add at least one subscriber email');
+            return;
+        }
+
+        setIsSendingEmail(true);
+        try {
+            const response = await fetch(`${API_BASE}/api/eis/automation/send`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ companies: scanResults.companies })
+            });
+            if (response.ok) {
+                const result = await response.json();
+                alert(`✅ Newsletter sent successfully to ${result.sent} subscriber(s)!`);
+                loadAutomationStatus();
+            } else {
+                const error = await response.text();
+                alert('Failed to send newsletter: ' + error);
+            }
+        } catch (err: any) {
+            alert('Error sending newsletter: ' + err.message);
+        } finally {
+            setIsSendingEmail(false);
         }
     };
 
@@ -679,6 +712,15 @@ export default function EISPage() {
                                     >
                                         {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                                         {isScanning ? 'Scanning...' : 'Start Scan'}
+                                    </button>
+                                    <button
+                                        onClick={sendNewsletter}
+                                        disabled={isSendingEmail || !scanResults?.companies?.length || subscribers.length === 0}
+                                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                        title={subscribers.length === 0 ? "Add subscribers first" : scanResults?.companies?.length ? "Send to subscribers" : "Run scan first"}
+                                    >
+                                        {isSendingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                                        {isSendingEmail ? 'Sending...' : 'Send Email Now'}
                                     </button>
                                 </div>
 

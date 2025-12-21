@@ -2554,6 +2554,66 @@ async def get_scan_history(limit: int = Query(default=10, ge=1, le=50)):
     return {"scans": history, "count": len(history)}
 
 
+@app.post("/api/eis/automation/send")
+async def send_newsletter_email(companies: List[Dict] = Body(default=[])):
+    """Send newsletter email to all subscribers immediately."""
+    if not AUTOMATION_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Automation modules not available")
+    
+    from pathlib import Path
+    import json
+    
+    try:
+        # Load subscribers
+        subscribers_file = Path(__file__).parent.parent / "automation" / "subscribers.json"
+        if not subscribers_file.exists():
+            raise HTTPException(status_code=400, detail="No subscribers configured")
+        
+        with open(subscribers_file, 'r') as f:
+            subs_data = json.load(f)
+        
+        subscribers = subs_data.get("subscribers", [])
+        if not subscribers:
+            raise HTTPException(status_code=400, detail="No subscribers to send to")
+        
+        # Generate newsletter content from companies
+        writer = EISWriter(use_ai=False)
+        
+        # Format companies for the writer
+        formatted_companies = []
+        for c in companies:
+            formatted_companies.append({
+                "company_name": c.get("company_name"),
+                "company_number": c.get("company_number"),
+                "eis_assessment": {
+                    "score": c.get("eis_score", 0),
+                    "status": c.get("eis_status", "Unknown")
+                },
+                "full_profile": {
+                    "company": {"sic_codes": []}
+                }
+            })
+        
+        newsletter = writer.generate_newsletter_content(formatted_companies)
+        
+        # Send via mailer
+        mailer = EISMailer()
+        results = mailer.send_newsletter(newsletter, recipients=subscribers)
+        
+        return {
+            "success": True,
+            "sent": results.get("sent", 0),
+            "failed": results.get("failed", 0),
+            "recipients": len(subscribers)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to send newsletter: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
