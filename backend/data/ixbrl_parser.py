@@ -670,63 +670,75 @@ class IXBRLParser:
     def _extract_financials_from_text(self, text: str) -> Dict[str, Any]:
         """
         Extract financial values from text using regex patterns.
+        Handles both iXBRL inline values and OCR-extracted annual reports.
         """
         result = {}
         
-        # Normalize text
-        text = text.replace(',', '').replace('£', '').replace('$', '')
-        text = re.sub(r'\s+', ' ', text)
+        # Normalize text - preserve spaces around numbers
+        text_clean = text.replace('£', '').replace('$', '').replace(',', '')
+        text_clean = re.sub(r'\s+', ' ', text_clean)
+        text_lower = text_clean.lower()
         
-        # Patterns for different financial metrics
+        # Enhanced patterns that capture value AND context (million/m/000)
         patterns = {
             'turnover': [
-                r'(?:turnover|revenue|sales)[:\s]*(\d+(?:\.\d+)?)\s*(?:000|m|million)?',
-                r'total\s+(?:turnover|revenue)[:\s]*(\d+(?:\.\d+)?)',
+                r'(?:turnover|revenue|total\s+income)[\s:of]*(\d+(?:\.\d+)?)\s*(?:million|m\b)',
+                r'(?:turnover|revenue)[\s:]*(\d+(?:,\d+)*)',
             ],
             'total_assets': [
-                r'total\s+assets[:\s]*(\d+(?:\.\d+)?)\s*(?:000|m)?',
-                r'assets[:\s]*(\d+(?:\.\d+)?)\s*(?:000|m)?',
+                r'total\s+assets[\s:of]*(\d+(?:\.\d+)?)\s*(?:million|m\b)',
+                r'total\s+assets[\s:]*(\d+(?:\.\d+)?)',
             ],
             'net_assets': [
-                r'net\s+assets[:\s]*[\(]?(\d+(?:\.\d+)?)[\)]?',
-                r'shareholders[\'\s]+funds[:\s]*[\(]?(\d+(?:\.\d+)?)[\)]?',
-                r'total\s+equity[:\s]*[\(]?(\d+(?:\.\d+)?)[\)]?',
+                r'net\s+assets[\s:of]*[\(]?(\d+(?:\.\d+)?)[\)]?\s*(?:million|m\b)',
+                r'net\s+assets[\s:]*[\(]?(\d+(?:\.\d+)?)[\)]?',
+                r'total\s+(?:capital\s+)?(?:resources|equity)[\s:,of]*[\(]?(\d+(?:\.\d+)?)[\)]?\s*(?:million|m\b)',
             ],
             'employees': [
-                r'(?:average\s+)?(?:number\s+of\s+)?employees[:\s]*(\d+)',
-                r'average\s+staff[:\s]*(\d+)',
-                r'(\d+)\s+employees',
+                r'(?:average|number\s+of)\s+employees[\s:]*(\d+)',
+                r'(\d+)\s+employees\b',
+                r'employees[\s:]*(\d+)',
+                r'workforce.*?(\d+)\s+(?:people|staff)',
             ],
             'profit': [
-                r'profit\s+for\s+(?:the\s+)?(?:financial\s+)?year[:\s]*[\(]?(\d+(?:\.\d+)?)[\)]?',
-                r'(?:net\s+)?profit[:\s]*[\(]?(\d+(?:\.\d+)?)[\)]?',
-                r'profit\s+before\s+tax[:\s]*[\(]?(\d+(?:\.\d+)?)[\)]?',
+                r'(?:profit|loss)\s+(?:for|before|after)[\s\w]*?[\(]?(\d+(?:\.\d+)?)[\)]?\s*(?:million|m\b)',
+                r'dividends[\s:of]*(\d+(?:\.\d+)?)\s*(?:million|m\b)',
+                r'(?:net\s+)?(?:profit|income)[\s:]*[\(]?(\d+(?:\.\d+)?)[\)]?\s*(?:million|m\b)',
             ],
         }
         
-        text_lower = text.lower()
-        
         for field, field_patterns in patterns.items():
             for pattern in field_patterns:
+                # Search in lowercase text
                 match = re.search(pattern, text_lower)
                 if match:
                     try:
-                        value = float(match.group(1))
+                        value_str = match.group(1).replace(',', '')
+                        value = float(value_str)
                         
-                        # Check context for thousands/millions
-                        context = text_lower[max(0, match.start()-50):match.end()+50]
-                        if 'million' in context or ' m ' in context or 'm\n' in context:
+                        # Get surrounding context
+                        start = max(0, match.start() - 30)
+                        end = min(len(text_lower), match.end() + 30)
+                        context = text_lower[start:end]
+                        
+                        # Scale based on context
+                        if 'million' in context or re.search(r'\b' + re.escape(str(int(value))) + r'\s*m\b', context):
                             value *= 1_000_000
-                        elif '000' in context or 'thousand' in context:
+                        elif 'thousand' in context or '000' in pattern:
                             value *= 1_000
                         
-                        # Handle negative in parentheses
-                        if match.group(0).startswith('(') or '(' in match.group(0):
+                        # Handle negative values (in parentheses)
+                        full_match = match.group(0)
+                        if '(' in full_match and ')' in full_match:
                             value = -abs(value)
                         
-                        result[field] = value
+                        # Only update if we don't already have a value for this field
+                        if field not in result:
+                            result[field] = value
+                            logger.info(f"Extracted {field}: {value} from: '{match.group(0)[:50]}...'")
                         break
-                    except (ValueError, IndexError):
+                    except (ValueError, IndexError) as e:
+                        logger.debug(f"Failed to parse {field}: {e}")
                         continue
         
         return result if result else None
@@ -782,12 +794,12 @@ class IXBRLParser:
             
             logger.info("Converting PDF to images for OCR...")
             
-            # Convert PDF pages to images (first 5 pages only to save time)
+            # Convert PDF pages to images (first 15 pages to capture financial statements)
             try:
                 if poppler_path:
-                    images = convert_from_bytes(pdf_content, first_page=1, last_page=5, dpi=150, poppler_path=poppler_path)
+                    images = convert_from_bytes(pdf_content, first_page=1, last_page=15, dpi=150, poppler_path=poppler_path)
                 else:
-                    images = convert_from_bytes(pdf_content, first_page=1, last_page=5, dpi=150)
+                    images = convert_from_bytes(pdf_content, first_page=1, last_page=15, dpi=150)
             except Exception as e:
                 logger.warning(f"pdf2image conversion failed: {e}")
                 logger.info("Tip: Install poppler from https://github.com/oschwartz10612/poppler-windows/releases")

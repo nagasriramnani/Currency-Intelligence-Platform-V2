@@ -1,0 +1,576 @@
+
+=== PAGE 6 ===
+Docusign Envelope ID: 27870236-158C-4FE0-A87C-657C9BBC3871
+
+Revenue
+
+Revolut Ltd Registered number: 08804411 6
+
+
+=== PAGE 7 ===
+Docusign Envelope ID: 27870236-15BC-4FE0-A87C-657C9BBC3871
+Principal Risks and Uncertainties
+
+The Company's risk management strategy is to identify potential events that may impact the business and to
+manage these within the risk appetite set by the Board. The risk appetite of the Company is aligned with that of
+Revolut Group Holdings Ltd (the 'Parent') and subsidiaries (the 'Group') to the extent that it follows a consistent risk
+taxonomy and appetite/tolerance levels are set so that the Company does not exceed that of the Group. The
+principal risks facing the Company can be categorised into financial risk, operational risk, financial crime risk, legal
+and regulatory compliance risk and conduct and culture risk, as summarised below:
+
+Financial Risk
+
+The Company is exposed to various financial risks in the ordinary course of business. The Company divides these
+risks into the following categories: Credit Risk, Liquidity and Funding Risk, Market Risk and Capital Risk.
+
++ Credit Risk is the risk of financial loss should the Company's counterparties fail to fulfil their contractual
+obligations in full and on time. The Company is exposed to various credit risks in the course of its
+operations, the majority of which arise from the placements of corporate and client safeguarded funds with
+financial institutions. These are typically investment-grade-rated institutions.
+
+« Liquidity Risk is the risk that the Company cannot meet its financial obligations when they fall due or is only
+able to do so at excessive cost. To manage these risks, the Company maintains a portfolio of
+unencumbered, high-quality cash instruments and securities that are readily convertible to cash to ensure
+that it can meet all of its financial obligations in business-as-usual circumstances and in stress conditions.
+
++ Market Risk is the risk that the Company's earnings, capital or ability to meet business objectives will be
+adversely affected by changes in the level of volatility of market rates or prices, including foreign exchange
+rates, commodities, cryptocurrencies, and interest rates. The Company undertakes hedging transactions for
+these risks where appropriate.
+
+* Capital Risk is the risk that the Company does not hold adequate capital to support its regulatory
+requirements or risk profile. The Company is an FCA regulated e-money institution.
+
+Operational Risk
+
+Operational risk is defined as the risk of loss as a result of inadequate or failed internal processes, people and
+systems or from external events. The Company manages operational risk under its Enterprise Risk Management
+Framework which is supported and underpinned by the Operational Risk Management Policy. Tools and minimum
+standards for operational risk management are defined and applied in the Company. Important elements include
+operational risk and control identification and assessment, control testing and assurance, incident and issue
+management and monitoring and alerting through an extensive suite of risk and control metrics and indicators.
+
+Financial services firms face a broad range of operational risks, depending on the size and complexity of their
+operations. Examples of key operational risks that Revolut actively manages include:
+
+* Operational Resilience, for which the Company operates an extensive framework to ensure stability of our
+services to our customer base. The aim of this is to limit the likelihood of a major disruption occurring, and
+also to limit the harm to customers and Revolut should a disruption occur.
+
+« — Cyber and Data Security threats are managed through a series of technical and organisational controls.
+Revolut continues to invest in its digital platforms and security posture and builds resilient, secure
+technologies and processes to minimise the risk of data security breaches.
+
+« Third Party Risks, where the Company relies on the provision of products and services from third parties for
+the delivery of its business activities. We manage these through a framework that includes third party risk
+assessment, due diligence, contracting standards, contingency arrangements and ongoing monitoring of
+third party performance.
+
+Specialist and dedicated operational risk management capability is deployed across the Three Lines of Defence
+Model and governed under our Compliance, Operational and Conduct Risk Committee.
+
+Revolut Ltd Registered number: 08804411 7
+
+
+=== PAGE 8 ===
+Docusign Envelope 1D: 27870236-158C-4FE0-A87C-657C9BBC3871
+
+Financial Crime Risk
+
+Financial Crime Risk is the risk of failing to effectively mitigate the use of Revolut’s products and services to
+perpetrate financial crimes, including by third parties and employees. This includes money laundering, violations of
+sanctions , and terrorist and proliferation financing. Examples of key financial crime risks that Revolut manages
+include:
+
+« Money laundering and terrorist financing, the risk that the Company’s products and services will be used to
+conceal, transfer and make use of the proceeds of crime, such as drug trafficking and terrorist financing;
+
+« — Sanctions risk, the risk that the Company facilitates the movement and use of sanctioned assets, by
+sanctioned entities, without identification, freezing or reporting;
+
++ Fraud risk, the risk that the Company is used by fraudsters to perpetrate fraud, or our customers fall victim
+to fraud, such as Authorised Push Payment (“APP”) fraud or Account Takeover (“ATO”) fraud.
+
+The Company has implemented a Three Lines of Defence Model and robust financial crime control framework to
+ensure that it complies with all financial crime regulations and effectively manages these financial crime risks. This
+includes the implementation of comprehensive onboarding, transaction monitoring, screening and reporting controls.
+
+Legal and Regulatory Compliance Risk
+
+Legal and Regulatory Compliance Risk is the risk that the Company may fail to adhere to legal or regulatory
+requirements under pre-existing authorisations and permissions. Examples of key Legal and Regulatory Compliance
+risks that the Company actively manages include:
+
++ Regulatory Permissions Risk, the risk that the Company unintentionally operates outside the scope of its
+regulatory permissions. This can encompass the offering of products or services to customers in a
+jurisdiction for which Revolut is not yet authorised to do so; and
+
++ Industry / Scheme Requirements Risk, the risk that the Company may fail to adhere to non-regulatory body
+industry/scheme requirements to which it is exposed as a result of its business activities, such as card
+schemes or voluntary codes.
+
+The Company is committed to complying with the relevant regulatory requirements in the jurisdictions in which it
+operates and to provide accurate, reliable and timely reports to external regulators, authorities and stakeholders.
+
+Conduct and Culture Risk
+
+The Company has Conduct Risks associated with customer outcomes, market stability and effective competition;
+and Culture Risks associated with business practices and incentives. The Company is committed to putting
+consumers at the heart of the business and delivering to them good outcomes. Examples of key risks across the
+stages of the consumer journey include:
+
+« Product Design, Price and Fair Value Risk, the risk that our products and services are not suitable for or fail
+to meet the target market needs and expectations;
+
+« Consumer Understanding and Sales, Distribution and Marketing Risk, the risk that sales, distribution and
+marketing activity is unfair, unclear or misleading;
+
++ Customer Support and Post-Sales Conduct Risk, the risk that our post sales client and product activity leads
+to poor or unfair customer outcomes; and
+
+Culture and Incentives Risk, the risk that business practices or incentive structures encourage excessive or
+imprudent risk taking, poor employee conduct or create the risk of poor outcomes for customers or other
+stakeholders.
+
+Emerging Risk
+
+Whilst the Company monitors the environment for key risks emerging, we would like to call out the following risks in
+this year’s report. These are risks which we are paying particular attention to and are developing concrete plans to
+integrate into our daily risk and control registers (or amend existing entries where relevant)
+
+Revolut Ltd Registered number: 08804411 8
+
+
+=== PAGE 9 ===
+Docusign Envelope ID: 27870236-15BC-4F E0-A87C-657C9BBC3871
+
+Climate Risk
+
+The Company's exposure to the financial risks arising from climate change is immaterial. While we remain vigilant
+and committed to monitoring climate risks, our software-based business minimises our exposure to climate-related
+scenarios as our operations rely less on physical infrastructure and more on digital platforms. Our corporate physical
+footprint (e.g. office space) continues to be limited and we do not provide direct funding that generates financed
+emissions and are not collateralised by physical assets exposed to climate change.
+
+Given the longer-term nature of the risk and the Company's desire to set and achieve appropriate climate goals, we
+currently manage climate risk as an emerging risk, recognising this may become more material as our exposure
+begins to grow.
+
+Considering that the risk is insignificant, we limit further disclosures.
+Evolving Regulatory Environment
+
+As a regulated business, the Company keeps abreast of the emerging regulatory and legislative changes which
+could impact the way we operate and therefore our ability to comply with applicable regulations and legislations. To
+achieve this, the Company, partnering with a number of third parties, has developed its own Horizon Scanning
+process to capture and assess the potential impact of upcoming regulatory change while jointly maintaining an
+active and open dialogue with all regulators and government bodies in our operating territories.
+
+In particular, we are closely monitoring the changes in regulatory landscape and industry developments relating to
+Cryptoasset products following the continued evolution of regulatory enforcement in this arena. In addition, we
+continue to closely monitor the potential impact of the UK’s Payment Systems Regulator developments on frauds
+refund including the mandatory reimbursement model.
+
+Evolving Technologies
+
+We believe that evolving technologies create significant opportunity for innovation of our Products and Services, but
+also recognises challenges associated with their use. Regulations around the use of new technologies (e.g. Artificial
+Intelligence) are also evolving and the Company applies significant governance over potential use cases to ensure
+that key risks (e.g. Model, Data Privacy, Legal, Compliance) are identified and managed.
+
+Emerging technologies also feature in rapidly evolving external threats, for example through External Fraud or Cyber
+Attack. Our controls therefore require continuous enhancement to ensure they remain effective. As referenced in the
+principle risks section, a regular and ongoing programme of penetration testing is in place to identify weak points
+against changing attack vectors. Fraud detection models continue to be enhanced, leveraging new technologies
+(e.g. Large Language Models) to become increasingly effective.
+
+Non-Financial and Sustainability Information Statement
+
+The Company has elected not to prepare a separate Non-Financial and Sustainability Information Statement (the
+"NFSI Statement") since its disclosures for the reporting period are included within the NFSI Statement of Revolut
+Group Holdings Ltd in line with the provisions of s. 414CA(7) and (8) of the Companies Act 2006.
+
+Corporate Governance Statement
+
+The Company operates in accordance with all applicable corporate governance, legal and regulatory requirements.
+While not formally subject to the UK Corporate Governance Code 2018 (the "CG Code"), the Board has regard to its
+principles, which are applied through its Corporate Governance Framework, although there are some aspects of the
+CG Code that are not necessarily consistent with the operating environment of a large private company. We are fully
+compliant with the Wates Principles, upholding rigorous governance standards that drive transparency,
+accountability, and sustainable outcomes for Revolut and our stakeholders. We welcome the introduction of the
+revised edition of the CG Code, effective January 2025, and are committed to evaluating its provisions to further
+strengthen our governance framework. Further details on the Group's Corporate Governance Framework, which also
+applies to the Company, can be found in the consolidated financial statements of Revolut Group Holdings Ltd for the
+financial year ending 31 December 2024.”
+
+2 Currently, the governance structures of Revolut Group Holdings Ltd and Revolut Ltd are identical, with each board
+and committee having identical memberships. The board considers this model, along with the Group Corporate
+Governance Framework, to be effective in balancing operational efficiency with robust governance oversight.
+
+Revolut Ltd Registered number: 08804411 9
+
+
+=== PAGE 10 ===
+Docusign Envelope ID: 27870236-15BC-4FE0-A87C-657C9BBC3871
+
+Section 172 Statement
+
+The Board has a responsibility under section 172 of the Companies Act 2006 (“Section 172”), when making
+decisions, to consider the interests of the Company's stakeholders. This is part of the Board's wider responsibility to
+promote the long-term success of the Company. We have outlined below some of the key actions the Board have
+taken to engage with our stakeholders and to discharge their duties under Section 172. The Company is a subsidiary
+undertaking included in the consolidated financial statements of the Parent, and so the directors have prepared its
+statement of matters relevant for Section 172 based on the Group's strategic report (the "Annual Report").
+
+$172 consideration Annual Report Section
+
+Long term consequences of Strategic Report; Our Business Model and Strategy
+decisions Strategic Report; Environmental, Social and Governance (ESG)
+Interests of employees Strategic Report; Our People
+
+Fostering business relationships Strategic Report; Engaging with Stakeholders
+with suppliers, customers and
+others
+Impact of operations on the Strategic Report; Environmental, Social and Governance (ESG)
+community and the environment
+Maintaining a reputation of high Risk Management & Compliance
+standard of business conduct Corporate Governance; How Governance Works Here
+Corporate Governance; Role of the Board, Activities and Decisions
+Corporate Governance; A Look at Board and Committee Activity
+Acting fairly between members _— Strategic Report; Our Investors
+of the company
+
+Given the strategic importance of our relationships with our suppliers, customers and employees, as well as their
+commitment to strong corporate governance, the directors have chosen to include matters pertaining to the Board's
+engagement in these areas within the strategic report pursuant to section 414(C)(11) of the Companies Act 2006.
+
+Engagement with Suppliers and Customers
+
+As we expand our services and geographical footprint, partnerships continue to be instrumental in our growth. We
+maintain our commitment to fostering relationships built on trust, mutual benefit, and adherence to rigorous
+business standards.
+
+Ethical Business Practices
+
+Our stance against bribery and corruption is unequivocal, and we maintain strict compliance with applicable laws
+and regulations. We ensure transparency and integrity across all business engagements through comprehensive
+employee training on identifying and addressing unethical behaviour. This is supported by rigorous due diligence
+assessments conducted by our third party risk team and regular reassessments of existing partnerships. We also
+have established clear protocols for reporting and addressing concerns, ensuring that unethical behaviour is
+promptly identified and addressed.
+
+Revolut remains firmly committed to acting with integrity and upholding ethical standards in all its business
+relationships. As part of this commitment, we uphold a zero-tolerance policy towards modern slavery and human
+trafficking throughout our operations and supply chains. Revolut's policy stresses the importance of implementing
+and enforcing efficient systems and controls to prevent slavery and human trafficking within its supply chains. These
+measures include, but are not limited to, conducting third-party due diligence, performing risk assessments of
+suppliers, including contractual clauses requiring suppliers to adhere to Revolut's policy, and establishing a robust
+mechanism for the prompt escalation of issues related to modern slavery and human trafficking.
+
+Enhanced Supplier Collaboration
+
+In 2024, we implemented Coupa's Source-to-Pay (S2P) system as part of our ongoing commitment to strengthening
+relationships with our suppliers and enhancing our collaboration. Designed to streamline processes and improve
+interactions, the system offers a range of valuable benefits. Order transparency is a key feature, allowing suppliers
+to easily track purchase orders, invoices, and payment statuses, helping them manage their workflow and minimise
+delays. Real-time updates keep suppliers informed of any changes to orders, payments, or approvals, reducing
+
+Revolut Ltd Registered number: 08804411 10
+
+
+=== PAGE 11 ===
+Docusign Envelope ID: 27870236-15BC-4FE0-A87C-657C9BBC3871
+
+uncertainty and improving forecasting accuracy. The system also simplifies the invoicing process, enabling direct
+submission of invoices, which reduces manual errors and expedites approval, leading to faster payments.
+
+Additionally, centralised communication ensures all interactions between buyers and suppliers are captured in one
+place, reducing the risk of missed information or misunderstandings. Tracking and reporting capabilities provide
+suppliers with valuable insights into their performance, such as on-time delivery and invoice accuracy, allowing them
+to identify areas for improvement. The system also reduces administrative burdens from our suppliers manually
+submitting invoices, while providing access to data analytics that enable suppliers to optimise operations and make
+more informed business decisions.
+
+This initiative represents a significant step forward in our supplier relationship management, reducing administrative
+burden while providing tools for improved collaboration and business growth. We continue to invest in strengthening
+our partnerships and supplier relationships, recognising their crucial role in our success and we are building a robust
+foundation for sustainable growth and collaboration.
+
+Engagement with Employees
+
+Currently, 95% of our workforce actively participates in engagement surveys conducted through our proprietary
+feedback platform, Revolut Voices. To support the Board in their responsibility to uphold a strong and healthy
+corporate culture, an engagement metrics pack is regularly provided for their review.
+
+We continue with the Revolut Spires, which aims to prepare employees for drastic functional career shifts, and the
+High Potential Development programme (HiPo) to develop our future leaders. The programme is structured to offer a
+blend of hands-on experience, leadership development, and exposure to various departments within the company.
+By immersing themselves in different areas of our business, the participants gain a holistic understanding of our
+operations and build a strong foundation for future career growth.
+
+In 2024, we also introduced our flagship employee recognition programme, the 10X Awards, to recognise individuals
+and teams whose work drives exceptional outcomes. Aligned with our core values—Never Settle, Get It Done, Think
+Deeper, Deliver WOW, and Dream Team—the awards celebrate achievements that push boundaries to make a
+measurable impact on how we serve our Customers and grow as a company.
+
+2024 also saw the launch of the second iteration of the Rev-celerator program, a three-month internship designed
+for students. 33 interns completed the program and 18 were extended an offer to join the Rev-celerator Graduate
+program in September 2025. The programme received overwhelmingly positive feedback from both interns and
+managers. Building on this success, we introduced the 18-month Rev-Advance programme, which focuses on
+Executive Associate and Risk and Compliance tracks, tailored for recent graduates and young professionals.
+
+As a remote-first company, we efficiently work in global teams, with an average of 4.1 nationalities per team, which
+on average have 6 employees.
+
+Employment, Training & Advancement of Disabled Persons
+
+Hiring and Recruitment Processes: We factor in additional time for candidates requiring adjustments, ensuring clear
+and upfront processes are available for prospective employees throughout the recruitment process.
+
+HR Policies and Processes: We have HR policies and processes globally to support relevant workplace adjustments,
+ensuring that all employees have the necessary accommodations to thrive in their roles.
+
+Count Me In Initiative: We consistently engage employees to update their diversity information, achieving a 90%
+completion rate for disability data. This initiative ensures we have up-to-date information to better support our
+disabled employees.
+
+Director+ Population: 8% of our Director+ colleagues versus 3% of our overall population identify as having a
+disability or neurodiversity. This reflects our commitment to career advancement for these employees,
+demonstrating our dedication to diversity at all levels of the organisation.
+
+Neurodiversity Group: Our growing neurodiversity group, which includes many who identify as having a disability,
+will become a fully-supported guild this quarter. This enhancement will provide additional support and resources for
+our neurodivergent employees.
+
+This Strategic Report was approved by the Board on 16 April 2025 and signed on its behalf by:
+
+h
+
+Nikolay Storonsky
+Director
+
+Revolut Ltd Registered number: 08804411 W
+
+
+=== PAGE 12 ===
+Docusign Envelope ID: 27870236-15BC-4FE0-A87C-657C9BBC3871
+
+Directors' Report
+
+The Directors present their report and the financial statements for the year ended 31 December 2024 for Revolut Ltd
+(the ‘Company').
+
+Principal Activities
+
+The Company is an electronic money institution authorised and regulated by the Financial Conduct Authority (the
+
+“FCA") under the Electronic Money Regulations 2011. The Company is registered with the'FCA as a crypto-asset firm
+under the Money Laundering, Terrorist Financing and Transfer of Funds (Information on the Payer) Regulations 2017.
+Further details on its business activities can be found in the strategic report under Review of the Business Activities.
+
+List of Directors
+The Directors who served during the period and up to the date of this report are named on page 3.
+Dividends
+
+During 2024 the Company distributed dividends of £267 million (2023: £104 million) of which £37 million (2023: £1.4
+million) were dividends in specie to Revolut Group Holdings Ltd (the ‘Parent') in support of the Parent's capital
+allocation strategy.
+
+Energy Usage and Greenhouse Gas Emissions
+
+The Company has elected not to prepare a separate Energy Usage and Greenhouse Gas Emissions (EU&GGE)
+Report since its disclosures for the reporting period are included within the EU&GGE Report of the Parent in line with
+the provisions of Part 7A of Schedule 7 of the Large and Medium-sized Companies and Groups (Accounts and
+Reports) Regulations 2008.
+
+Research and Development
+
+The Company undertakes research and development activities in respect of the development and enhancement of
+its technology platform. Revolut incurred research and development costs during 2024 of £169 million and these are
+recognised in the Consolidated Statement of Comprehensive Income (2023: £122.3 million).
+
+Political Donations
+
+The Company does not make any political donations or incur political expenditure within the ordinary meaning of
+those words. However, the definitions of political donations, political parties, political organisations and political
+expenditure under the Companies Act 2006 are broad. As.a result, such definitions may cover ordinary activities that.
+form part of normal business activities of the Company. The Company has not made any political donations to any
+registered political parties, organisations or candidates. The Company has made a payment to a third party as part
+of a sponsorship agreement to participate, and promote the Company's business, in events prepared by them at,
+and in publications prepared by them in relation to, a party conference. This was for business purposes and is not
+intended or considered to be in the nature of party political campaigning, activity or support.
+
+Directors’ Indemnities
+
+The Parent indemnifies each of the Company's Directors against third party liability, subject to the conditions set out
+in section 234 of the Companies Act 2006. This qualifying third party indemnity provision was in force during the
+2024 financial year.
+
+Financial Instruments
+
+The Company enters into a series of financial instruments for the purposes of its business operations, comprising
+cash and cash equivalents, financial investments held to collect and sell, derivatives, customer liabilities,
+intercompany and other payables, and receivables measured at amortised cost. Details of the Company's financial
+instruments are set out in Note 27 of the financial statements.
+
+The Company is exposed to foreign exchange and interest rate risk. The Company undertakes fair-value hedge
+accounting using interest rate swaps for its non-interest-bearing core deposits. Details of the Company's hedge
+accounting are set out in Note 27.5 of the financial statements.
+
+Revolut Ltd Registered number: 08804411 12
+
+
+=== PAGE 13 ===
+Docusign Envelope ID: 27870236-15BC-4FE0-A87C-657C9BBC3871
+
+Capital Management
+
+As at 31 December 2024, the Company had total capital resources, all of which is Common Equity Tier 1 (‘CET1), of
+£1,566 million (2023: £877 million).
+
+Going Concern
+
+The financial statements have been prepared on a going concern basis as the Directors have concluded that the
+Company has sufficient resources to continue in operation for a period of at least twelve months from the date of
+approval of the financial statements.
+
+The going concern assessment is based upon the latest financial forecast prepared by management. The forecast
+includes appropriate assumptions in respect to user and revenue growth, and profitability derived from the historical
+performance of the business and expected changes to the business throughout the forecast period.
+
+In their assessment of going concern, the Directors have also considered the severe but plausible downside
+scenarios used in the Group’s detailed Internal Capital Adequacy Assessment Process (ICAAP) and Internal Liquidity
+Adequacy Assessment Process (ILAAP) to evaluate the viability of the business. Revolut has considered a variety of
+scenarios, including ones based on historic events, regulatory stress tests and internal scenarios. Three stress
+scenarios were then selected and modelled to examine the key business vulnerabilities and risks.
+
+These scenarios ensure a variety of risks are assessed and put stress on one or more of the principal risks outlined
+in the Principal Risks and Uncertainties section (p. 7). The impact was assessed both before and after the actions of
+the Group's management, and this impact was compared against the Group's capital and liquidity requirements. This
+assessment also stresses the underlying entities in the Group, including the Company, and the entities from which
+the Company generates service fee income. The scenarios that were tested by the Group are summarised in the
+table below.
+
+ype Description
+«Drop in property prices (residential and commercial) sharply triggering widespread defaults.
+Interest Rates Financial institutions in distress reduce lending.
+Haina Inflationary pressures recede following geopolitical developments and Central Banks
+respond by cutting interest rates.
+Market + This is based on Bank of England's 2024 Annual Demand Shock Scenario.
++ Inflation increases globally leading to Central Banks having to raise interest rates resulting in
+Interest Rates a global recession.
+Increase + GDP growth stagnates and unemployment increases for a protracted period of time.
++ This is based on Bank of England's 2024 Annual Supply Shock Scenario.
+Reputational An operational event leads to a fall in customer confidence and severe reputational damage.
+Idiosyncratic a Many customers withdraw funds and stop using Revolut due to the loss of confidence.
+
+It takes considerable time before trust is restored.
+
+In all scenarios, the Company’s capital and liquidity remain well above regulatory requirements. This sufficiency does
+not require any external financing. While profitability is reduced, under all three stress scenarios, Revolut continues
+to generate profit throughout the assessment period. In the most severe scenario, short-term profitability shrinks
+however the Company is able to meet its capital and liquidity requirements. This sufficiency does not require any
+external capital raises. In case impact under these stress scenarios exceed expectations, management has identified
+a range of mitigating actions to preserve capital and liquidity buffers and ensure requirements are met. These
+include discretionary reductions in operating expenses, reprioritising growth initiatives, or pausing non-essential
+investments.
+
+Additionally, reverse stress testing was conducted to identify extreme but plausible conditions under which the
+business model might become unviable.
+
+These findings reflect not only the resilience of the Company's diversified business model but also its strong position
+
+in terms of capital and liquidity. This adds to the substantial evidence supporting the Company's ability to continue
+as a going concern.
+
+Revolut Ltd Registered number: 08804411 13
+
+
+=== PAGE 14 ===
+Docusign Envelope ID: 27870236-15BC-4FE0-A87C-657C9BBC3871
+
+The Directors have considered the forecasts and stress tests for the Company and have, at the time of approving
+these financial statements, a reasonable expectation that the Company has adequate resources to continue in
+operation for a period of at least twelve months from the date of approval of the financial statements.
+
+Events After the Reporting Date
+Please refer to Note 31 on page 80 for information about our post balance sheet events.
+
+Branches outside the UK
+
+Please refer to Note 15 on page 53 for information about the Company's branches.
+
+Disclosure of Information to the Auditor
+
+Each of the directors, as of the date of approval of this Directors’ Report, confirm that:
+
+e so far as the directors are aware, there is no relevant audit information of which the Company's auditors are
+unaware; and
+
+* they have taken all of the steps that ought to have been taken as a director in order to be aware of any
+relevant audit information and to establish that the Company's auditors are aware of that information.
+
+Auditor
+
+BDO LLP have indicated their willingness to be reappointed as auditors for another term and appropriate
+arrangements will be put in place for them to be deemed reappointed.
+
+Revolut Ltd Registered number: 08804411 14
+
+
+=== PAGE 15 ===
+Docusign Envelope ID: 27870236-15BC-4FE0-A87C-657C9BBC3871
+
+Directors’ Responsibilities Statement
+
+The Directors are responsible for preparing this Strategic Report, the Directors' Report and the Financial Statements
+in accordance with applicable law and regulations.
+
+The Directors have chosen to prepare the Company Financial Statements in accordance with Financial Reporting
+Standard 101, ‘Reduced Disclosure Framework’ (FRS 101) and the Companies Act 2006.
+
+The law provides that the Directors may only approve the financial statements if they are satisfied that they give a
+true and fair view of the state of affairs of the Company and of the profit or loss of the Company for the financial
+year to which they relate.
+
+In preparing the financial statements, the Directors are required to:
+
+« Maintain appropriate accounting records, which enable the Directors to understand the Company's
+transactions and financial position;
+
+« — Select appropriate accounting policies and apply them consistently;
+
+« Present information, including accounting policies, in a manner that provides relevant, reliable, comparable
+and understandable information;
+
++ Make judgments and accounting estimates that are reasonable and prudent;
+
++ Provide additional disclosures in certain circumstances to ensure that readers of the financial statements
+can understand the impact of particular transactions and matters on the Company's financial position and
+financial performance;
+
+* Ensure that the financial statements comply with the requirements of the Companies Act 2006;
+
+« Make an assessment of the Company's ability to continue as a going concern; and
+
++ Use the going concern basis of accounting unless they either intend to liquidate the Company or to;cease
+operations, or have no realistic alternative but to do so.
+
+The Directors are responsible for such internal control as they determine is necessary to enable the preparation of
+financial statements that are free from material misstatement, whether due to fraud or error, and have general
+responsibility for taking such steps as are reasonably open to them to safeguard assets of the Company and to
+prevent and detect fraud and other irregularities. The Directors are responsible for the maintenance and integrity of
+the corporate and financial information on the company's website. Legislation in the United Kingdom governing the
+preparation and dissemination of the financial statements may differ from legislation in other jurisdictions.
+
+This Directors' Report was approved by the Board on 16 April 2025 and signed on its behalf by:
+
+on by
+h
+oo ai
+
+Nikolay Storonsky
+Director
+16 April 2025
+
+Revolut Ltd Registered number: 08804411 15
+

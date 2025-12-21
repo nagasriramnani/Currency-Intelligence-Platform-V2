@@ -1,0 +1,133 @@
+﻿============================================================
+OCR Test for Revolut (08804411)
+============================================================
+
+1. Downloading PDF...
+   Status: 200
+   Size: 3660232 bytes
+
+2. Converting PDF to images...
+   Converted 5 pages
+
+3. Running OCR on images...
+   Processing page 1...
+   Page 1: 278 characters
+   Processing page 2...
+   Page 2: 373 characters
+   Processing page 3...
+   Page 3: 626 characters
+   Processing page 4...
+   Page 4: 3156 characters
+   Processing page 5...
+   Page 5: 3493 characters
+
+4. Total extracted: 7931 characters
+
+5. Searching for financial data...
+   [NOT FOUND] turnover
+   [NOT FOUND] total_assets
+   [NOT FOUND] net_assets
+   [NOT FOUND] employees
+   [NOT FOUND] profit
+
+6. Sample extracted text (first 2000 chars):
+----------------------------------------
+Docusign Envelope ID: 27870236-15BC-4FE0-A87C-657C9BBC3871
+
+iRevolut
+
+Revolut Ltd 2024
+Annual Report
+
+And Financial Statements for the
+year ended 31 December 2024
+
+*AE1F47SP*
+
+AOS 28/04/2025 #244
+COMPANIES HOUSE
+
+Revolut Group Holdings Ltd | Registered number: 08804411
+
+MONDAY
+
+Docusign Envelope ID: 27870236-15BC-4FE0-A87C-657C9BBC3871
+
+Table of Contents
+
+Company Strategic Report
+Information
+
+Directors? Independent Auditor's
+
+Report Report to the Members of
+Revolut Ltd
+
+Statement of Statement of Financial
+
+oO Comprehensive Income Position
+
+Statement of Changes Notes to the Financial
+in Equity Statements
+
+Revolut Ltd Registered number: 08804411
+
+Docusign Envelope ID: 27870236-15BC-4FE0-A87C-657C9BBC3871
+
+Company Information
+
+Company Name Revolut Ltd
+
+Martin Gilbert (Chair)
+
+Nikolay Storonsky
+
+Vladyslav Yatsenko
+
+Michael Sherwood -
+Caroline Britton
+
+lan Wilson
+
+John Sievwright
+
+Dan Teodosiu
+
+Please refer to the annual report of Revolut Group Holdings Ltd for the directors? biographies and
+their dates of appointment.
+
+Company Secretary Thomas Hambrett
+
+Registered Number 08804411
+
+Registered Office 7 Westferry Circus
+Canary Wharf
+London
+England
+E14 4HD
+
+Independent Auditors BDO LLP
+55 Baker Street
+London
+England
+WIU 7EU
+
+Revolut Ltd Registered number: 08804411 3
+
+Docusign Envelope ID: 27870236-15BC-4FE0-A87C-657C9BBC3871
+
+Strategic Report
+
+The Directors present their strategic report for the year ended 31 December 2024 for Revolut Ltd (the ?Company? or
+?Revolut').
+
+Business Review
+
+Revolut exists to make money cheaper, simpler, and more transparent. Our mission is to simplify all things money.
+People and businesses want greater control over their finances and we provide a tailored experience to our
+customers through data-driven insights, empowering them to make smarter decisions about how they spend, save,
+and grow their money. We deeply care about the trust that customers place in us by ensuring that our platform is
+secure and reliable.
+
+Revolut began in the UK in 2015
+----------------------------------------
