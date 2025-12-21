@@ -28,8 +28,7 @@ export default function AnalysisPage() {
         setShowReportMenu(false);
 
         try {
-            const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-            const response = await fetch(`${API_BASE}/api/reports/${reportType}`);
+            const response = await fetch(`http://localhost:8000/api/reports/${reportType}`);
 
             if (!response.ok) {
                 throw new Error('Failed to generate report');

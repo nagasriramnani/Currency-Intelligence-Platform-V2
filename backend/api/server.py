@@ -67,6 +67,18 @@ from alerts.engine import AlertEngine, create_alert_engine
 # Production Forecast Service (load-only, no training in endpoints)
 from ml.services.forecast_service import ForecastService, ModelNotFoundError, ModelLoadError
 
+# EIS / Companies House Integration
+from data.companies_house import (
+    CompaniesHouseClient,
+    get_sample_eis_data,
+    get_client as get_companies_house_client
+)
+from reports.eis_newsletter import (
+    EISNewsletterGenerator,
+    generate_eis_newsletter,
+    is_available as eis_newsletter_available
+)
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -1957,7 +1969,204 @@ async def check_alerts():
     }
 
 
+# =============================================================================
+# EIS / Companies House Endpoints
+# =============================================================================
+
+@app.get("/api/eis/companies")
+async def get_eis_companies():
+    """
+    Get list of EIS companies for monitoring.
+    Returns sample data for demo, real data from Companies House when available.
+    """
+    try:
+        # Return sample EIS data for demo
+        companies = get_sample_eis_data()
+        
+        return {
+            "companies": companies,
+            "count": len(companies),
+            "source": "sample_data",
+            "last_updated": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to get EIS companies: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/eis/company/{company_number}")
+async def get_company_details(company_number: str):
+    """
+    Get detailed company information from Companies House.
+    
+    Args:
+        company_number: 8-character company registration number
+    """
+    try:
+        client = get_companies_house_client()
+        
+        if not client.is_configured():
+            raise HTTPException(
+                status_code=503,
+                detail="Companies House API not configured. Set COMPANIES_HOUSE_API_KEY in .env"
+            )
+        
+        company_data = client.get_company_with_details(company_number)
+        
+        if not company_data:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Company {company_number} not found"
+            )
+        
+        return company_data
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get company {company_number}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/eis/search")
+async def search_companies(
+    query: str = Query(..., description="Company name or number to search"),
+    limit: int = Query(10, ge=1, le=50, description="Maximum results")
+):
+    """
+    Search Companies House for companies.
+    """
+    try:
+        client = get_companies_house_client()
+        
+        if not client.is_configured():
+            raise HTTPException(
+                status_code=503,
+                detail="Companies House API not configured"
+            )
+        
+        results = client.search_companies(query, items_per_page=limit)
+        
+        return {
+            "query": query,
+            "results": results,
+            "count": len(results)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Search failed for '{query}': {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/eis/summary")
+async def get_eis_summary():
+    """
+    Get summary statistics for EIS companies.
+    """
+    try:
+        companies = get_sample_eis_data()
+        
+        # Calculate summary stats
+        total_companies = len(companies)
+        approved = sum(1 for c in companies if c.get('eis_status') == 'Approved')
+        pending = sum(1 for c in companies if c.get('eis_status') == 'Pending')
+        total_raised = sum(c.get('amount_raised', 0) for c in companies)
+        
+        # Risk breakdown
+        low_risk = sum(1 for c in companies if c.get('risk_score') == 'Low')
+        medium_risk = sum(1 for c in companies if c.get('risk_score') == 'Medium')
+        high_risk = sum(1 for c in companies if c.get('risk_score') == 'High')
+        
+        # Sector breakdown
+        sectors = {}
+        for c in companies:
+            sector = c.get('sector', 'Unknown')
+            sectors[sector] = sectors.get(sector, 0) + 1
+        
+        # Investment stage breakdown
+        stages = {}
+        for c in companies:
+            stage = c.get('investment_stage', 'Unknown')
+            stages[stage] = stages.get(stage, 0) + 1
+        
+        return {
+            "total_companies": total_companies,
+            "eis_approved": approved,
+            "eis_pending": pending,
+            "total_raised": total_raised,
+            "average_raised": total_raised / total_companies if total_companies > 0 else 0,
+            "risk_breakdown": {
+                "low": low_risk,
+                "medium": medium_risk,
+                "high": high_risk
+            },
+            "sectors": sectors,
+            "investment_stages": stages,
+            "last_updated": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get EIS summary: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/eis/newsletter")
+async def generate_eis_newsletter_pdf():
+    """
+    Generate EIS Newsletter PDF.
+    Downloads a professionally formatted newsletter with company profiles.
+    """
+    from fastapi.responses import Response
+    
+    try:
+        if not eis_newsletter_available():
+            raise HTTPException(
+                status_code=503,
+                detail="PDF generation not available. Install reportlab."
+            )
+        
+        companies = get_sample_eis_data()
+        
+        generator = EISNewsletterGenerator()
+        pdf_bytes = generator.generate_newsletter(
+            companies=companies,
+            title="EIS Investment Newsletter"
+        )
+        
+        filename = f"eis_newsletter_{datetime.now().strftime('%Y%m%d')}.pdf"
+        
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Newsletter generation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/eis/health")
+async def eis_health_check():
+    """
+    Check EIS integration health status.
+    """
+    client = get_companies_house_client()
+    
+    return {
+        "companies_house_configured": client.is_configured(),
+        "newsletter_available": eis_newsletter_available(),
+        "sample_data_count": len(get_sample_eis_data()),
+        "status": "healthy" if client.is_configured() else "limited"
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
 
