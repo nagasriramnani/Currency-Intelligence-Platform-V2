@@ -2555,7 +2555,7 @@ async def get_scan_history(limit: int = Query(default=10, ge=1, le=50)):
 
 
 @app.post("/api/eis/automation/send")
-async def send_newsletter_email(companies: List[Dict] = Body(default=[])):
+async def send_newsletter_email(request: Dict = Body(default={})):
     """Send newsletter email to all subscribers immediately."""
     if not AUTOMATION_AVAILABLE:
         raise HTTPException(status_code=503, detail="Automation modules not available")
@@ -2575,6 +2575,11 @@ async def send_newsletter_email(companies: List[Dict] = Body(default=[])):
         subscribers = subs_data.get("subscribers", [])
         if not subscribers:
             raise HTTPException(status_code=400, detail="No subscribers to send to")
+        
+        # Extract companies from request
+        companies = request.get("companies", [])
+        if not companies:
+            raise HTTPException(status_code=400, detail="No companies provided")
         
         # Generate newsletter content from companies
         writer = EISWriter(use_ai=False)
