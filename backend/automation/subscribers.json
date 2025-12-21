@@ -1,0 +1,5 @@
+{
+    "subscribers": [],
+    "updated": "2024-12-21T00:00:00",
+    "notes": "Add subscribers using: python mailer.py --add-subscriber email@example.com"
+}
