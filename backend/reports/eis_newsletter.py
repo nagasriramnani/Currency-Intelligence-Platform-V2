@@ -5,12 +5,12 @@ Creates professional PDF newsletters for EIS (Enterprise Investment Scheme) comp
 Designed for investor-ready reporting on portfolio company updates.
 
 Features:
-- Executive Summary with KPIs
-- Sector Analysis with totals
+- Executive Summary with real KPIs
+- Sector Analysis
 - Company Due Diligence Profiles
-- Risk Assessment Matrices
+- Risk Assessment Matrix
 - Director/Officer Analysis
-- Filing History Highlights
+- All data from UK Companies House (no fake estimates)
 """
 
 import logging
@@ -57,94 +57,78 @@ def get_sector_from_sic(sic_codes: List[str]) -> str:
     return SIC_TO_SECTOR.get(first_two, 'Other')
 
 
-def estimate_investment_metrics(company: Dict) -> Dict:
+def get_company_age(date_of_creation: str) -> int:
+    """Calculate company age in years."""
+    if not date_of_creation:
+        return 0
+    try:
+        if '-' in date_of_creation:
+            created_year = int(date_of_creation.split('-')[0])
+        else:
+            created_year = int(date_of_creation[:4])
+        return datetime.now().year - created_year
+    except:
+        return 0
+
+
+def calculate_risk_level(company: Dict) -> Dict[str, Any]:
     """
-    Estimate investment metrics based on company characteristics.
-    This provides reasonable estimates for demo/presentation purposes.
+    Calculate risk level based on REAL data from Companies House.
+    
+    Risk factors:
+    - Insolvency history: High risk
+    - Outstanding charges: Medium risk
+    - Non-active status: High risk
+    - Young company (<2 yrs): Higher risk
+    - Mature company (>5 yrs): Lower risk
     """
-    # Get company age
-    created = company.get('date_of_creation', '')
-    if created:
-        try:
-            created_year = int(created.split('-')[0])
-            age_years = datetime.now().year - created_year
-        except:
-            age_years = 3
-    else:
-        age_years = 3
-    
-    # Determine investment stage based on age
-    if age_years <= 1:
-        stage = "Pre-Seed"
-        base_raised = 50000
-    elif age_years <= 2:
-        stage = "Seed"
-        base_raised = 150000
-    elif age_years <= 4:
-        stage = "Series A"
-        base_raised = 500000
-    else:
-        stage = "Growth"
-        base_raised = 1500000
-    
-    # Get sector for risk assessment
-    sic_codes = company.get('sic_codes', [])
-    sector = get_sector_from_sic(sic_codes)
-    
-    # Determine risk based on sector and flags
-    has_charges = company.get('has_charges', False)
     has_insolvency = company.get('has_insolvency_history', False)
+    has_charges = company.get('has_charges', False)
+    status = company.get('company_status', 'active')
+    age = get_company_age(company.get('date_of_creation', ''))
     
     if has_insolvency:
-        risk = "High"
-        risk_score = 8
-    elif has_charges:
-        risk = "Medium"
-        risk_score = 5
-    elif sector in ['Financial Services', 'Healthcare', 'Pharmaceuticals']:
-        risk = "Medium"
-        risk_score = 4
-    elif sector in ['Technology', 'R&D']:
-        risk = "Medium"
-        risk_score = 5
-    else:
-        risk = "Low"
-        risk_score = 3
+        return {'level': 'High', 'score': 8, 'reason': 'Insolvency history'}
+    if status != 'active':
+        return {'level': 'High', 'score': 7, 'reason': f'Status: {status}'}
+    if has_charges:
+        return {'level': 'Medium', 'score': 5, 'reason': 'Outstanding charges'}
+    if age < 2:
+        return {'level': 'High', 'score': 6, 'reason': 'Very young company'}
+    if age < 5:
+        return {'level': 'Medium', 'score': 4, 'reason': 'Young company'}
+    return {'level': 'Low', 'score': 2, 'reason': 'Established company'}
+
+
+def calculate_eis_eligibility(company: Dict) -> Dict[str, str]:
+    """
+    Estimate EIS eligibility based on Companies House data.
     
-    # Estimate raised amount with some variance
-    import random
-    variance = random.uniform(0.7, 1.5)
-    amount_raised = int(base_raised * variance)
+    EIS requirements (simplified):
+    - Company must be UK based
+    - Less than 7 years old (for SEIS: <2 years)
+    - Must be active/trading
+    - No insolvency
+    """
+    age = get_company_age(company.get('date_of_creation', ''))
+    status = company.get('company_status', 'active')
+    has_insolvency = company.get('has_insolvency_history', False)
     
-    # EIS status based on company status
-    company_status = company.get('company_status', 'active')
-    if company_status == 'active':
-        eis_status = "Eligible" if age_years <= 7 else "Review Required"
-    else:
-        eis_status = "Ineligible"
-    
-    return {
-        'sector': sector,
-        'investment_stage': stage,
-        'amount_raised': amount_raised,
-        'risk_score': risk,
-        'risk_value': risk_score,
-        'eis_status': eis_status,
-        'company_age': age_years
-    }
+    if status != 'active':
+        return {'status': 'Ineligible', 'reason': 'Company not active'}
+    if has_insolvency:
+        return {'status': 'Ineligible', 'reason': 'Insolvency history'}
+    if age > 7:
+        return {'status': 'Review Required', 'reason': 'Company over 7 years old'}
+    if age <= 2:
+        return {'status': 'SEIS Eligible', 'reason': 'Young company (<2 yrs)'}
+    return {'status': 'EIS Eligible', 'reason': f'Company {age} years old'}
 
 
 class EISNewsletterGenerator:
     """
     Generates professional EIS investment newsletters for investor due diligence.
-    
-    Features:
-    - Executive Summary with KPIs
-    - Portfolio Analytics
-    - Company Due Diligence Profiles
-    - Risk Assessment Matrix
-    - Director/Officer Analysis
-    - Filing History & Compliance
+    Uses only REAL data from UK Companies House - no fake estimates.
     """
     
     # Sapphire brand colors
@@ -184,12 +168,6 @@ class EISNewsletterGenerator:
         safe_add('NewsletterBody', parent=self._styles['Normal'],
                  fontSize=10, spaceAfter=8, textColor=colors.HexColor('#2d3748'))
         
-        safe_add('MetricLabel', parent=self._styles['Normal'],
-                 fontSize=9, textColor=colors.HexColor('#718096'))
-        
-        safe_add('MetricValue', parent=self._styles['Normal'],
-                 fontSize=11, textColor=self.PRIMARY_COLOR, fontName='Helvetica-Bold')
-        
         safe_add('SmallText', parent=self._styles['Normal'],
                  fontSize=8, textColor=colors.HexColor('#a0aec0'))
     
@@ -201,26 +179,21 @@ class EISNewsletterGenerator:
     ) -> bytes:
         """
         Generate comprehensive EIS investment newsletter PDF.
-        
-        Args:
-            companies: List of company data (from Companies House API or enriched)
-            newsletter_date: Date for the newsletter
-            title: Newsletter title
-            
-        Returns:
-            PDF as bytes
+        All data comes from UK Companies House - no estimates.
         """
         if not REPORTLAB_AVAILABLE:
             raise RuntimeError("ReportLab not available")
         
         newsletter_date = newsletter_date or date.today()
         
-        # Enrich companies with estimated investment metrics
+        # Enrich companies with calculated metrics
         enriched_companies = []
         for company in companies:
             enriched = dict(company)
-            metrics = estimate_investment_metrics(company)
-            enriched.update(metrics)
+            enriched['sector'] = get_sector_from_sic(company.get('sic_codes', []))
+            enriched['company_age'] = get_company_age(company.get('date_of_creation', ''))
+            enriched['risk'] = calculate_risk_level(company)
+            enriched['eis'] = calculate_eis_eligibility(company)
             enriched_companies.append(enriched)
         
         buffer = BytesIO()
@@ -229,26 +202,26 @@ class EISNewsletterGenerator:
                                 leftMargin=0.75*inch, rightMargin=0.75*inch)
         story = []
         
-        # ===== COVER PAGE =====
+        # Cover Page
         story.extend(self._create_cover_page(enriched_companies, newsletter_date, title))
         story.append(PageBreak())
         
-        # ===== EXECUTIVE SUMMARY =====
+        # Executive Summary
         story.extend(self._create_executive_summary(enriched_companies))
         
-        # ===== PORTFOLIO ANALYTICS =====
-        story.extend(self._create_portfolio_analytics(enriched_companies))
+        # Sector Analysis
+        story.extend(self._create_sector_analysis(enriched_companies))
         
-        # ===== COMPANY PROFILES =====
+        # Company Profiles
         story.append(Paragraph("Company Due Diligence Profiles", self._styles['SectionHeader']))
         for i, company in enumerate(enriched_companies):
             story.extend(self._create_company_profile(company, i + 1))
         
-        # ===== RISK MATRIX =====
+        # Risk Matrix
         story.append(PageBreak())
         story.extend(self._create_risk_matrix(enriched_companies))
         
-        # ===== FOOTER =====
+        # Footer
         story.extend(self._create_footer())
         
         doc.build(story)
@@ -265,18 +238,16 @@ class EISNewsletterGenerator:
         elements.append(Paragraph(title, self._styles['NewsletterTitle']))
         elements.append(Spacer(1, 30))
         
-        # Key Stats Box
-        total_companies = len(companies)
-        eis_eligible = sum(1 for c in companies if c.get('eis_status') in ['Eligible', 'Approved'])
-        total_raised = sum(c.get('amount_raised', 0) for c in companies)
-        avg_raised = total_raised / max(total_companies, 1)
-        sectors = len(set(c.get('sector', 'Other') for c in companies))
+        # Portfolio Stats
+        total = len(companies)
+        eis_eligible = sum(1 for c in companies if c['eis']['status'] in ['EIS Eligible', 'SEIS Eligible'])
+        sectors = len(set(c['sector'] for c in companies))
+        active = sum(1 for c in companies if c.get('company_status') == 'active')
         
         cover_data = [
             ["Portfolio Overview"],
-            [f"{total_companies} Companies | {eis_eligible} EIS Eligible | {sectors} Sectors"],
-            [f"Estimated Total Investment: £{total_raised:,.0f}"],
-            [f"Average per Company: £{avg_raised:,.0f}"]
+            [f"{total} Companies | {eis_eligible} EIS Eligible | {sectors} Sectors | {active} Active"],
+            [f"Data Source: UK Companies House Registry"],
         ]
         
         cover_table = Table(cover_data, colWidths=[5*inch])
@@ -300,49 +271,49 @@ class EISNewsletterGenerator:
             f"Report Date: {newsletter_date.strftime('%B %d, %Y')}",
             self._styles['NewsletterSubtitle']
         ))
-        elements.append(Paragraph(
-            "Data Source: UK Companies House Registry",
-            self._styles['SmallText']
-        ))
         
         return elements
     
     def _create_executive_summary(self, companies: List[Dict]) -> List:
-        """Create executive summary section."""
+        """Create executive summary with REAL data only."""
         elements = []
         
         elements.append(Paragraph("Executive Summary", self._styles['SectionHeader']))
         
-        # Calculate metrics
         total = len(companies)
-        eis_eligible = sum(1 for c in companies if c.get('eis_status') in ['Eligible', 'Approved'])
-        total_raised = sum(c.get('amount_raised', 0) for c in companies)
-        avg_raised = total_raised / max(total, 1)
+        
+        # EIS breakdown
+        eis_eligible = sum(1 for c in companies if c['eis']['status'] == 'EIS Eligible')
+        seis_eligible = sum(1 for c in companies if c['eis']['status'] == 'SEIS Eligible')
+        review = sum(1 for c in companies if c['eis']['status'] == 'Review Required')
+        ineligible = sum(1 for c in companies if c['eis']['status'] == 'Ineligible')
         
         # Risk breakdown
-        low_risk = sum(1 for c in companies if c.get('risk_score') == 'Low')
-        med_risk = sum(1 for c in companies if c.get('risk_score') == 'Medium')
-        high_risk = sum(1 for c in companies if c.get('risk_score') == 'High')
+        low_risk = sum(1 for c in companies if c['risk']['level'] == 'Low')
+        med_risk = sum(1 for c in companies if c['risk']['level'] == 'Medium')
+        high_risk = sum(1 for c in companies if c['risk']['level'] == 'High')
         
-        # Stage breakdown
-        stages = {}
-        for c in companies:
-            stage = c.get('investment_stage', 'Unknown')
-            stages[stage] = stages.get(stage, 0) + 1
+        # Age stats
+        ages = [c['company_age'] for c in companies]
+        avg_age = sum(ages) / max(len(ages), 1)
         
-        # Summary Table
+        # Director count
+        total_directors = sum(len(c.get('directors', [])) for c in companies)
+        
         summary_data = [
-            ["KPI", "Value", "Notes"],
+            ["Metric", "Value", "Notes"],
             ["Total Companies", str(total), "Companies in this report"],
             ["EIS Eligible", str(eis_eligible), f"{eis_eligible/max(total,1)*100:.0f}% of portfolio"],
-            ["Est. Total Raised", f"£{total_raised:,.0f}", "Aggregate portfolio value"],
-            ["Avg. Investment", f"£{avg_raised:,.0f}", "Per company average"],
-            ["Low Risk", str(low_risk), f"{low_risk/max(total,1)*100:.0f}% of portfolio"],
-            ["Medium Risk", str(med_risk), f"{med_risk/max(total,1)*100:.0f}% of portfolio"],
-            ["High Risk", str(high_risk), f"{high_risk/max(total,1)*100:.0f}% of portfolio"],
+            ["SEIS Eligible", str(seis_eligible), "Companies under 2 years"],
+            ["Review Required", str(review), "Over 7 years, needs assessment"],
+            ["Low Risk", str(low_risk), "Established, no flags"],
+            ["Medium Risk", str(med_risk), "Young or has charges"],
+            ["High Risk", str(high_risk), "Insolvency or non-active"],
+            ["Average Age", f"{avg_age:.1f} years", "Company maturity"],
+            ["Total Directors", str(total_directors), "Named officers"],
         ]
         
-        table = Table(summary_data, colWidths=[1.8*inch, 1.5*inch, 2.5*inch])
+        table = Table(summary_data, colWidths=[1.8*inch, 1.2*inch, 2.5*inch])
         table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), self.PRIMARY_COLOR),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -360,37 +331,38 @@ class EISNewsletterGenerator:
         
         return elements
     
-    def _create_portfolio_analytics(self, companies: List[Dict]) -> List:
-        """Create portfolio analytics section."""
+    def _create_sector_analysis(self, companies: List[Dict]) -> List:
+        """Create sector breakdown."""
         elements = []
         
         elements.append(Paragraph("Sector Analysis", self._styles['SectionHeader']))
         
-        # Sector breakdown
+        # Count by sector
         sector_data = {}
         for c in companies:
-            sector = c.get('sector', 'Other')
+            sector = c['sector']
             if sector not in sector_data:
-                sector_data[sector] = {'count': 0, 'raised': 0, 'companies': []}
+                sector_data[sector] = {'count': 0, 'eis': 0, 'companies': []}
             sector_data[sector]['count'] += 1
-            sector_data[sector]['raised'] += c.get('amount_raised', 0)
+            if c['eis']['status'] in ['EIS Eligible', 'SEIS Eligible']:
+                sector_data[sector]['eis'] += 1
             sector_data[sector]['companies'].append(c.get('company_name', 'Unknown'))
         
-        sector_table_data = [["Sector", "Companies", "Est. Raised", "% of Portfolio"]]
-        total_raised = sum(c.get('amount_raised', 0) for c in companies)
+        table_data = [["Sector", "Companies", "EIS Eligible", "% of Portfolio"]]
+        total = len(companies)
         
         for sector in sorted(sector_data.keys()):
             data = sector_data[sector]
-            pct = (data['raised'] / max(total_raised, 1)) * 100
-            sector_table_data.append([
+            pct = (data['count'] / max(total, 1)) * 100
+            table_data.append([
                 sector,
                 str(data['count']),
-                f"£{data['raised']:,.0f}",
+                str(data['eis']),
                 f"{pct:.1f}%"
             ])
         
-        sector_table = Table(sector_table_data, colWidths=[2*inch, 1.2*inch, 1.5*inch, 1.2*inch])
-        sector_table.setStyle(TableStyle([
+        table = Table(table_data, colWidths=[2*inch, 1.2*inch, 1.2*inch, 1.2*inch])
+        table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), self.ACCENT_COLOR),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
@@ -401,32 +373,29 @@ class EISNewsletterGenerator:
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, self.LIGHT_BG])
         ]))
-        elements.append(sector_table)
+        elements.append(table)
         elements.append(Spacer(1, 20))
         
         return elements
     
     def _create_company_profile(self, company: Dict, index: int) -> List:
-        """Create detailed company profile section."""
+        """Create detailed company profile with REAL data."""
         elements = []
         
         company_name = company.get('company_name', 'Unknown Company')
         elements.append(Paragraph(f"{index}. {company_name}", self._styles['CompanyName']))
         
-        # Company ID and Status Row
+        # Basic info row
         company_num = company.get('company_number', 'N/A')
         status = company.get('company_status', 'Unknown').title()
-        eis_status = company.get('eis_status', 'N/A')
+        eis_status = company['eis']['status']
+        risk_level = company['risk']['level']
         
-        status_color = self.SUCCESS_COLOR if status == 'Active' else self.WARNING_COLOR
-        eis_color = self.SUCCESS_COLOR if eis_status in ['Eligible', 'Approved'] else self.WARNING_COLOR
-        
-        # Metrics Row
         metrics_data = [[
             f"Company #: {company_num}",
             f"Status: {status}",
             f"EIS: {eis_status}",
-            f"Risk: {company.get('risk_score', 'N/A')}"
+            f"Risk: {risk_level}"
         ]]
         
         metrics_table = Table(metrics_data, colWidths=[1.4*inch]*4)
@@ -442,45 +411,42 @@ class EISNewsletterGenerator:
         elements.append(metrics_table)
         elements.append(Spacer(1, 5))
         
-        # Investment Metrics
-        investment_data = [[
-            f"Stage: {company.get('investment_stage', 'N/A')}",
-            f"Est. Raised: £{company.get('amount_raised', 0):,.0f}",
-            f"Sector: {company.get('sector', 'N/A')}",
-            f"Age: {company.get('company_age', 'N/A')} yrs"
+        # Details row
+        details_data = [[
+            f"Sector: {company['sector']}",
+            f"Age: {company['company_age']} years",
+            f"Jurisdiction: {company.get('jurisdiction', 'UK')}",
         ]]
         
-        inv_table = Table(investment_data, colWidths=[1.4*inch]*4)
-        inv_table.setStyle(TableStyle([
+        details_table = Table(details_data, colWidths=[1.87*inch]*3)
+        details_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#ebf8ff')),
             ('TEXTCOLOR', (0, 0), (-1, -1), self.ACCENT_COLOR),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, -1), 9),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
             ('TOPPADDING', (0, 0), (-1, -1), 6),
             ('BOX', (0, 0), (-1, -1), 0.5, self.ACCENT_COLOR)
         ]))
-        elements.append(inv_table)
+        elements.append(details_table)
         elements.append(Spacer(1, 5))
         
-        # Location & Details
+        # Address
         address = company.get('registered_office_address', {})
         location_parts = []
         if address.get('address_line_1'):
             location_parts.append(address['address_line_1'])
+        if address.get('address_line_2'):
+            location_parts.append(address['address_line_2'])
         if address.get('locality'):
             location_parts.append(address['locality'])
         if address.get('postal_code'):
             location_parts.append(address['postal_code'])
         location = ", ".join(location_parts) if location_parts else "N/A"
         
-        elements.append(Paragraph(
-            f"<b>Registered Office:</b> {location}",
-            self._styles['NewsletterBody']
-        ))
+        elements.append(Paragraph(f"<b>Registered Office:</b> {location}", self._styles['NewsletterBody']))
         
-        # Founded date
+        # Incorporation date
         founded = company.get('date_of_creation', 'N/A')
         sic_codes = company.get('sic_codes', [])
         sic_str = ", ".join(sic_codes[:3]) if sic_codes else "N/A"
@@ -499,6 +465,18 @@ class EISNewsletterGenerator:
                 self._styles['NewsletterBody']
             ))
         
+        # Risk explanation
+        elements.append(Paragraph(
+            f"<b>Risk Assessment:</b> {company['risk']['level']} - {company['risk']['reason']}",
+            self._styles['NewsletterBody']
+        ))
+        
+        # EIS explanation
+        elements.append(Paragraph(
+            f"<b>EIS Status:</b> {company['eis']['status']} - {company['eis']['reason']}",
+            self._styles['NewsletterBody']
+        ))
+        
         # Risk Flags
         flags = []
         if company.get('has_insolvency_history'):
@@ -508,10 +486,7 @@ class EISNewsletterGenerator:
         if not flags:
             flags.append("✅ No Adverse Flags")
         
-        elements.append(Paragraph(
-            f"<b>Risk Indicators:</b> {' | '.join(flags)}",
-            self._styles['NewsletterBody']
-        ))
+        elements.append(Paragraph(f"<b>Flags:</b> {' | '.join(flags)}", self._styles['NewsletterBody']))
         
         elements.append(Spacer(1, 15))
         
@@ -521,14 +496,13 @@ class EISNewsletterGenerator:
         """Create risk assessment matrix."""
         elements = []
         
-        elements.append(Paragraph("Risk Assessment Summary", self._styles['SectionHeader']))
+        elements.append(Paragraph("Risk Assessment Matrix", self._styles['SectionHeader']))
         
-        # Risk breakdown table
-        risk_data = [["Company", "Sector", "Stage", "Risk", "Flags"]]
+        risk_data = [["Company", "Sector", "Age", "Risk", "EIS Status", "Flags"]]
         
         for c in companies:
-            name = c.get('company_name', 'Unknown')[:30]
-            if len(c.get('company_name', '')) > 30:
+            name = c.get('company_name', 'Unknown')[:25]
+            if len(c.get('company_name', '')) > 25:
                 name += "..."
             
             flags = []
@@ -540,14 +514,15 @@ class EISNewsletterGenerator:
             
             risk_data.append([
                 name,
-                c.get('sector', 'N/A')[:15],
-                c.get('investment_stage', 'N/A'),
-                c.get('risk_score', 'N/A'),
+                c['sector'][:12],
+                f"{c['company_age']}y",
+                c['risk']['level'],
+                c['eis']['status'][:10],
                 flag_str
             ])
         
-        risk_table = Table(risk_data, colWidths=[2.2*inch, 1.2*inch, 1*inch, 0.8*inch, 0.8*inch])
-        risk_table.setStyle(TableStyle([
+        table = Table(risk_data, colWidths=[1.8*inch, 1*inch, 0.5*inch, 0.7*inch, 0.9*inch, 0.6*inch])
+        table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), self.PRIMARY_COLOR),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
@@ -559,10 +534,9 @@ class EISNewsletterGenerator:
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, self.LIGHT_BG])
         ]))
-        elements.append(risk_table)
-        elements.append(Spacer(1, 20))
+        elements.append(table)
+        elements.append(Spacer(1, 15))
         
-        # Legend
         elements.append(Paragraph(
             "<b>Legend:</b> INS = Insolvency History | CHG = Outstanding Charges",
             self._styles['SmallText']
@@ -575,20 +549,27 @@ class EISNewsletterGenerator:
         elements = []
         
         elements.append(Spacer(1, 30))
+        elements.append(Paragraph("─" * 80, self._styles['SmallText']))
+        elements.append(Spacer(1, 10))
+        
+        # Data source note
         elements.append(Paragraph(
-            "─" * 80,
-            self._styles['SmallText']
+            "<b>Data Source:</b> All company information is sourced directly from the UK Companies House Registry. "
+            "Risk assessments and EIS eligibility estimates are calculated based on publicly available data including "
+            "company status, incorporation date, insolvency history, and outstanding charges.",
+            ParagraphStyle(name='DataNote', fontSize=8, textColor=colors.HexColor('#718096'), alignment=TA_CENTER)
         ))
         elements.append(Spacer(1, 10))
+        
         elements.append(Paragraph(
-            "IMPORTANT: This report is generated for informational purposes only and does not constitute investment advice. "
+            "IMPORTANT: This report is for informational purposes only and does not constitute investment advice. "
             "EIS investments carry significant risk including potential loss of capital. Past performance is not indicative of future results. "
-            "Investors should conduct their own due diligence and consult with qualified financial advisors before making investment decisions.",
+            "Investors should conduct their own due diligence and consult with qualified financial advisors.",
             ParagraphStyle(name='Disclaimer', fontSize=7, textColor=colors.HexColor('#a0aec0'), alignment=TA_CENTER)
         ))
         elements.append(Spacer(1, 15))
         elements.append(Paragraph(
-            f"Generated by Sapphire Intelligence Platform | Data Source: UK Companies House | Report Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            f"Generated by Sapphire Intelligence Platform | {datetime.now().strftime('%Y-%m-%d %H:%M')}",
             ParagraphStyle(name='FooterInfo', fontSize=8, textColor=colors.HexColor('#718096'), alignment=TA_CENTER)
         ))
         elements.append(Paragraph(
