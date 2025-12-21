@@ -286,6 +286,259 @@ class CompaniesHouseClient:
             List of company search results
         """
         return self.search_companies(sector_keyword, items_per_page)
+    
+    def get_pscs(self, company_number: str) -> List[Dict[str, Any]]:
+        """
+        Get Persons with Significant Control (PSCs) - shareholders with 25%+ ownership.
+        
+        Args:
+            company_number: 8-character company number
+            
+        Returns:
+            List of PSC records with ownership details
+        """
+        company_number = company_number.zfill(8)
+        
+        data = self._make_request(f"/company/{company_number}/persons-with-significant-control")
+        if not data:
+            return []
+        
+        items = data.get("items", [])
+        
+        # Parse into cleaner format
+        pscs = []
+        for item in items:
+            psc = {
+                "name": item.get("name", item.get("name_elements", {}).get("forename", "Unknown")),
+                "kind": item.get("kind", "unknown"),
+                "natures_of_control": item.get("natures_of_control", []),
+                "notified_on": item.get("notified_on"),
+                "ceased_on": item.get("ceased_on"),
+                "nationality": item.get("nationality"),
+                "country_of_residence": item.get("country_of_residence"),
+                "is_active": item.get("ceased_on") is None
+            }
+            
+            # Parse ownership thresholds
+            control = item.get("natures_of_control", [])
+            if any("75-to-100" in c for c in control):
+                psc["ownership_level"] = "75-100%"
+            elif any("50-to-75" in c for c in control):
+                psc["ownership_level"] = "50-75%"
+            elif any("25-to-50" in c for c in control):
+                psc["ownership_level"] = "25-50%"
+            else:
+                psc["ownership_level"] = "Unknown"
+            
+            pscs.append(psc)
+        
+        return pscs
+    
+    def get_charges(self, company_number: str) -> List[Dict[str, Any]]:
+        """
+        Get charges (mortgages, security interests) registered against the company.
+        
+        Args:
+            company_number: 8-character company number
+            
+        Returns:
+            List of charge records
+        """
+        company_number = company_number.zfill(8)
+        
+        data = self._make_request(f"/company/{company_number}/charges")
+        if not data:
+            return []
+        
+        items = data.get("items", [])
+        
+        charges = []
+        for item in items:
+            charge = {
+                "charge_code": item.get("charge_code"),
+                "status": item.get("status", "unknown"),
+                "created_on": item.get("created_on"),
+                "delivered_on": item.get("delivered_on"),
+                "satisfied_on": item.get("satisfied_on"),
+                "description": item.get("particulars", {}).get("description", ""),
+                "persons_entitled": [p.get("name", "") for p in item.get("persons_entitled", [])],
+                "is_outstanding": item.get("status") in ["outstanding", "part-satisfied"]
+            }
+            charges.append(charge)
+        
+        return charges
+    
+    def get_filing_history_enhanced(self, company_number: str, items_per_page: int = 25) -> Dict[str, Any]:
+        """
+        Get enhanced filing history with analysis for EIS indicators.
+        
+        Returns filing history plus analysis of filing patterns.
+        """
+        company_number = company_number.zfill(8)
+        
+        params = {"items_per_page": min(items_per_page, 100)}
+        data = self._make_request(f"/company/{company_number}/filing-history", params)
+        
+        if not data:
+            return {"items": [], "analysis": {}}
+        
+        items = data.get("items", [])
+        
+        # Analyze filings for EIS indicators
+        analysis = {
+            "total_filings": data.get("total_count", len(items)),
+            "has_share_allotments": False,
+            "share_allotment_count": 0,
+            "has_annual_accounts": False,
+            "accounts_type": None,
+            "last_accounts_date": None,
+            "last_confirmation_statement": None,
+            "has_charges_filings": False,
+            "filing_types": {}
+        }
+        
+        for item in items:
+            filing_type = item.get("type", "unknown")
+            category = item.get("category", "unknown")
+            description = item.get("description", "")
+            
+            # Count filing types
+            analysis["filing_types"][filing_type] = analysis["filing_types"].get(filing_type, 0) + 1
+            
+            # Check for share allotments (SH01 - indicates investment)
+            if filing_type == "SH01" or "allotment" in description.lower():
+                analysis["has_share_allotments"] = True
+                analysis["share_allotment_count"] += 1
+            
+            # Check for accounts
+            if category == "accounts":
+                if not analysis["has_annual_accounts"]:
+                    analysis["has_annual_accounts"] = True
+                    analysis["last_accounts_date"] = item.get("date")
+                    # Try to determine accounts type
+                    if "micro" in description.lower():
+                        analysis["accounts_type"] = "micro-entity"
+                    elif "small" in description.lower():
+                        analysis["accounts_type"] = "small"
+                    elif "dormant" in description.lower():
+                        analysis["accounts_type"] = "dormant"
+                    elif "abbreviated" in description.lower():
+                        analysis["accounts_type"] = "abbreviated"
+                    elif "full" in description.lower():
+                        analysis["accounts_type"] = "full"
+                    else:
+                        analysis["accounts_type"] = "unknown"
+            
+            # Check for confirmation statements
+            if filing_type == "CS01" or "confirmation" in description.lower():
+                if not analysis["last_confirmation_statement"]:
+                    analysis["last_confirmation_statement"] = item.get("date")
+            
+            # Check for charges
+            if "charge" in category or "mortgage" in category:
+                analysis["has_charges_filings"] = True
+        
+        # Parse items for cleaner output
+        parsed_items = []
+        for item in items[:25]:
+            parsed_items.append({
+                "date": item.get("date"),
+                "type": item.get("type"),
+                "category": item.get("category"),
+                "description": item.get("description"),
+                "action_date": item.get("action_date"),
+                "links": item.get("links", {})
+            })
+        
+        return {
+            "items": parsed_items,
+            "analysis": analysis
+        }
+    
+    def get_full_profile(self, company_number: str) -> Optional[Dict[str, Any]]:
+        """
+        Get comprehensive company profile with ALL available data.
+        
+        Orchestrates calls to:
+        - Company profile
+        - Officers (directors/secretaries)
+        - PSCs (shareholders)
+        - Charges (mortgages/security)
+        - Filing history (with analysis)
+        
+        Returns aggregated data suitable for EIS assessment.
+        """
+        company_number = company_number.zfill(8)
+        
+        try:
+            # Get company profile (required)
+            company = self.get_company(company_number)
+            if not company:
+                return None
+            
+            # Collect all data with graceful error handling
+            officers = []
+            pscs = []
+            charges = []
+            filings = {"items": [], "analysis": {}}
+            
+            try:
+                officers = self.get_officers(company_number, active_only=False)
+            except Exception as e:
+                logger.warning(f"Failed to get officers for {company_number}: {e}")
+            
+            try:
+                pscs = self.get_pscs(company_number)
+            except Exception as e:
+                logger.warning(f"Failed to get PSCs for {company_number}: {e}")
+            
+            try:
+                charges = self.get_charges(company_number)
+            except Exception as e:
+                logger.warning(f"Failed to get charges for {company_number}: {e}")
+            
+            try:
+                filings = self.get_filing_history_enhanced(company_number, items_per_page=25)
+            except Exception as e:
+                logger.warning(f"Failed to get filings for {company_number}: {e}")
+            
+            # Separate active/resigned officers
+            active_directors = [o for o in officers if "director" in o.officer_role.lower()]
+            all_officers = [o.to_dict() for o in officers]
+            
+            # Separate active/inactive PSCs
+            active_pscs = [p for p in pscs if p.get("is_active", True)]
+            
+            # Analyze charges
+            outstanding_charges = [c for c in charges if c.get("is_outstanding", False)]
+            
+            return {
+                "company": company.to_dict(),
+                "officers": {
+                    "items": all_officers,
+                    "director_count": len(active_directors),
+                    "total_count": len(officers),
+                    "directors": [d.to_dict() for d in active_directors]
+                },
+                "pscs": {
+                    "items": pscs,
+                    "active_count": len(active_pscs),
+                    "total_count": len(pscs)
+                },
+                "charges": {
+                    "items": charges,
+                    "outstanding_count": len(outstanding_charges),
+                    "total_count": len(charges),
+                    "has_outstanding": len(outstanding_charges) > 0
+                },
+                "filings": filings,
+                "data_sources": ["companies_house"],
+                "retrieved_at": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get full profile for {company_number}: {e}")
+            return None
 
 
 # Sample EIS Companies for testing/demo

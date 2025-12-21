@@ -2028,6 +2028,68 @@ async def get_company_details(company_number: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/eis/company/{company_number}/full-profile")
+async def get_company_full_profile(company_number: str):
+    """
+    Get comprehensive company profile with ALL available data and EIS assessment.
+    
+    This endpoint orchestrates multiple Companies House API calls:
+    - Company profile
+    - Officers (directors/secretaries)
+    - Persons with Significant Control (PSCs)
+    - Charges (mortgages/security)
+    - Filing history (with analysis)
+    
+    Plus calculates EIS likelihood score using heuristic rules.
+    
+    Args:
+        company_number: 8-character company registration number
+        
+    Returns:
+        Full company profile with EIS assessment
+    """
+    try:
+        client = get_companies_house_client()
+        
+        if not client.is_configured():
+            raise HTTPException(
+                status_code=503,
+                detail="Companies House API not configured. Set COMPANIES_HOUSE_API_KEY in .env"
+            )
+        
+        # Get full profile from Companies House
+        full_profile = client.get_full_profile(company_number)
+        
+        if not full_profile:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Company {company_number} not found"
+            )
+        
+        # Calculate EIS assessment
+        try:
+            from analytics.eis_heuristics import calculate_eis_likelihood
+            eis_assessment = calculate_eis_likelihood(full_profile)
+        except Exception as e:
+            logger.warning(f"EIS assessment failed for {company_number}: {e}")
+            eis_assessment = {
+                "score": 0,
+                "status": "Assessment Failed",
+                "error": str(e)
+            }
+        
+        # Combine profile with assessment
+        full_profile["eis_assessment"] = eis_assessment
+        
+        return full_profile
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get full profile for {company_number}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/eis/search")
 async def search_companies(
     query: str = Query(..., description="Company name or number to search"),

@@ -180,20 +180,46 @@ class EISNewsletterGenerator:
         """
         Generate comprehensive EIS investment newsletter PDF.
         All data comes from UK Companies House - no estimates.
+        
+        Companies may include:
+        - eis_assessment: Pre-calculated from backend (if using full-profile endpoint)
+        - pscs, charges, filings: Detailed data from Companies House
         """
         if not REPORTLAB_AVAILABLE:
             raise RuntimeError("ReportLab not available")
         
         newsletter_date = newsletter_date or date.today()
         
-        # Enrich companies with calculated metrics
+        # Enrich companies with calculated/provided metrics
         enriched_companies = []
         for company in companies:
             enriched = dict(company)
             enriched['sector'] = get_sector_from_sic(company.get('sic_codes', []))
             enriched['company_age'] = get_company_age(company.get('date_of_creation', ''))
+            
+            # Use pre-calculated EIS assessment if available, otherwise calculate
+            if 'eis_assessment' in company and company['eis_assessment']:
+                assessment = company['eis_assessment']
+                enriched['eis'] = {
+                    'status': assessment.get('status', 'Unknown'),
+                    'reason': assessment.get('status_description', ''),
+                    'score': assessment.get('score', 0)
+                }
+                enriched['eis_score'] = assessment.get('score', 0)
+                enriched['eis_factors'] = assessment.get('factors', [])
+                enriched['eis_flags'] = assessment.get('flags', [])
+            else:
+                enriched['eis'] = calculate_eis_eligibility(company)
+                enriched['eis_score'] = None
+            
             enriched['risk'] = calculate_risk_level(company)
-            enriched['eis'] = calculate_eis_eligibility(company)
+            
+            # Include PSCs, charges if available
+            enriched['pscs_data'] = company.get('pscs', [])
+            enriched['charges_data'] = company.get('charges', [])
+            enriched['filings_data'] = company.get('filings', [])
+            enriched['filing_analysis'] = company.get('filing_analysis', {})
+            
             enriched_companies.append(enriched)
         
         buffer = BytesIO()
@@ -385,16 +411,22 @@ class EISNewsletterGenerator:
         company_name = company.get('company_name', 'Unknown Company')
         elements.append(Paragraph(f"{index}. {company_name}", self._styles['CompanyName']))
         
-        # Basic info row
+        # Basic info row with EIS score if available
         company_num = company.get('company_number', 'N/A')
         status = company.get('company_status', 'Unknown').title()
         eis_status = company['eis']['status']
         risk_level = company['risk']['level']
+        eis_score = company.get('eis_score')
+        
+        if eis_score is not None:
+            eis_display = f"EIS: {eis_status} ({eis_score}/100)"
+        else:
+            eis_display = f"EIS: {eis_status}"
         
         metrics_data = [[
             f"Company #: {company_num}",
             f"Status: {status}",
-            f"EIS: {eis_status}",
+            eis_display,
             f"Risk: {risk_level}"
         ]]
         

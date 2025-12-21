@@ -1,16 +1,15 @@
 'use client';
 
 /**
- * EIS Companies Dashboard
- * Monitors Enterprise Investment Scheme companies for Sapphire Capital Partners
- * Stage 1 deliverable for KTP project
+ * EIS Companies Dashboard - Stage 1 MVP
+ * Enterprise Investment Scheme fact-finding and assessment
  * 
  * Features:
- * - Initial display of top companies by sector
- * - Live search from Companies House API
- * - Dynamic dashboard that updates with selected companies
- * - Company details with directors, SIC codes, risk flags
- * - Newsletter download with selected companies
+ * - Full Companies House data integration (Profile, Officers, PSCs, Charges, Filings)
+ * - EIS-likelihood heuristic scoring
+ * - Dynamic portfolio dashboard
+ * - Comprehensive company fact sheets
+ * - Automated newsletter generation
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -18,41 +17,15 @@ import Link from 'next/link';
 import { SurfaceCard } from '@/components/SurfaceCard';
 import { CampingLoader } from '@/components/CampingLoader';
 import {
-    Building2,
-    TrendingUp,
-    FileText,
-    Download,
-    Search,
-    AlertTriangle,
-    CheckCircle2,
-    Clock,
-    Users,
-    MapPin,
-    Loader2,
-    ExternalLink,
-    BarChart3,
-    PieChart,
-    Database,
-    X,
-    ChevronDown,
-    ChevronUp,
-    Shield,
-    AlertCircle,
-    Info
+    Building2, TrendingUp, FileText, Download, Search, AlertTriangle,
+    CheckCircle2, Clock, Users, MapPin, Loader2, ExternalLink,
+    BarChart3, PieChart, Database, X, ChevronDown, ChevronUp,
+    Shield, Info, Award, FileCheck, Briefcase, Scale, AlertCircle,
+    Target, DollarSign, User
 } from 'lucide-react';
 
-// Types for Companies House API response
-interface CompanySearchResult {
-    company_number: string;
-    title: string;
-    company_status: string;
-    company_type: string;
-    date_of_creation?: string;
-    address_snippet?: string;
-    description?: string;
-}
-
-interface CompanyDetails {
+// === TYPES ===
+interface FullCompanyProfile {
     company: {
         company_number: string;
         company_name: string;
@@ -60,239 +33,239 @@ interface CompanyDetails {
         company_type: string;
         date_of_creation?: string;
         jurisdiction: string;
-        registered_office_address: {
-            address_line_1?: string;
-            locality?: string;
-            postal_code?: string;
-            country?: string;
-        };
+        registered_office_address: Record<string, string>;
         sic_codes: string[];
         has_charges: boolean;
         has_insolvency_history: boolean;
     };
-    directors: Array<{
-        name: string;
-        officer_role: string;
-        appointed_on?: string;
-        nationality?: string;
-        occupation?: string;
-    }>;
-    recent_filings: any[];
-    director_count: number;
-    total_officers: number;
+    officers: {
+        items: Array<{
+            name: string;
+            officer_role: string;
+            appointed_on?: string;
+            nationality?: string;
+            occupation?: string;
+        }>;
+        director_count: number;
+        total_count: number;
+        directors: Array<any>;
+    };
+    pscs: {
+        items: Array<{
+            name: string;
+            ownership_level: string;
+            natures_of_control: string[];
+            is_active: boolean;
+            nationality?: string;
+        }>;
+        active_count: number;
+        total_count: number;
+    };
+    charges: {
+        items: Array<{
+            status: string;
+            created_on?: string;
+            description: string;
+            persons_entitled: string[];
+            is_outstanding: boolean;
+        }>;
+        outstanding_count: number;
+        total_count: number;
+        has_outstanding: boolean;
+    };
+    filings: {
+        items: Array<{
+            date: string;
+            type: string;
+            category: string;
+            description: string;
+        }>;
+        analysis: {
+            total_filings: number;
+            has_share_allotments: boolean;
+            share_allotment_count: number;
+            has_annual_accounts: boolean;
+            accounts_type?: string;
+            last_accounts_date?: string;
+            last_confirmation_statement?: string;
+        };
+    };
+    eis_assessment: {
+        score: number;
+        max_score: number;
+        percentage: number;
+        status: string;
+        status_description: string;
+        confidence: string;
+        factors: Array<{
+            factor: string;
+            value: string;
+            points: number;
+            max_points: number;
+            rationale: string;
+            impact: string;
+        }>;
+        flags: string[];
+        recommendations: string[];
+        disclaimer: string;
+    };
+    data_sources: string[];
+    retrieved_at: string;
 }
 
-interface SectorData {
-    [sector: string]: CompanySearchResult[];
+interface SearchResult {
+    company_number: string;
+    title: string;
+    company_status: string;
+    company_type: string;
+    date_of_creation?: string;
+    address_snippet?: string;
 }
 
-// API URL
+// === CONSTANTS ===
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-// SIC code to sector mapping
-const SIC_TO_SECTOR: Record<string, string> = {
-    '62': 'Technology', '63': 'Technology', '72': 'R&D',
-    '58': 'Media', '61': 'Telecoms', '64': 'Finance',
-    '65': 'Finance', '66': 'Finance', '85': 'Education',
-    '86': 'Healthcare', '21': 'Pharma', '35': 'Energy',
-    '01': 'Agriculture', '10': 'Food', '41': 'Construction',
-    '70': 'Real Estate', '71': 'Engineering', '47': 'Retail',
-};
-
-function getSectorFromSIC(sicCodes: string[] | undefined): string {
-    if (!sicCodes?.length) return 'Other';
-    const firstTwo = sicCodes[0]?.substring(0, 2) || '';
-    return SIC_TO_SECTOR[firstTwo] || 'Other';
-}
-
-function getCompanyAge(dateOfCreation: string | undefined): number {
-    if (!dateOfCreation) return 0;
-    try {
-        const created = new Date(dateOfCreation);
-        const now = new Date();
-        return Math.floor((now.getTime() - created.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-    } catch {
-        return 0;
-    }
-}
-
-function getRiskLevel(company: CompanyDetails['company']): { level: string; color: string; score: number } {
-    if (company.has_insolvency_history) return { level: 'High', color: 'red', score: 8 };
-    if (company.has_charges) return { level: 'Medium', color: 'yellow', score: 5 };
-    if (company.company_status !== 'active') return { level: 'High', color: 'red', score: 7 };
-    const age = getCompanyAge(company.date_of_creation);
-    if (age < 2) return { level: 'High', color: 'red', score: 6 };
-    if (age < 5) return { level: 'Medium', color: 'yellow', score: 4 };
-    return { level: 'Low', color: 'green', score: 2 };
-}
-
-function getEISEligibility(company: CompanyDetails['company']): { status: string; color: string } {
-    const age = getCompanyAge(company.date_of_creation);
-    if (company.company_status !== 'active') return { status: 'Ineligible', color: 'red' };
-    if (age > 7) return { status: 'Review Required', color: 'yellow' };
-    if (company.has_insolvency_history) return { status: 'Ineligible', color: 'red' };
-    return { status: 'Potentially Eligible', color: 'green' };
-}
-
+// === COMPONENT ===
 export default function EISPage() {
+    // State
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-    const [searchResults, setSearchResults] = useState<CompanySearchResult[]>([]);
-    const [sectorData, setSectorData] = useState<SectorData>({});
-    const [selectedCompanies, setSelectedCompanies] = useState<CompanyDetails[]>([]);
+    const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+    const [selectedCompanies, setSelectedCompanies] = useState<FullCompanyProfile[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [isGeneratingNewsletter, setIsGeneratingNewsletter] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [apiConfigured, setApiConfigured] = useState(true);
     const [lastSearchQuery, setLastSearchQuery] = useState('');
-    const [expandedSectors, setExpandedSectors] = useState<Set<string>>(new Set(['Technology', 'Fintech']));
     const [loadingDetails, setLoadingDetails] = useState<Set<string>>(new Set());
+    const [expandedCompanies, setExpandedCompanies] = useState<Set<string>>(new Set());
+    const [expandedSections, setExpandedSections] = useState<Record<string, Set<string>>>({});
 
-    // Calculate portfolio analytics from selected companies
+    // Calculate portfolio analytics
     const portfolioStats = useMemo(() => {
         if (selectedCompanies.length === 0) return null;
 
-        const companies = selectedCompanies.map(c => c.company);
+        const companies = selectedCompanies;
+
+        // EIS status distribution
+        const eisStatus = { eligible: 0, review: 0, ineligible: 0 };
+        companies.forEach(c => {
+            const status = c.eis_assessment?.status || '';
+            if (status.includes('Likely Eligible')) eisStatus.eligible++;
+            else if (status.includes('Review')) eisStatus.review++;
+            else eisStatus.ineligible++;
+        });
+
+        // Average score
+        const avgScore = companies.reduce((sum, c) => sum + (c.eis_assessment?.score || 0), 0) / companies.length;
 
         // Sector breakdown
-        const sectorCounts: Record<string, number> = {};
+        const sectors: Record<string, number> = {};
         companies.forEach(c => {
-            const sector = getSectorFromSIC(c.sic_codes);
-            sectorCounts[sector] = (sectorCounts[sector] || 0) + 1;
+            const sic = c.company.sic_codes?.[0]?.substring(0, 2) || 'Other';
+            const sector = getSectorFromSic(sic);
+            sectors[sector] = (sectors[sector] || 0) + 1;
         });
 
-        // Risk breakdown
-        const riskCounts = { Low: 0, Medium: 0, High: 0 };
-        companies.forEach(c => {
-            const risk = getRiskLevel(c);
-            riskCounts[risk.level as keyof typeof riskCounts]++;
-        });
+        // Total directors & PSCs
+        const totalDirectors = companies.reduce((sum, c) => sum + (c.officers?.director_count || 0), 0);
+        const totalPSCs = companies.reduce((sum, c) => sum + (c.pscs?.active_count || 0), 0);
 
-        // EIS eligibility
-        const eligibility = { eligible: 0, review: 0, ineligible: 0 };
-        companies.forEach(c => {
-            const eis = getEISEligibility(c);
-            if (eis.status === 'Potentially Eligible') eligibility.eligible++;
-            else if (eis.status === 'Review Required') eligibility.review++;
-            else eligibility.ineligible++;
-        });
-
-        // Status breakdown
-        const statusCounts = { active: 0, dissolved: 0, other: 0 };
-        companies.forEach(c => {
-            if (c.company_status === 'active') statusCounts.active++;
-            else if (c.company_status === 'dissolved') statusCounts.dissolved++;
-            else statusCounts.other++;
-        });
-
-        // Average age
-        const ages = companies.map(c => getCompanyAge(c.date_of_creation));
-        const avgAge = ages.reduce((a, b) => a + b, 0) / ages.length;
-
-        // Total directors
-        const totalDirectors = selectedCompanies.reduce((sum, c) => sum + c.director_count, 0);
+        // Risk indicators
+        const withCharges = companies.filter(c => c.charges?.has_outstanding).length;
+        const withInsolvency = companies.filter(c => c.company.has_insolvency_history).length;
 
         return {
             total: companies.length,
-            sectors: sectorCounts,
-            sectorCount: Object.keys(sectorCounts).length,
-            risk: riskCounts,
-            eligibility,
-            status: statusCounts,
-            avgAge: avgAge.toFixed(1),
+            eisStatus,
+            avgScore: Math.round(avgScore),
+            sectors,
             totalDirectors,
-            hasFlags: companies.some(c => c.has_charges || c.has_insolvency_history)
+            totalPSCs,
+            withCharges,
+            withInsolvency
         };
     }, [selectedCompanies]);
 
-    // Load initial sector data
-    useEffect(() => {
-        const fetchInitialData = async () => {
-            try {
-                const healthRes = await fetch(`${API_BASE}/api/eis/health`);
-                if (healthRes.ok) {
-                    const healthData = await healthRes.json();
-                    setApiConfigured(healthData.companies_house_configured);
-                }
+    // Helper functions
+    function getSectorFromSic(sicPrefix: string): string {
+        const map: Record<string, string> = {
+            '62': 'Technology', '63': 'Technology', '72': 'R&D',
+            '58': 'Media', '61': 'Telecoms', '64': 'Finance',
+            '86': 'Healthcare', '21': 'Pharma', '35': 'Energy',
+            '01': 'Agriculture', '41': 'Construction', '68': 'Real Estate'
+        };
+        return map[sicPrefix] || 'Other';
+    }
 
-                const sectorsRes = await fetch(`${API_BASE}/api/eis/sectors`);
-                if (sectorsRes.ok) {
-                    const data = await sectorsRes.json();
-                    setSectorData(data.sectors || {});
-                    if (!data.api_configured) {
-                        setError('Companies House API not configured. Add COMPANIES_HOUSE_API_KEY to .env');
-                    }
+    function getCompanyAge(dateOfCreation?: string): number {
+        if (!dateOfCreation) return 0;
+        const created = new Date(dateOfCreation);
+        const now = new Date();
+        return Math.floor((now.getTime() - created.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+    }
+
+    // Load initial data
+    useEffect(() => {
+        const checkHealth = async () => {
+            try {
+                const res = await fetch(`${API_BASE}/api/eis/health`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setApiConfigured(data.companies_house_configured);
                 }
             } catch (err) {
-                console.error('Failed to fetch initial data:', err);
-                setError('Failed to connect to backend. Please ensure the server is running.');
+                console.error('Health check failed:', err);
             } finally {
-                setTimeout(() => setIsLoading(false), 1500);
+                setTimeout(() => setIsLoading(false), 1000);
             }
         };
-        fetchInitialData();
+        checkHealth();
     }, []);
 
-    // Search companies
+    // Search handler
     const handleSearch = useCallback(async () => {
         if (!searchQuery.trim() || searchQuery.length < 2) {
-            setError('Please enter at least 2 characters to search');
+            setError('Please enter at least 2 characters');
             return;
         }
-
         setIsSearching(true);
         setError(null);
         setLastSearchQuery(searchQuery);
 
         try {
             const res = await fetch(`${API_BASE}/api/eis/search?query=${encodeURIComponent(searchQuery)}&limit=30`);
-
-            if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.detail || 'Search failed');
-            }
-
+            if (!res.ok) throw new Error('Search failed');
             const data = await res.json();
             setSearchResults(data.results || []);
-
             if (data.results.length === 0) {
                 setError(`No companies found for "${searchQuery}"`);
             }
         } catch (err: any) {
-            console.error('Search failed:', err);
-            setError(err.message || 'Search failed');
+            setError(err.message);
             setSearchResults([]);
         } finally {
             setIsSearching(false);
         }
     }, [searchQuery]);
 
-    const handleKeyPress = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter') handleSearch();
-    };
+    // Load full company profile
+    const loadFullProfile = async (companyNumber: string) => {
+        if (selectedCompanies.some(c => c.company.company_number === companyNumber)) return;
 
-    const clearSearch = () => {
-        setSearchQuery('');
-        setSearchResults([]);
-        setLastSearchQuery('');
-        setError(null);
-    };
-
-    // Load company details
-    const loadCompanyDetails = async (companyNumber: string) => {
         setLoadingDetails(prev => new Set(prev).add(companyNumber));
         try {
-            const res = await fetch(`${API_BASE}/api/eis/company/${companyNumber}`);
+            const res = await fetch(`${API_BASE}/api/eis/company/${companyNumber}/full-profile`);
             if (res.ok) {
-                const details: CompanyDetails = await res.json();
-                setSelectedCompanies(prev => {
-                    const exists = prev.some(c => c.company.company_number === companyNumber);
-                    if (exists) return prev;
-                    return [...prev, details];
-                });
+                const profile: FullCompanyProfile = await res.json();
+                setSelectedCompanies(prev => [...prev, profile]);
+                setExpandedCompanies(prev => new Set(prev).add(companyNumber));
+            } else {
+                throw new Error('Failed to load company profile');
             }
         } catch (err) {
-            console.error('Failed to load company details:', err);
+            console.error('Failed to load profile:', err);
+            setError('Failed to load company details');
         } finally {
             setLoadingDetails(prev => {
                 const next = new Set(prev);
@@ -302,27 +275,23 @@ export default function EISPage() {
         }
     };
 
-    // Download newsletter with selected company data
+    // Download newsletter
     const handleDownloadNewsletter = async () => {
         if (selectedCompanies.length === 0) {
-            alert('Please select at least one company by clicking "Details" on a company card.');
+            alert('Please select at least one company');
             return;
         }
 
         setIsGeneratingNewsletter(true);
         try {
-            const companies = selectedCompanies.map(details => ({
-                company_number: details.company.company_number,
-                company_name: details.company.company_name,
-                company_status: details.company.company_status,
-                company_type: details.company.company_type,
-                date_of_creation: details.company.date_of_creation,
-                jurisdiction: details.company.jurisdiction,
-                registered_office_address: details.company.registered_office_address,
-                sic_codes: details.company.sic_codes,
-                has_charges: details.company.has_charges,
-                has_insolvency_history: details.company.has_insolvency_history,
-                directors: details.directors
+            const companies = selectedCompanies.map(p => ({
+                ...p.company,
+                directors: p.officers?.directors || [],
+                pscs: p.pscs?.items || [],
+                charges: p.charges?.items || [],
+                filings: p.filings?.items || [],
+                filing_analysis: p.filings?.analysis || {},
+                eis_assessment: p.eis_assessment
             }));
 
             const response = await fetch(`${API_BASE}/api/eis/newsletter`, {
@@ -331,10 +300,7 @@ export default function EISPage() {
                 body: JSON.stringify(companies)
             });
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.detail || 'Newsletter generation failed');
-            }
+            if (!response.ok) throw new Error('Newsletter generation failed');
 
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
@@ -346,19 +312,20 @@ export default function EISPage() {
             window.URL.revokeObjectURL(url);
             a.remove();
         } catch (err: any) {
-            console.error('Newsletter download failed:', err);
-            alert(err.message || 'Failed to generate newsletter.');
+            alert(err.message || 'Failed to generate newsletter');
         } finally {
             setIsGeneratingNewsletter(false);
         }
     };
 
-    const toggleSector = (sector: string) => {
-        setExpandedSectors(prev => {
-            const next = new Set(prev);
-            if (next.has(sector)) next.delete(sector);
-            else next.add(sector);
-            return next;
+    // Toggle section
+    const toggleSection = (companyNumber: string, section: string) => {
+        setExpandedSections(prev => {
+            const companySections = prev[companyNumber] || new Set();
+            const next = new Set(companySections);
+            if (next.has(section)) next.delete(section);
+            else next.add(section);
+            return { ...prev, [companyNumber]: next };
         });
     };
 
@@ -366,22 +333,39 @@ export default function EISPage() {
         setSelectedCompanies(prev => prev.filter(c => c.company.company_number !== companyNumber));
     };
 
-    const getStatusBadge = (status: string) => {
-        const isActive = status === 'active';
+    // EIS Score Badge
+    const EISScoreBadge = ({ assessment }: { assessment: FullCompanyProfile['eis_assessment'] }) => {
+        const score = assessment?.score || 0;
+        const status = assessment?.status || 'Unknown';
+
+        let bgColor = 'bg-gray-500/20';
+        let textColor = 'text-gray-400';
+        let borderColor = 'border-gray-500/30';
+
+        if (status.includes('Likely Eligible')) {
+            bgColor = 'bg-green-500/20';
+            textColor = 'text-green-400';
+            borderColor = 'border-green-500/30';
+        } else if (status.includes('Review')) {
+            bgColor = 'bg-yellow-500/20';
+            textColor = 'text-yellow-400';
+            borderColor = 'border-yellow-500/30';
+        } else if (status.includes('Ineligible')) {
+            bgColor = 'bg-red-500/20';
+            textColor = 'text-red-400';
+            borderColor = 'border-red-500/30';
+        }
+
         return (
-            <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${isActive ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
-                }`}>
-                {isActive ? <CheckCircle2 className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
-                {status === 'active' ? 'Active' : status}
-            </span>
+            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${bgColor} ${textColor} border ${borderColor}`}>
+                <Target className="h-4 w-4" />
+                <span className="font-bold">{score}/100</span>
+                <span className="text-xs opacity-80">{status}</span>
+            </div>
         );
     };
 
-    const totalSectorCompanies = Object.values(sectorData).reduce((sum, arr) => sum + arr.length, 0);
-
-    if (isLoading) {
-        return <CampingLoader />;
-    }
+    if (isLoading) return <CampingLoader />;
 
     return (
         <div className="min-h-screen bg-sapphire-950 text-white">
@@ -394,7 +378,6 @@ export default function EISPage() {
                     <nav className="flex items-center gap-1">
                         <Link href="/" className="px-3 py-2 text-sm text-sapphire-200 hover:text-white rounded-lg hover:bg-sapphire-800/30">Dashboard</Link>
                         <Link href="/analysis" className="px-3 py-2 text-sm text-sapphire-200 hover:text-white rounded-lg hover:bg-sapphire-800/30">Analysis</Link>
-                        <Link href="/risk" className="px-3 py-2 text-sm text-sapphire-200 hover:text-white rounded-lg hover:bg-sapphire-800/30">Risk</Link>
                         <Link href="/eis" className="px-3 py-2 text-sm text-white bg-sapphire-800/50 rounded-lg ring-1 ring-sapphire-700/50">EIS</Link>
                         <Link href="/settings" className="px-3 py-2 text-sm text-sapphire-200 hover:text-white rounded-lg hover:bg-sapphire-800/30">Settings</Link>
                     </nav>
@@ -405,12 +388,8 @@ export default function EISPage() {
                 {/* Page Header */}
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
                     <div>
-                        <h1 className="text-3xl font-bold text-white">
-                            EIS <span className="accent-text-light">Companies</span>
-                        </h1>
-                        <p className="text-sapphire-300 mt-1">
-                            Browse, select companies, and generate portfolio reports
-                        </p>
+                        <h1 className="text-3xl font-bold">EIS <span className="accent-text-light">Fact-Finding</span></h1>
+                        <p className="text-sapphire-300 mt-1">Stage 1: Company assessment using Companies House data</p>
                     </div>
 
                     <div className="flex items-center gap-3">
@@ -429,7 +408,7 @@ export default function EISPage() {
                                     : 'bg-sapphire-800/50 text-sapphire-400 cursor-not-allowed'}`}
                         >
                             {isGeneratingNewsletter ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                            <span>Download Report ({selectedCompanies.length})</span>
+                            <span>Generate Report ({selectedCompanies.length})</span>
                             <Download className="h-4 w-4" />
                         </button>
                     </div>
@@ -444,48 +423,45 @@ export default function EISPage() {
                     </div>
                 )}
 
-                {/* Dynamic Portfolio Dashboard - Shows when companies are selected */}
+                {/* Portfolio Dashboard */}
                 {portfolioStats && (
-                    <div className="mb-8 animate-fade-in">
+                    <div className="mb-8">
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                                 <PieChart className="h-5 w-5 accent-text-light" />
-                                Portfolio Analysis ({portfolioStats.total} Companies Selected)
+                                Portfolio Analysis ({portfolioStats.total} Companies)
                             </h2>
-                            <button
-                                onClick={() => setSelectedCompanies([])}
-                                className="text-sm text-sapphire-400 hover:text-white"
-                            >
+                            <button onClick={() => setSelectedCompanies([])} className="text-sm text-sapphire-400 hover:text-white">
                                 Clear All
                             </button>
                         </div>
 
-                        {/* KPI Row */}
+                        {/* KPI Cards */}
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
-                            <SurfaceCard className="p-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-lg accent-bg-subtle"><Building2 className="h-5 w-5 accent-text-light" /></div>
-                                    <div>
-                                        <p className="text-xs text-sapphire-400">Companies</p>
-                                        <p className="text-2xl font-bold text-white">{portfolioStats.total}</p>
-                                    </div>
-                                </div>
-                            </SurfaceCard>
                             <SurfaceCard className="p-4">
                                 <div className="flex items-center gap-3">
                                     <div className="p-2 rounded-lg bg-green-500/20"><CheckCircle2 className="h-5 w-5 text-green-400" /></div>
                                     <div>
-                                        <p className="text-xs text-sapphire-400">EIS Eligible</p>
-                                        <p className="text-2xl font-bold text-green-400">{portfolioStats.eligibility.eligible}</p>
+                                        <p className="text-xs text-sapphire-400">Likely Eligible</p>
+                                        <p className="text-2xl font-bold text-green-400">{portfolioStats.eisStatus.eligible}</p>
                                     </div>
                                 </div>
                             </SurfaceCard>
                             <SurfaceCard className="p-4">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-lg bg-blue-500/20"><TrendingUp className="h-5 w-5 text-blue-400" /></div>
+                                    <div className="p-2 rounded-lg bg-yellow-500/20"><AlertCircle className="h-5 w-5 text-yellow-400" /></div>
                                     <div>
-                                        <p className="text-xs text-sapphire-400">Sectors</p>
-                                        <p className="text-2xl font-bold text-white">{portfolioStats.sectorCount}</p>
+                                        <p className="text-xs text-sapphire-400">Review Required</p>
+                                        <p className="text-2xl font-bold text-yellow-400">{portfolioStats.eisStatus.review}</p>
+                                    </div>
+                                </div>
+                            </SurfaceCard>
+                            <SurfaceCard className="p-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 rounded-lg accent-bg-subtle"><Target className="h-5 w-5 accent-text-light" /></div>
+                                    <div>
+                                        <p className="text-xs text-sapphire-400">Avg EIS Score</p>
+                                        <p className="text-2xl font-bold text-white">{portfolioStats.avgScore}</p>
                                     </div>
                                 </div>
                             </SurfaceCard>
@@ -500,105 +476,53 @@ export default function EISPage() {
                             </SurfaceCard>
                             <SurfaceCard className="p-4">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-lg bg-cyan-500/20"><Clock className="h-5 w-5 text-cyan-400" /></div>
+                                    <div className="p-2 rounded-lg bg-blue-500/20"><User className="h-5 w-5 text-blue-400" /></div>
                                     <div>
-                                        <p className="text-xs text-sapphire-400">Avg Age</p>
-                                        <p className="text-2xl font-bold text-white">{portfolioStats.avgAge}y</p>
+                                        <p className="text-xs text-sapphire-400">PSCs</p>
+                                        <p className="text-2xl font-bold text-white">{portfolioStats.totalPSCs}</p>
                                     </div>
                                 </div>
                             </SurfaceCard>
                             <SurfaceCard className="p-4">
                                 <div className="flex items-center gap-3">
-                                    <div className={`p-2 rounded-lg ${portfolioStats.hasFlags ? 'bg-red-500/20' : 'bg-green-500/20'}`}>
-                                        <Shield className={`h-5 w-5 ${portfolioStats.hasFlags ? 'text-red-400' : 'text-green-400'}`} />
+                                    <div className={`p-2 rounded-lg ${portfolioStats.withCharges > 0 ? 'bg-red-500/20' : 'bg-green-500/20'}`}>
+                                        <Scale className={`h-5 w-5 ${portfolioStats.withCharges > 0 ? 'text-red-400' : 'text-green-400'}`} />
                                     </div>
                                     <div>
-                                        <p className="text-xs text-sapphire-400">Active</p>
-                                        <p className="text-2xl font-bold text-white">{portfolioStats.status.active}</p>
+                                        <p className="text-xs text-sapphire-400">With Charges</p>
+                                        <p className="text-2xl font-bold text-white">{portfolioStats.withCharges}</p>
                                     </div>
                                 </div>
                             </SurfaceCard>
                         </div>
 
-                        {/* Charts Row */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Sector Breakdown */}
-                            <SurfaceCard className="p-5">
-                                <div className="flex items-center gap-2 mb-4">
-                                    <PieChart className="h-5 w-5 accent-text-light" />
-                                    <h3 className="font-semibold text-white">Sector Breakdown</h3>
-                                </div>
-                                <div className="space-y-3">
-                                    {Object.entries(portfolioStats.sectors).map(([sector, count]) => (
-                                        <div key={sector} className="flex items-center justify-between">
-                                            <span className="text-sapphire-300">{sector}</span>
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-24 h-2 bg-sapphire-800 rounded-full overflow-hidden">
-                                                    <div
-                                                        className="h-full accent-bg rounded-full transition-all duration-500"
-                                                        style={{ width: `${(count / portfolioStats.total) * 100}%` }}
-                                                    />
-                                                </div>
-                                                <span className="text-sm text-white font-medium w-6">{count}</span>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </SurfaceCard>
-
-                            {/* Risk Distribution */}
-                            <SurfaceCard className="p-5">
-                                <div className="flex items-center gap-2 mb-4">
-                                    <BarChart3 className="h-5 w-5 accent-text-light" />
-                                    <h3 className="font-semibold text-white">Risk Distribution</h3>
-                                </div>
-                                <div className="flex gap-4 h-32">
-                                    {(['Low', 'Medium', 'High'] as const).map((risk) => {
-                                        const count = portfolioStats.risk[risk];
-                                        const percentage = (count / portfolioStats.total) * 100;
-                                        const colors = { Low: 'bg-green-500', Medium: 'bg-yellow-500', High: 'bg-red-500' };
-                                        return (
-                                            <div key={risk} className="flex-1 flex flex-col items-center justify-end">
-                                                <span className="text-lg font-bold text-white mb-2">{count}</span>
-                                                <div
-                                                    className={`w-full ${colors[risk]} rounded-t-lg transition-all duration-500`}
-                                                    style={{ height: `${Math.max(percentage, 10)}%` }}
-                                                />
-                                                <span className="text-xs text-sapphire-400 mt-2">{risk}</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </SurfaceCard>
-                        </div>
-
-                        {/* Info Note */}
-                        <div className="mt-4 p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-300 text-sm flex items-start gap-2">
+                        {/* Data Source Info */}
+                        <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-300 text-sm flex items-start gap-2">
                             <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
                             <span>
-                                <strong>Data Source:</strong> UK Companies House Registry. Risk levels are calculated based on company status,
-                                age, insolvency history, and outstanding charges. EIS eligibility is estimated based on age (&lt;7 years) and status.
+                                <strong>Data Source:</strong> UK Companies House Registry (Profile, Officers, PSCs, Charges, Filings).
+                                EIS scores are heuristic-based assessments, not official HMRC determinations.
                             </span>
                         </div>
                     </div>
                 )}
 
-                {/* Search Section */}
+                {/* Search */}
                 <SurfaceCard className="p-6 mb-8">
                     <div className="flex gap-3">
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-sapphire-400" />
                             <input
                                 type="text"
-                                placeholder="Search company name, number, or sector..."
+                                placeholder="Search company name or number..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                onKeyPress={handleKeyPress}
+                                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                                 className="w-full pl-10 pr-4 py-3 rounded-xl bg-sapphire-800/50 border border-sapphire-700/50
                                            text-white placeholder-sapphire-400 focus:outline-none focus:ring-2 focus:ring-sapphire-500/50 text-lg"
                             />
                             {searchQuery && (
-                                <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2">
+                                <button onClick={() => { setSearchQuery(''); setSearchResults([]); setLastSearchQuery(''); }} className="absolute right-3 top-1/2 -translate-y-1/2">
                                     <X className="h-4 w-4 text-sapphire-400 hover:text-white" />
                                 </button>
                             )}
@@ -606,262 +530,313 @@ export default function EISPage() {
                         <button
                             onClick={handleSearch}
                             disabled={isSearching || !apiConfigured}
-                            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-sapphire-600 text-white font-medium
-                                       hover:bg-sapphire-500 transition-all disabled:opacity-50"
+                            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-sapphire-600 text-white font-medium hover:bg-sapphire-500 transition-all disabled:opacity-50"
                         >
                             {isSearching ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
                             <span>Search</span>
                         </button>
                     </div>
                     <p className="text-sm text-sapphire-500 mt-2">
-                        💡 Click "Details" on any company to add it to your portfolio analysis
+                        💡 Click "Add to Portfolio" to load full company data with EIS assessment
                     </p>
                 </SurfaceCard>
 
                 {/* Search Results */}
                 {searchResults.length > 0 && (
                     <div className="mb-8">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-lg font-semibold text-white">Results for "{lastSearchQuery}" ({searchResults.length})</h2>
-                            <button onClick={clearSearch} className="text-sm text-sapphire-400 hover:text-white flex items-center gap-1">
-                                <X className="h-4 w-4" /> Clear
-                            </button>
-                        </div>
-
+                        <h2 className="text-lg font-semibold text-white mb-4">Results for "{lastSearchQuery}" ({searchResults.length})</h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {searchResults.map((company) => (
-                                <SurfaceCard key={company.company_number} className="p-4 hover:border-sapphire-600/50 transition-all">
-                                    <div className="flex items-start justify-between mb-2">
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className="font-semibold text-white truncate">{company.title}</h3>
-                                            <p className="text-xs text-sapphire-400">#{company.company_number}</p>
+                            {searchResults.map((company) => {
+                                const isLoading = loadingDetails.has(company.company_number);
+                                const isSelected = selectedCompanies.some(c => c.company.company_number === company.company_number);
+
+                                return (
+                                    <SurfaceCard key={company.company_number} className="p-4 hover:border-sapphire-600/50 transition-all">
+                                        <div className="flex items-start justify-between mb-2">
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="font-semibold text-white truncate">{company.title}</h3>
+                                                <p className="text-xs text-sapphire-400">#{company.company_number}</p>
+                                            </div>
+                                            <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${company.company_status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
+                                                }`}>
+                                                {company.company_status === 'active' ? <CheckCircle2 className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+                                                {company.company_status}
+                                            </span>
                                         </div>
-                                        {getStatusBadge(company.company_status)}
-                                    </div>
-                                    {company.address_snippet && (
-                                        <p className="text-sm text-sapphire-300 mb-3 line-clamp-1">
-                                            <MapPin className="h-3 w-3 inline mr-1" />{company.address_snippet}
-                                        </p>
-                                    )}
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs text-sapphire-500">{company.company_type}</span>
+                                        {company.address_snippet && (
+                                            <p className="text-sm text-sapphire-300 mb-3 line-clamp-1">
+                                                <MapPin className="h-3 w-3 inline mr-1" />{company.address_snippet}
+                                            </p>
+                                        )}
                                         <button
-                                            onClick={() => loadCompanyDetails(company.company_number)}
-                                            disabled={loadingDetails.has(company.company_number) || selectedCompanies.some(c => c.company.company_number === company.company_number)}
-                                            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm transition-colors
-                                                ${selectedCompanies.some(c => c.company.company_number === company.company_number)
+                                            onClick={() => loadFullProfile(company.company_number)}
+                                            disabled={isLoading || isSelected}
+                                            className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                                                ${isSelected
                                                     ? 'bg-green-500/20 text-green-400'
                                                     : 'bg-sapphire-700/50 text-white hover:bg-sapphire-600/50'}`}
                                         >
-                                            {loadingDetails.has(company.company_number) ? (
-                                                <Loader2 className="h-3 w-3 animate-spin" />
-                                            ) : selectedCompanies.some(c => c.company.company_number === company.company_number) ? (
-                                                <CheckCircle2 className="h-3 w-3" />
+                                            {isLoading ? (
+                                                <><Loader2 className="h-4 w-4 animate-spin" /> Loading...</>
+                                            ) : isSelected ? (
+                                                <><CheckCircle2 className="h-4 w-4" /> Added to Portfolio</>
                                             ) : (
-                                                <ExternalLink className="h-3 w-3" />
+                                                <><ExternalLink className="h-4 w-4" /> Add to Portfolio</>
                                             )}
-                                            {selectedCompanies.some(c => c.company.company_number === company.company_number) ? 'Added' : 'Details'}
                                         </button>
-                                    </div>
-                                </SurfaceCard>
-                            ))}
+                                    </SurfaceCard>
+                                );
+                            })}
                         </div>
                     </div>
                 )}
 
-                {/* Initial Sector Companies (hidden when searching) */}
-                {!searchResults.length && Object.keys(sectorData).length > 0 && !portfolioStats && (
-                    <div className="mb-8">
-                        {/* Initial KPI cards when no companies selected */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                            <SurfaceCard className="p-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-lg accent-bg-subtle"><Building2 className="h-5 w-5 accent-text-light" /></div>
-                                    <div>
-                                        <p className="text-xs text-sapphire-400">Companies Available</p>
-                                        <p className="text-2xl font-bold text-white">{totalSectorCompanies}</p>
-                                    </div>
-                                </div>
-                            </SurfaceCard>
-                            <SurfaceCard className="p-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-lg bg-blue-500/20"><PieChart className="h-5 w-5 text-blue-400" /></div>
-                                    <div>
-                                        <p className="text-xs text-sapphire-400">Sectors</p>
-                                        <p className="text-2xl font-bold text-white">{Object.keys(sectorData).length}</p>
-                                    </div>
-                                </div>
-                            </SurfaceCard>
-                            <SurfaceCard className="p-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-lg bg-purple-500/20"><CheckCircle2 className="h-5 w-5 text-purple-400" /></div>
-                                    <div>
-                                        <p className="text-xs text-sapphire-400">Selected</p>
-                                        <p className="text-2xl font-bold text-white">0</p>
-                                    </div>
-                                </div>
-                            </SurfaceCard>
-                            <SurfaceCard className="p-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-lg bg-emerald-500/20"><Database className="h-5 w-5 text-emerald-400" /></div>
-                                    <div>
-                                        <p className="text-xs text-sapphire-400">Data Source</p>
-                                        <p className="text-lg font-bold text-white">Companies House</p>
-                                    </div>
-                                </div>
-                            </SurfaceCard>
-                        </div>
-
-                        <h2 className="text-lg font-semibold text-white mb-4">Browse by Sector</h2>
-
-                        <div className="space-y-4">
-                            {Object.entries(sectorData).map(([sector, companies]) => (
-                                <SurfaceCard key={sector} className="overflow-hidden">
-                                    <button
-                                        onClick={() => toggleSector(sector)}
-                                        className="w-full flex items-center justify-between p-4 hover:bg-sapphire-800/30 transition-colors"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 rounded-lg accent-bg-subtle">
-                                                <TrendingUp className="h-5 w-5 accent-text-light" />
-                                            </div>
-                                            <div className="text-left">
-                                                <h3 className="font-semibold text-white">{sector}</h3>
-                                                <p className="text-sm text-sapphire-400">{companies.length} companies</p>
-                                            </div>
-                                        </div>
-                                        {expandedSectors.has(sector) ? <ChevronUp className="h-5 w-5 text-sapphire-400" /> : <ChevronDown className="h-5 w-5 text-sapphire-400" />}
-                                    </button>
-
-                                    {expandedSectors.has(sector) && (
-                                        <div className="border-t border-sapphire-700/30 p-4">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                {companies.slice(0, 9).map((company) => (
-                                                    <div key={company.company_number} className="p-3 rounded-lg bg-sapphire-800/30 hover:bg-sapphire-800/50 transition-colors">
-                                                        <div className="flex items-start justify-between mb-1">
-                                                            <h4 className="font-medium text-white text-sm truncate flex-1">{company.title}</h4>
-                                                            {getStatusBadge(company.company_status)}
-                                                        </div>
-                                                        <p className="text-xs text-sapphire-400 mb-2">#{company.company_number}</p>
-                                                        <button
-                                                            onClick={() => loadCompanyDetails(company.company_number)}
-                                                            disabled={loadingDetails.has(company.company_number)}
-                                                            className="text-xs text-sapphire-400 hover:text-white flex items-center gap-1"
-                                                        >
-                                                            {loadingDetails.has(company.company_number) ? (
-                                                                <Loader2 className="h-3 w-3 animate-spin" />
-                                                            ) : (
-                                                                <ExternalLink className="h-3 w-3" />
-                                                            )}
-                                                            Add to Portfolio
-                                                        </button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </SurfaceCard>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Selected Company Details */}
+                {/* Selected Company Profiles */}
                 {selectedCompanies.length > 0 && (
                     <div>
-                        <h2 className="text-lg font-semibold text-white mb-4">Selected Companies ({selectedCompanies.length})</h2>
+                        <h2 className="text-lg font-semibold text-white mb-4">Company Fact Sheets</h2>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {selectedCompanies.map((details) => {
-                                const risk = getRiskLevel(details.company);
-                                const eis = getEISEligibility(details.company);
-                                const age = getCompanyAge(details.company.date_of_creation);
+                        <div className="space-y-6">
+                            {selectedCompanies.map((profile) => {
+                                const companyNum = profile.company.company_number;
+                                const sections = expandedSections[companyNum] || new Set();
+                                const age = getCompanyAge(profile.company.date_of_creation);
 
                                 return (
-                                    <SurfaceCard key={details.company.company_number} className="p-6 relative">
-                                        <button
-                                            onClick={() => removeCompany(details.company.company_number)}
-                                            className="absolute top-4 right-4 text-sapphire-400 hover:text-white"
-                                        >
-                                            <X className="h-4 w-4" />
-                                        </button>
+                                    <SurfaceCard key={companyNum} className="overflow-hidden">
+                                        {/* Header */}
+                                        <div className="p-6 border-b border-sapphire-700/30">
+                                            <div className="flex items-start justify-between">
+                                                <div>
+                                                    <h3 className="text-xl font-bold text-white">{profile.company.company_name}</h3>
+                                                    <p className="text-sm text-sapphire-400">
+                                                        #{profile.company.company_number} • {profile.company.company_type} • {age} years old
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <EISScoreBadge assessment={profile.eis_assessment} />
+                                                    <button onClick={() => removeCompany(companyNum)} className="text-sapphire-400 hover:text-white">
+                                                        <X className="h-5 w-5" />
+                                                    </button>
+                                                </div>
+                                            </div>
 
-                                        <div className="flex items-start justify-between mb-4 pr-6">
+                                            {/* Quick Stats */}
+                                            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
+                                                <div className="p-2 rounded bg-sapphire-800/30 text-center">
+                                                    <p className="text-xs text-sapphire-400">Status</p>
+                                                    <p className={`text-sm font-medium ${profile.company.company_status === 'active' ? 'text-green-400' : 'text-yellow-400'}`}>
+                                                        {profile.company.company_status}
+                                                    </p>
+                                                </div>
+                                                <div className="p-2 rounded bg-sapphire-800/30 text-center">
+                                                    <p className="text-xs text-sapphire-400">Directors</p>
+                                                    <p className="text-sm font-medium text-white">{profile.officers?.director_count || 0}</p>
+                                                </div>
+                                                <div className="p-2 rounded bg-sapphire-800/30 text-center">
+                                                    <p className="text-xs text-sapphire-400">PSCs</p>
+                                                    <p className="text-sm font-medium text-white">{profile.pscs?.active_count || 0}</p>
+                                                </div>
+                                                <div className="p-2 rounded bg-sapphire-800/30 text-center">
+                                                    <p className="text-xs text-sapphire-400">Charges</p>
+                                                    <p className={`text-sm font-medium ${profile.charges?.has_outstanding ? 'text-red-400' : 'text-green-400'}`}>
+                                                        {profile.charges?.outstanding_count || 0} outstanding
+                                                    </p>
+                                                </div>
+                                                <div className="p-2 rounded bg-sapphire-800/30 text-center">
+                                                    <p className="text-xs text-sapphire-400">Filings</p>
+                                                    <p className="text-sm font-medium text-white">{profile.filings?.analysis?.total_filings || 0}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Expandable Sections */}
+                                        <div className="divide-y divide-sapphire-700/30">
+                                            {/* EIS Assessment */}
                                             <div>
-                                                <h3 className="text-xl font-bold text-white">{details.company.company_name}</h3>
-                                                <p className="text-sm text-sapphire-400">#{details.company.company_number} • {details.company.company_type}</p>
+                                                <button
+                                                    onClick={() => toggleSection(companyNum, 'eis')}
+                                                    className="w-full flex items-center justify-between p-4 hover:bg-sapphire-800/30 transition-colors"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <Award className="h-5 w-5 accent-text-light" />
+                                                        <span className="font-medium text-white">EIS Assessment Details</span>
+                                                    </div>
+                                                    {sections.has('eis') ? <ChevronUp className="h-5 w-5 text-sapphire-400" /> : <ChevronDown className="h-5 w-5 text-sapphire-400" />}
+                                                </button>
+                                                {sections.has('eis') && (
+                                                    <div className="px-4 pb-4">
+                                                        <div className="bg-sapphire-800/30 rounded-lg p-4">
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                {profile.eis_assessment?.factors?.map((factor, i) => (
+                                                                    <div key={i} className="flex items-start gap-3">
+                                                                        <div className={`p-1 rounded ${factor.impact === 'positive' ? 'bg-green-500/20' :
+                                                                                factor.impact === 'negative' ? 'bg-red-500/20' : 'bg-yellow-500/20'
+                                                                            }`}>
+                                                                            {factor.impact === 'positive' ? <CheckCircle2 className="h-4 w-4 text-green-400" /> :
+                                                                                factor.impact === 'negative' ? <X className="h-4 w-4 text-red-400" /> :
+                                                                                    <AlertCircle className="h-4 w-4 text-yellow-400" />}
+                                                                        </div>
+                                                                        <div className="flex-1">
+                                                                            <div className="flex justify-between">
+                                                                                <span className="text-sm font-medium text-white">{factor.factor}</span>
+                                                                                <span className="text-sm text-sapphire-400">{factor.points}/{factor.max_points}</span>
+                                                                            </div>
+                                                                            <p className="text-xs text-sapphire-400">{factor.rationale}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                            {profile.eis_assessment?.flags?.length > 0 && (
+                                                                <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                                                                    <p className="text-sm font-medium text-yellow-400 mb-2">⚠️ Flags</p>
+                                                                    {profile.eis_assessment.flags.map((flag, i) => (
+                                                                        <p key={i} className="text-sm text-yellow-300">• {flag}</p>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                            <p className="text-xs text-sapphire-500 mt-4 italic">{profile.eis_assessment?.disclaimer}</p>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
-                                            {getStatusBadge(details.company.company_status)}
-                                        </div>
 
-                                        <div className="grid grid-cols-4 gap-3 mb-4">
-                                            <div className="text-center p-3 rounded-lg bg-sapphire-800/30">
-                                                <p className="text-xs text-sapphire-400">Sector</p>
-                                                <p className="text-sm font-semibold text-white">{getSectorFromSIC(details.company.sic_codes)}</p>
+                                            {/* Directors */}
+                                            <div>
+                                                <button
+                                                    onClick={() => toggleSection(companyNum, 'directors')}
+                                                    className="w-full flex items-center justify-between p-4 hover:bg-sapphire-800/30 transition-colors"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <Users className="h-5 w-5 text-purple-400" />
+                                                        <span className="font-medium text-white">Directors & Officers ({profile.officers?.total_count || 0})</span>
+                                                    </div>
+                                                    {sections.has('directors') ? <ChevronUp className="h-5 w-5 text-sapphire-400" /> : <ChevronDown className="h-5 w-5 text-sapphire-400" />}
+                                                </button>
+                                                {sections.has('directors') && (
+                                                    <div className="px-4 pb-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                        {profile.officers?.items?.slice(0, 10).map((officer, i) => (
+                                                            <div key={i} className="p-3 bg-sapphire-800/30 rounded-lg">
+                                                                <p className="font-medium text-white">{officer.name}</p>
+                                                                <p className="text-sm text-sapphire-400">{officer.officer_role}</p>
+                                                                {officer.appointed_on && <p className="text-xs text-sapphire-500">Appointed: {officer.appointed_on}</p>}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
-                                            <div className="text-center p-3 rounded-lg bg-sapphire-800/30">
-                                                <p className="text-xs text-sapphire-400">Age</p>
-                                                <p className="text-sm font-semibold text-white">{age} yrs</p>
-                                            </div>
-                                            <div className="text-center p-3 rounded-lg bg-sapphire-800/30">
-                                                <p className="text-xs text-sapphire-400">Directors</p>
-                                                <p className="text-sm font-semibold text-white">{details.director_count}</p>
-                                            </div>
-                                            <div className={`text-center p-3 rounded-lg ${risk.level === 'Low' ? 'bg-green-500/20' : risk.level === 'High' ? 'bg-red-500/20' : 'bg-yellow-500/20'
-                                                }`}>
-                                                <p className="text-xs text-sapphire-400">Risk</p>
-                                                <p className={`text-sm font-semibold ${risk.level === 'Low' ? 'text-green-400' : risk.level === 'High' ? 'text-red-400' : 'text-yellow-400'
-                                                    }`}>{risk.level}</p>
-                                            </div>
-                                        </div>
 
-                                        {/* EIS Eligibility */}
-                                        <div className={`mb-4 p-3 rounded-lg ${eis.status === 'Potentially Eligible' ? 'bg-green-500/10 border border-green-500/30' :
-                                                eis.status === 'Ineligible' ? 'bg-red-500/10 border border-red-500/30' :
-                                                    'bg-yellow-500/10 border border-yellow-500/30'
-                                            }`}>
-                                            <p className={`text-sm font-medium ${eis.status === 'Potentially Eligible' ? 'text-green-400' :
-                                                    eis.status === 'Ineligible' ? 'text-red-400' : 'text-yellow-400'
-                                                }`}>
-                                                EIS Status: {eis.status}
-                                            </p>
-                                        </div>
-
-                                        {details.company.registered_office_address && (
-                                            <div className="mb-4">
-                                                <p className="text-xs text-sapphire-400 mb-1"><MapPin className="h-3 w-3 inline mr-1" />Registered Office</p>
-                                                <p className="text-sm text-sapphire-200">
-                                                    {details.company.registered_office_address.address_line_1}
-                                                    {details.company.registered_office_address.locality && `, ${details.company.registered_office_address.locality}`}
-                                                    {details.company.registered_office_address.postal_code && ` ${details.company.registered_office_address.postal_code}`}
-                                                </p>
+                                            {/* PSCs */}
+                                            <div>
+                                                <button
+                                                    onClick={() => toggleSection(companyNum, 'pscs')}
+                                                    className="w-full flex items-center justify-between p-4 hover:bg-sapphire-800/30 transition-colors"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <User className="h-5 w-5 text-blue-400" />
+                                                        <span className="font-medium text-white">Significant Shareholders ({profile.pscs?.total_count || 0})</span>
+                                                    </div>
+                                                    {sections.has('pscs') ? <ChevronUp className="h-5 w-5 text-sapphire-400" /> : <ChevronDown className="h-5 w-5 text-sapphire-400" />}
+                                                </button>
+                                                {sections.has('pscs') && (
+                                                    <div className="px-4 pb-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                        {profile.pscs?.items?.map((psc, i) => (
+                                                            <div key={i} className={`p-3 rounded-lg ${psc.is_active ? 'bg-sapphire-800/30' : 'bg-sapphire-800/10 opacity-60'}`}>
+                                                                <p className="font-medium text-white">{psc.name}</p>
+                                                                <p className="text-sm text-sapphire-400">Ownership: {psc.ownership_level}</p>
+                                                                {!psc.is_active && <p className="text-xs text-red-400">No longer active</p>}
+                                                            </div>
+                                                        ))}
+                                                        {(profile.pscs?.items?.length || 0) === 0 && (
+                                                            <p className="text-sapphire-400 text-sm">No PSC records found</p>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
 
-                                        {details.directors?.length > 0 && (
-                                            <div className="pt-3 border-t border-sapphire-700/30">
-                                                <p className="text-xs text-sapphire-400 mb-2"><Users className="h-3 w-3 inline mr-1" />Directors</p>
-                                                {details.directors.slice(0, 3).map((d, i) => (
-                                                    <p key={i} className="text-sm text-sapphire-200">{d.name} <span className="text-sapphire-500">({d.officer_role})</span></p>
-                                                ))}
+                                            {/* Charges */}
+                                            <div>
+                                                <button
+                                                    onClick={() => toggleSection(companyNum, 'charges')}
+                                                    className="w-full flex items-center justify-between p-4 hover:bg-sapphire-800/30 transition-colors"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <Scale className={`h-5 w-5 ${profile.charges?.has_outstanding ? 'text-red-400' : 'text-green-400'}`} />
+                                                        <span className="font-medium text-white">Charges & Security ({profile.charges?.total_count || 0})</span>
+                                                    </div>
+                                                    {sections.has('charges') ? <ChevronUp className="h-5 w-5 text-sapphire-400" /> : <ChevronDown className="h-5 w-5 text-sapphire-400" />}
+                                                </button>
+                                                {sections.has('charges') && (
+                                                    <div className="px-4 pb-4">
+                                                        {(profile.charges?.items?.length || 0) > 0 ? (
+                                                            <div className="space-y-3">
+                                                                {profile.charges.items.map((charge, i) => (
+                                                                    <div key={i} className={`p-3 rounded-lg ${charge.is_outstanding ? 'bg-red-500/10 border border-red-500/30' : 'bg-sapphire-800/30'}`}>
+                                                                        <div className="flex justify-between">
+                                                                            <p className="font-medium text-white">{charge.status}</p>
+                                                                            <span className={`text-xs px-2 py-0.5 rounded ${charge.is_outstanding ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
+                                                                                {charge.is_outstanding ? 'Outstanding' : 'Satisfied'}
+                                                                            </span>
+                                                                        </div>
+                                                                        {charge.created_on && <p className="text-sm text-sapphire-400">Created: {charge.created_on}</p>}
+                                                                        {charge.persons_entitled?.length > 0 && (
+                                                                            <p className="text-xs text-sapphire-500">Entitled: {charge.persons_entitled.join(', ')}</p>
+                                                                        )}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-green-400 text-sm">✅ No charges registered</p>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
 
-                                        <div className="mt-3 flex gap-2 flex-wrap">
-                                            {details.company.has_insolvency_history && (
-                                                <span className="px-2 py-1 rounded bg-red-500/20 text-red-400 text-xs">⚠️ Insolvency</span>
-                                            )}
-                                            {details.company.has_charges && (
-                                                <span className="px-2 py-1 rounded bg-yellow-500/20 text-yellow-400 text-xs">📋 Charges</span>
-                                            )}
-                                            {!details.company.has_insolvency_history && !details.company.has_charges && (
-                                                <span className="px-2 py-1 rounded bg-green-500/20 text-green-400 text-xs">✅ No Flags</span>
-                                            )}
-                                            {details.company.sic_codes?.length > 0 && (
-                                                <span className="px-2 py-1 rounded bg-sapphire-700/50 text-sapphire-300 text-xs">
-                                                    SIC: {details.company.sic_codes.join(', ')}
-                                                </span>
-                                            )}
+                                            {/* Filings */}
+                                            <div>
+                                                <button
+                                                    onClick={() => toggleSection(companyNum, 'filings')}
+                                                    className="w-full flex items-center justify-between p-4 hover:bg-sapphire-800/30 transition-colors"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <FileCheck className="h-5 w-5 text-cyan-400" />
+                                                        <span className="font-medium text-white">Filing History</span>
+                                                        {profile.filings?.analysis?.has_share_allotments && (
+                                                            <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded">Share allotments found</span>
+                                                        )}
+                                                    </div>
+                                                    {sections.has('filings') ? <ChevronUp className="h-5 w-5 text-sapphire-400" /> : <ChevronDown className="h-5 w-5 text-sapphire-400" />}
+                                                </button>
+                                                {sections.has('filings') && (
+                                                    <div className="px-4 pb-4">
+                                                        <div className="grid grid-cols-3 gap-3 mb-4">
+                                                            <div className="p-2 bg-sapphire-800/30 rounded text-center">
+                                                                <p className="text-xs text-sapphire-400">Total Filings</p>
+                                                                <p className="text-lg font-bold text-white">{profile.filings?.analysis?.total_filings || 0}</p>
+                                                            </div>
+                                                            <div className="p-2 bg-sapphire-800/30 rounded text-center">
+                                                                <p className="text-xs text-sapphire-400">Accounts Type</p>
+                                                                <p className="text-lg font-bold text-white">{profile.filings?.analysis?.accounts_type || 'Unknown'}</p>
+                                                            </div>
+                                                            <div className="p-2 bg-sapphire-800/30 rounded text-center">
+                                                                <p className="text-xs text-sapphire-400">Share Allotments</p>
+                                                                <p className="text-lg font-bold text-white">{profile.filings?.analysis?.share_allotment_count || 0}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                                                            {profile.filings?.items?.slice(0, 10).map((filing, i) => (
+                                                                <div key={i} className="flex items-center justify-between p-2 bg-sapphire-800/20 rounded">
+                                                                    <div>
+                                                                        <p className="text-sm text-white">{filing.description}</p>
+                                                                        <p className="text-xs text-sapphire-500">{filing.type} • {filing.category}</p>
+                                                                    </div>
+                                                                    <span className="text-xs text-sapphire-400">{filing.date}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </SurfaceCard>
                                 );
@@ -871,11 +846,19 @@ export default function EISPage() {
                 )}
 
                 {/* Empty State */}
-                {!searchResults.length && !Object.keys(sectorData).length && !error && (
+                {!searchResults.length && !selectedCompanies.length && (
                     <div className="text-center py-16">
                         <Building2 className="h-16 w-16 text-sapphire-600 mx-auto mb-4" />
-                        <h3 className="text-xl font-medium text-white mb-2">Loading Companies...</h3>
-                        <p className="text-sapphire-400">Fetching data from Companies House registry</p>
+                        <h3 className="text-xl font-medium text-white mb-2">Start Your EIS Fact-Finding</h3>
+                        <p className="text-sapphire-400 mb-4">Search for companies to load comprehensive data from Companies House</p>
+                        <div className="flex flex-wrap justify-center gap-3 text-sm text-sapphire-500">
+                            <span className="px-3 py-1 bg-sapphire-800/30 rounded">✓ Company Profile</span>
+                            <span className="px-3 py-1 bg-sapphire-800/30 rounded">✓ Directors & Officers</span>
+                            <span className="px-3 py-1 bg-sapphire-800/30 rounded">✓ Shareholders (PSCs)</span>
+                            <span className="px-3 py-1 bg-sapphire-800/30 rounded">✓ Charges & Security</span>
+                            <span className="px-3 py-1 bg-sapphire-800/30 rounded">✓ Filing History</span>
+                            <span className="px-3 py-1 bg-sapphire-800/30 rounded">✓ EIS Assessment</span>
+                        </div>
                     </div>
                 )}
             </main>
