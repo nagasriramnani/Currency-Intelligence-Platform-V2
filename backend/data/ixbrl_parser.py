@@ -695,10 +695,9 @@ class IXBRLParser:
                 r'total\s+(?:capital\s+)?(?:resources|equity)[\s:,of]*[\(]?(\d+(?:\.\d+)?)[\)]?\s*(?:million|m\b)',
             ],
             'employees': [
-                r'(?:average|number\s+of)\s+employees[\s:]*(\d+)',
-                r'(\d+)\s+employees\b',
-                r'employees[\s:]*(\d+)',
-                r'workforce.*?(\d+)\s+(?:people|staff)',
+                r'(?:average|number\s+of)\s+employees[\s:]*(\d{2,})',  # Require 2+ digits
+                r'employees[\s:]+(\d{2,})\b',  # Require separator and 2+ digits
+                r'(\d{3,})\s+employees\b',  # 3+ digit number + employees
             ],
             'profit': [
                 r'(?:profit|loss)\s+(?:for|before|after)[\s\w]*?[\(]?(\d+(?:\.\d+)?)[\)]?\s*(?:million|m\b)',
