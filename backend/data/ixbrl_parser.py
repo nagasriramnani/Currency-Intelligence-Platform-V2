@@ -170,11 +170,11 @@ class IXBRLParser:
         """
         Download the iXBRL content from Companies House.
         
-        The document metadata endpoint returns the actual document URL,
-        then we download the iXBRL/XHTML content.
+        The document metadata endpoint returns available resources.
+        We specifically request XHTML/iXBRL format - returns None if not available.
         """
         try:
-            # First, get the document metadata to find the actual document
+            # First, get the document metadata to find available formats
             if not document_metadata_url.startswith('http'):
                 document_metadata_url = f"{CH_FILING_API}{document_metadata_url}"
             
@@ -192,17 +192,29 @@ class IXBRLParser:
             
             meta_data = meta_response.json()
             
-            # Get the document content URL
+            # Check available resources for XHTML/iXBRL
             resources = meta_data.get('resources', {})
+            has_xhtml = False
+            xhtml_content_type = None
             
-            # Look for XHTML/iXBRL content
-            content_url = None
             for resource_type, resource_info in resources.items():
-                if 'xhtml' in resource_type.lower() or 'html' in resource_type.lower():
-                    content_url = resource_info.get('content_type')
+                content_type = resource_info.get('content_type', '') if isinstance(resource_info, dict) else ''
+                if 'xhtml' in resource_type.lower() or 'xhtml' in content_type.lower():
+                    has_xhtml = True
+                    xhtml_content_type = 'application/xhtml+xml'
                     break
+                if 'html' in resource_type.lower() or 'html' in content_type.lower():
+                    has_xhtml = True
+                    xhtml_content_type = 'text/html'
             
-            # Try to get the document content directly
+            if not has_xhtml:
+                # Check if it's PDF only
+                if any('pdf' in str(v).lower() for v in resources.values()):
+                    logger.info("Document only available as PDF - iXBRL parsing not possible")
+                    return None
+                logger.info("No XHTML/iXBRL resource found in document metadata")
+            
+            # Get the document URL
             links = meta_data.get('links', {})
             document_url = links.get('document')
             
@@ -213,19 +225,41 @@ class IXBRLParser:
             if not document_url.startswith('http'):
                 document_url = f"{CH_DOCUMENT_API}{document_url}"
             
-            # Download the actual document with Accept header for XHTML
+            # Download the document, requesting XHTML format specifically
             doc_response = requests.get(
                 document_url,
                 auth=(self.api_key, ''),
                 timeout=60,
-                headers={'Accept': 'application/xhtml+xml, text/html, */*'}
+                headers={
+                    'Accept': 'application/xhtml+xml, text/html;q=0.9',
+                }
             )
             
             if doc_response.status_code != 200:
                 logger.warning(f"Failed to download document: {doc_response.status_code}")
                 return None
             
-            return doc_response.text
+            # Check what we actually received
+            content_type = doc_response.headers.get('Content-Type', '').lower()
+            
+            # If we got PDF, we can't parse it
+            if 'pdf' in content_type:
+                logger.info(f"Received PDF response (Content-Type: {content_type}) - cannot parse")
+                return None
+            
+            # If we got something that's not HTML/XHTML, skip
+            if 'html' not in content_type and 'xhtml' not in content_type and 'xml' not in content_type:
+                logger.info(f"Received non-HTML content (Content-Type: {content_type}) - cannot parse")
+                return None
+            
+            content = doc_response.text
+            
+            # Quick sanity check - does it look like HTML/XML?
+            if not content.strip().startswith('<') and '<!DOCTYPE' not in content[:500]:
+                logger.warning("Content doesn't appear to be HTML/XML")
+                return None
+            
+            return content
             
         except Exception as e:
             logger.error(f"Error downloading iXBRL content: {e}")
