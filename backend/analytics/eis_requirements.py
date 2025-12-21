@@ -407,3 +407,328 @@ def get_requirement_summary() -> Dict:
         "holding_period": f"{EIS_RULES['min_holding_period']} years minimum",
         "hmrc_url": get_hmrc_advance_assurance_url(),
     }
+
+
+# ==============================================================================
+# INVESTOR QUALIFYING CONDITIONS
+# ==============================================================================
+
+INVESTOR_CONDITIONS = {
+    "must_be_uk_taxpayer": True,
+    "max_investment_per_year": 1_000_000,  # £1M standard
+    "max_investment_per_year_kic": 2_000_000,  # £2M for KICs
+    "min_holding_period_years": 3,
+    "connection_rules": {
+        "cannot_be_employee": True,
+        "cannot_be_paid_director": True,  # Exception: business angel unpaid→paid
+        "max_share_ownership_pct": 30,  # Cannot own >30% shares or voting rights
+        "associates_count": ["spouse", "parents", "grandparents", "children", "grandchildren"],
+        "excluded_associates": ["siblings"],  # Siblings NOT counted as associates
+    },
+}
+
+# ==============================================================================
+# COMPANY CORE CONDITIONS
+# ==============================================================================
+
+COMPANY_CONDITIONS = {
+    # Age
+    "max_age_from_first_commercial_sale_years": 7,
+    "max_age_from_first_commercial_sale_years_kic": 10,
+    
+    # Size
+    "max_employees": 250,
+    "max_employees_kic": 500,
+    "max_gross_assets_before_investment": 15_000_000,
+    "max_gross_assets_after_investment": 16_000_000,
+    
+    # Independence
+    "max_ownership_by_another_company_pct": 49,  # No company can own >49%
+    "cannot_be_listed_on_recognised_exchange": True,
+    "aim_allowed": True,  # AIM is explicitly allowed
+    
+    # UK presence
+    "requires_uk_permanent_establishment": True,
+    "uk_establishment_options": [
+        "branch",
+        "management_location",
+        "qualifying_uk_agent",
+        "companies_house_registration"
+    ],
+    
+    # Risk finance limits
+    "max_risk_finance_per_year": 5_000_000,
+    "max_risk_finance_per_year_kic": 10_000_000,
+    "max_risk_finance_lifetime": 12_000_000,
+    "max_risk_finance_lifetime_kic": 20_000_000,
+    
+    # Share requirements
+    "shares_must_be": [
+        "full_risk_ordinary_shares",
+        "fully_paid_in_cash_before_issue",
+        "no_capital_preservation_arrangements",
+        "no_pre_arranged_exit"
+    ],
+    
+    # Other
+    "must_meet_risk_to_capital_condition": True,
+    "cannot_be_in_financial_difficulty": True,
+    "must_maintain_conditions_for_years": 3,
+    "non_qualifying_activities_max_pct": 20,  # HMRC "substantial" benchmark
+}
+
+# ==============================================================================
+# KIC (KNOWLEDGE INTENSIVE COMPANY) CONDITIONS
+# ==============================================================================
+
+KIC_CONDITIONS = {
+    # Two alternative qualification routes
+    "ip_condition": {
+        "description": "Developing IP to be exploited in its trade within 10 years",
+    },
+    "skilled_employee_condition": {
+        "min_masters_or_higher_pct": 20,  # At least 20% with relevant Masters/PhD
+        "research_experience_years": 3,  # Have been conducting research for 3+ years
+    },
+    # Additional requirements
+    "max_employees": 500,
+    "rd_innovation_min_pct_of_operating_costs_3_years": 10,  # 10% over 3 years
+    "rd_innovation_min_pct_of_operating_costs_1_year": 15,  # OR 15% in any 1 of last 3 years
+    # Age
+    "max_age_from_first_commercial_sale_years": 10,
+    "max_age_from_turnover_threshold_years": 10,  # From when annual turnover exceeded £200k
+    "turnover_threshold": 200_000,
+    # Investment limits
+    "max_annual_investment": 10_000_000,
+    "max_lifetime_investment": 20_000_000,
+}
+
+# ==============================================================================
+# TAX BENEFITS (for investor reference)
+# ==============================================================================
+
+EIS_TAX_BENEFITS = {
+    "income_tax_relief_pct": 30,  # 30% of investment against income tax
+    "cgt_relief_on_disposal_pct": 100,  # 100% CGT free on qualifying disposal
+    "cgt_deferral": True,  # Can defer CGT on other gains
+    "inheritance_tax_relief_pct": 100,  # Within £1M allowance from 6 April 2026
+    "loss_relief": True,  # Relief if company fails
+}
+
+SEIS_TAX_BENEFITS = {
+    "income_tax_relief_pct": 50,  # 50% of investment
+    "cgt_relief_on_disposal_pct": 100,
+    "cgt_exemption_on_reinvested_gains_pct": 50,
+    "inheritance_tax_relief_pct": 100,
+    "loss_relief": True,
+}
+
+# ==============================================================================
+# HMRC APPLICATION PROCESS
+# ==============================================================================
+
+HMRC_PROCESS = {
+    "stages": [
+        {
+            "stage": 1,
+            "name": "Advance Assurance",
+            "description": "Optional but recommended pre-approval from HMRC",
+            "required_documents": [
+                "UTR (Unique Taxpayer Reference)",
+                "CRN (Company Registration Number)",
+                "Company accounts",
+                "Business plan and financial forecasts",
+                "Use of funds explanation",
+                "Risk-to-capital explanation",
+                "Schedule of previous tax-advantaged investments",
+                "M&A and shareholder agreements",
+                "Any prospectus or investment documentation",
+                "State aid details",
+                "Evidence of non-speculative interest (e.g., 6 potential investors or letter of intent)"
+            ],
+            "notes": "HMRC will confirm if the company is likely to qualify"
+        },
+        {
+            "stage": 2,
+            "name": "EIS1 - Compliance Statement",
+            "description": "Submitted after shares are issued",
+            "deadline": "Within 2 years of share issue",
+            "required_documents": [
+                "All Advance Assurance documents",
+                "Bank statement showing shares fully paid in cash"
+            ]
+        },
+        {
+            "stage": 3,
+            "name": "EIS2 - HMRC Approval",
+            "description": "HMRC confirms share issue qualifies for EIS",
+            "outcome": "Company can issue EIS3 certificates"
+        },
+        {
+            "stage": 4,
+            "name": "EIS3 - Investor Certificates",
+            "description": "Individual certificates for each investor",
+            "includes": [
+                "Unique Investment Reference",
+                "Termination date",
+                "Company and investor signatures"
+            ],
+            "investor_action": "Claim tax relief using EIS3 details on tax return"
+        }
+    ],
+    "urls": {
+        "advance_assurance": "https://www.gov.uk/guidance/venture-capital-schemes-apply-to-use-the-enterprise-investment-scheme",
+        "eis1_form": "https://www.gov.uk/government/publications/enterprise-investment-scheme-compliance-statement-eis1",
+        "hmrc_contact": "https://www.gov.uk/government/organisations/hm-revenue-customs/contact"
+    }
+}
+
+# ==============================================================================
+# ADDITIONAL HELPER FUNCTIONS
+# ==============================================================================
+
+def check_company_independence(ownership_by_other_company_pct: float) -> Dict:
+    """Check if company is sufficiently independent for EIS."""
+    max_allowed = COMPANY_CONDITIONS["max_ownership_by_another_company_pct"]
+    eligible = ownership_by_other_company_pct <= max_allowed
+    
+    return {
+        "eligible": eligible,
+        "ownership_pct": ownership_by_other_company_pct,
+        "max_allowed_pct": max_allowed,
+        "message": f"{'✅' if eligible else '❌'} {ownership_by_other_company_pct}% owned by other company (max: {max_allowed}%)"
+    }
+
+
+def check_investor_eligibility(
+    share_ownership_pct: float,
+    is_employee: bool = False,
+    is_paid_director: bool = False
+) -> Dict:
+    """Check if an investor meets connection rules."""
+    issues = []
+    eligible = True
+    
+    max_ownership = INVESTOR_CONDITIONS["connection_rules"]["max_share_ownership_pct"]
+    
+    if share_ownership_pct > max_ownership:
+        issues.append(f"Owns {share_ownership_pct}% shares (max: {max_ownership}%)")
+        eligible = False
+    
+    if is_employee:
+        issues.append("Cannot be employee of the company")
+        eligible = False
+    
+    if is_paid_director:
+        issues.append("Cannot be paid director (unless business angel exception applies)")
+        eligible = False
+    
+    return {
+        "eligible": eligible,
+        "share_ownership_pct": share_ownership_pct,
+        "is_employee": is_employee,
+        "is_paid_director": is_paid_director,
+        "issues": issues,
+        "message": f"{'✅' if eligible else '❌'} Investor connection check: {len(issues)} issues"
+    }
+
+
+def check_kic_eligibility(
+    employee_count: int,
+    rd_spend_pct: float = None,
+    masters_employees_pct: float = None,
+    has_ip_development: bool = False
+) -> Dict:
+    """Check if company qualifies as Knowledge Intensive Company."""
+    eligible = False
+    reasons = []
+    
+    # Employee check
+    if employee_count >= KIC_CONDITIONS["max_employees"]:
+        return {
+            "eligible": False,
+            "reason": f"Too many employees ({employee_count} >= {KIC_CONDITIONS['max_employees']})",
+            "reasons": []
+        }
+    
+    # IP condition
+    if has_ip_development:
+        eligible = True
+        reasons.append("Developing IP to be exploited in trade")
+    
+    # Skilled employee condition
+    if masters_employees_pct and masters_employees_pct >= KIC_CONDITIONS["skilled_employee_condition"]["min_masters_or_higher_pct"]:
+        eligible = True
+        reasons.append(f"{masters_employees_pct}% employees with Masters/PhD (≥20%)")
+    
+    # R&D spend
+    if rd_spend_pct:
+        if rd_spend_pct >= KIC_CONDITIONS["rd_innovation_min_pct_of_operating_costs_1_year"]:
+            eligible = True
+            reasons.append(f"R&D spend: {rd_spend_pct}% of operating costs (≥15% in 1 year)")
+        elif rd_spend_pct >= KIC_CONDITIONS["rd_innovation_min_pct_of_operating_costs_3_years"]:
+            reasons.append(f"R&D spend: {rd_spend_pct}% (needs 10%+ for 3 consecutive years)")
+    
+    return {
+        "eligible": eligible,
+        "employee_count": employee_count,
+        "rd_spend_pct": rd_spend_pct,
+        "masters_employees_pct": masters_employees_pct,
+        "has_ip_development": has_ip_development,
+        "reasons": reasons,
+        "message": f"{'✅ KIC Qualified' if eligible else '❌ Not KIC'}: {', '.join(reasons) if reasons else 'No qualifying conditions met'}"
+    }
+
+
+def get_complete_eligibility_checklist() -> Dict:
+    """Get complete EIS eligibility checklist for display."""
+    return {
+        "company_conditions": {
+            "age": "First commercial sale within 7 years (10 for KIC)",
+            "employees": "< 250 full-time employees (< 500 for KIC)",
+            "assets": "< £15M gross assets before investment",
+            "trade": "Carrying out qualifying trade",
+            "non_qualifying_activities": "< 20% in non-qualifying activities",
+            "independence": "No company owns > 49% of shares",
+            "listing": "Not listed on recognised exchange (AIM allowed)",
+            "uk_presence": "Has UK permanent establishment",
+            "risk_finance_annual": "< £5M risk finance per year (£10M KIC)",
+            "risk_finance_lifetime": "< £12M total risk finance (£20M KIC)",
+            "shares": "Full-risk ordinary shares, fully paid in cash",
+            "risk_to_capital": "Genuine growth objective with loss risk",
+            "financial_health": "Not in financial difficulty",
+        },
+        "investor_conditions": {
+            "uk_taxpayer": "Must be UK taxpayer",
+            "max_investment": "Up to £1M per year (£2M for KIC investments)",
+            "holding_period": "Must hold shares for 3+ years",
+            "not_employee": "Cannot be employee of the company",
+            "not_paid_director": "Cannot be paid director (with exceptions)",
+            "max_ownership": "Cannot own > 30% of shares/voting rights",
+        },
+        "excluded_trades": [
+            "Property/land dealing",
+            "Financial activities (banking, insurance, lending)",
+            "Legal/accountancy services",
+            "Leasing",
+            "Farming/forestry",
+            "Hotels/care homes",
+            "Energy generation/export",
+            "Coal/steel production",
+            "Royalty-based models (except self-generated IP)",
+        ],
+        "tax_benefits": {
+            "income_tax_relief": "30% of investment",
+            "cgt_exemption": "100% on qualifying disposal",
+            "cgt_deferral": "Defer gains reinvested",
+            "iht_relief": "100% after 2 years (within £1M allowance)",
+            "loss_relief": "Available if company fails",
+        },
+        "hmrc_process": [
+            "1. Advance Assurance (recommended)",
+            "2. EIS1 Compliance Statement (after shares issued)",
+            "3. EIS2 HMRC Approval",
+            "4. EIS3 Investor Certificates → Claim relief",
+        ]
+    }
+
