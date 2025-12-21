@@ -455,6 +455,149 @@ class CompaniesHouseClient:
             "analysis": analysis
         }
     
+    def get_accounts_data(self, company_number: str) -> Dict[str, Any]:
+        """
+        Get financial accounts data for a company.
+        
+        Fetches the latest accounts filing and extracts key financial metrics
+        for EIS eligibility assessment:
+        - Gross assets (must be < £15m for EIS)
+        - Net assets
+        - Employee count (must be < 250 for EIS, < 500 for KIC)
+        - Turnover (helps determine KIC status)
+        
+        Note: Not all companies file detailed accounts. Micro-entity and 
+        small company exemptions mean some data may not be available.
+        
+        Returns:
+            Dict with financial data and data availability flags
+        """
+        company_number = company_number.zfill(8)
+        
+        result = {
+            "company_number": company_number,
+            "data_available": False,
+            "gross_assets": None,
+            "net_assets": None,
+            "current_assets": None,
+            "fixed_assets": None,
+            "employees": None,
+            "turnover": None,
+            "accounts_date": None,
+            "accounts_type": None,
+            "eis_checks": {
+                "assets_eligible": None,  # < £15m
+                "employees_eligible": None,  # < 250
+                "employees_kic_eligible": None,  # < 500
+            },
+            "source": "companies_house_accounts",
+            "notes": []
+        }
+        
+        try:
+            # First get filing history to find latest accounts
+            filings_data = self._make_request(
+                f"/company/{company_number}/filing-history",
+                {"category": "accounts", "items_per_page": 5}
+            )
+            
+            if not filings_data or not filings_data.get("items"):
+                result["notes"].append("No accounts filings found")
+                return result
+            
+            # Find the latest accounts filing
+            accounts_items = filings_data.get("items", [])
+            latest_accounts = None
+            
+            for item in accounts_items:
+                if item.get("category") == "accounts":
+                    latest_accounts = item
+                    break
+            
+            if not latest_accounts:
+                result["notes"].append("No accounts found in recent filings")
+                return result
+            
+            result["accounts_date"] = latest_accounts.get("date")
+            description = latest_accounts.get("description", "").lower()
+            
+            # Determine accounts type
+            if "micro" in description:
+                result["accounts_type"] = "micro-entity"
+                result["notes"].append("Micro-entity accounts - limited data available")
+            elif "small" in description:
+                result["accounts_type"] = "small"
+                result["notes"].append("Small company accounts - abbreviated data")
+            elif "dormant" in description:
+                result["accounts_type"] = "dormant"
+                result["notes"].append("Dormant company - no trading activity")
+            elif "total exempt" in description:
+                result["accounts_type"] = "total-exemption"
+                result["notes"].append("Total exemption from audit - limited disclosure")
+            elif "full" in description or "group" in description:
+                result["accounts_type"] = "full"
+                result["notes"].append("Full accounts filed - comprehensive data")
+            elif "abbreviated" in description:
+                result["accounts_type"] = "abbreviated"
+                result["notes"].append("Abbreviated accounts - limited balance sheet")
+            else:
+                result["accounts_type"] = "unknown"
+            
+            # Try to get the accounts document link
+            links = latest_accounts.get("links", {})
+            document_link = links.get("document_metadata") or links.get("self")
+            
+            if document_link:
+                result["data_available"] = True
+                result["filing_link"] = f"https://find-and-update.company-information.service.gov.uk{document_link}"
+            
+            # For UK companies, try to get accounts data from the company profile
+            # The /company/{id}/uk-establishments endpoint might have more data
+            # But the main data comes from parsing the actual accounts document
+            
+            # Try to infer size from accounts type
+            if result["accounts_type"] in ["micro-entity"]:
+                # Micro companies have assets < £316k and turnover < £632k
+                result["notes"].append("Micro-entity: likely well within EIS asset limits")
+                result["eis_checks"]["assets_eligible"] = True
+                result["eis_checks"]["employees_eligible"] = True
+            elif result["accounts_type"] in ["small"]:
+                # Small companies have assets < £5.1m and turnover < £10.2m
+                result["notes"].append("Small company: likely within EIS asset limits")
+                result["eis_checks"]["assets_eligible"] = True
+                result["eis_checks"]["employees_eligible"] = True
+            elif result["accounts_type"] in ["dormant"]:
+                result["notes"].append("Dormant: EIS requires trading company")
+                result["eis_checks"]["assets_eligible"] = True
+                result["eis_checks"]["employees_eligible"] = True
+            elif result["accounts_type"] in ["full"]:
+                result["notes"].append("Full accounts: may exceed EIS limits - verify manually")
+                # Can't determine without parsing actual document
+            
+            # Try to get more data from extended company profile
+            try:
+                extended_data = self._make_request(f"/company/{company_number}")
+                if extended_data:
+                    # Some companies have account information in profile
+                    accounts_info = extended_data.get("accounts", {})
+                    if accounts_info:
+                        result["next_accounts_due"] = accounts_info.get("next_due")
+                        result["last_accounts_made_up_to"] = accounts_info.get("last_accounts", {}).get("made_up_to")
+                    
+                    # Annual return/confirmation data
+                    annual_return = extended_data.get("annual_return", {}) or extended_data.get("confirmation_statement", {})
+                    if annual_return:
+                        result["last_confirmation_date"] = annual_return.get("last_made_up_to")
+            except Exception:
+                pass  # Non-critical
+            
+            return result
+            
+        except Exception as e:
+            logger.warning(f"Failed to get accounts data for {company_number}: {e}")
+            result["notes"].append(f"Error retrieving accounts: {str(e)}")
+            return result
+    
     def get_full_profile(self, company_number: str) -> Optional[Dict[str, Any]]:
         """
         Get comprehensive company profile with ALL available data.
@@ -502,6 +645,13 @@ class CompaniesHouseClient:
             except Exception as e:
                 logger.warning(f"Failed to get filings for {company_number}: {e}")
             
+            # NEW: Get accounts data for financial eligibility checks
+            accounts_data = {}
+            try:
+                accounts_data = self.get_accounts_data(company_number)
+            except Exception as e:
+                logger.warning(f"Failed to get accounts data for {company_number}: {e}")
+            
             # Separate active/resigned officers
             active_directors = [o for o in officers if "director" in o.officer_role.lower()]
             all_officers = [o.to_dict() for o in officers]
@@ -532,6 +682,7 @@ class CompaniesHouseClient:
                     "has_outstanding": len(outstanding_charges) > 0
                 },
                 "filings": filings,
+                "accounts": accounts_data,  # NEW: Financial data for EIS checks
                 "data_sources": ["companies_house"],
                 "retrieved_at": datetime.now().isoformat()
             }

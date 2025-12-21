@@ -198,12 +198,18 @@ def calculate_eis_likelihood(full_profile: Dict[str, Any]) -> Dict[str, Any]:
     pscs = full_profile.get("pscs", {})
     charges = full_profile.get("charges", {})
     filings = full_profile.get("filings", {})
+    accounts = full_profile.get("accounts", {})  # NEW: Financial data
     
     # Initialize scoring
     score = 0
-    max_score = 100
+    max_score = 110  # Updated: includes new Financial Size factor (10 points)
     factors = []
     flags = []
+    
+    # NEW: Extract accounts-based EIS eligibility checks
+    accounts_eis_checks = accounts.get("eis_checks", {}) if accounts else {}
+    accounts_type = accounts.get("accounts_type") if accounts else None
+    accounts_notes = accounts.get("notes", []) if accounts else []
     
     # =========================================================================
     # FACTOR 1: Company Age (max 20 points)
@@ -550,6 +556,70 @@ def calculate_eis_likelihood(full_profile: Dict[str, Any]) -> Dict[str, Any]:
             "rationale": "Could not determine accounts type",
             "impact": "neutral"
         })
+    
+    # =========================================================================
+    # FACTOR 11: Financial Size Check (max 10 points) - NEW
+    # Uses accounts data to verify EIS asset/employee limits
+    # =========================================================================
+    if accounts_eis_checks:
+        assets_ok = accounts_eis_checks.get("assets_eligible")
+        employees_ok = accounts_eis_checks.get("employees_eligible")
+        
+        if assets_ok is True and employees_ok is True:
+            score += 10
+            factors.append({
+                "factor": "Financial Size (from Accounts)",
+                "value": f"{accounts_type or 'filed'} accounts",
+                "points": 10,
+                "max_points": 10,
+                "rationale": "Company size indicators suggest EIS eligibility (assets < £15m, employees < 250)",
+                "impact": "positive"
+            })
+        elif assets_ok is True or employees_ok is True:
+            score += 5
+            factors.append({
+                "factor": "Financial Size (from Accounts)",
+                "value": f"{accounts_type or 'filed'} accounts",
+                "points": 5,
+                "max_points": 10,
+                "rationale": "Partial EIS size criteria met - some limits need verification",
+                "impact": "neutral"
+            })
+        elif assets_ok is False or employees_ok is False:
+            factors.append({
+                "factor": "Financial Size (from Accounts)",
+                "value": "Exceeds limits",
+                "points": 0,
+                "max_points": 10,
+                "rationale": "Company may exceed EIS size limits - verify gross assets < £15m and employees < 250",
+                "impact": "negative"
+            })
+            flags.append("⚠️ Financial size may exceed EIS limits - manual verification required")
+        else:
+            score += 3
+            factors.append({
+                "factor": "Financial Size (from Accounts)",
+                "value": "Unknown",
+                "points": 3,
+                "max_points": 10,
+                "rationale": "Could not verify size from accounts - manual check recommended",
+                "impact": "neutral"
+            })
+    else:
+        score += 3
+        factors.append({
+            "factor": "Financial Size (from Accounts)",
+            "value": "No data",
+            "points": 3,
+            "max_points": 10,
+            "rationale": "Accounts data not available - size eligibility unknown",
+            "impact": "neutral"
+        })
+    
+    # Add any accounts notes as flags
+    for note in accounts_notes[:3]:
+        if note not in flags:
+            flags.append(f"📊 {note}")
     
     # =========================================================================
     # DETERMINE STATUS AND CONFIDENCE
