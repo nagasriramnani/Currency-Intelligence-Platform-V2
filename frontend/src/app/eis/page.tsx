@@ -112,12 +112,18 @@ interface FullCompanyProfile {
     accounts?: {
         company_number: string;
         data_available: boolean;
+        source?: string;  // 'ixbrl_parsing' or 'companies_house_accounts'
         accounts_type?: string;
         accounts_date?: string;
         gross_assets?: number;
         net_assets?: number;
+        current_assets?: number;
+        fixed_assets?: number;
+        total_assets?: number;
         employees?: number;
         turnover?: number;
+        profit?: number;
+        cash?: number;
         eis_checks?: {
             assets_eligible?: boolean;
             employees_eligible?: boolean;
@@ -140,6 +146,19 @@ interface SearchResult {
 
 // === CONSTANTS ===
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+// Helper function to format currency values
+const formatCurrency = (value: number | null | undefined): string => {
+    if (value === null || value === undefined) return 'N/A';
+    const absValue = Math.abs(value);
+    if (absValue >= 1_000_000) {
+        return `£${(value / 1_000_000).toFixed(1)}m`;
+    } else if (absValue >= 1_000) {
+        return `£${Math.round(value / 1_000)}k`;
+    } else {
+        return `£${Math.round(value)}`;
+    }
+};
 
 // === COMPONENT ===
 export default function EISPage() {
@@ -1022,6 +1041,61 @@ export default function EISPage() {
                                                     </p>
                                                 </div>
                                             </div>
+
+                                            {/* NEW: Financial Summary - Actual £ Values */}
+                                            {profile.accounts?.data_available && profile.accounts?.source === 'ixbrl_parsing' && (
+                                                <div className="mt-4 p-4 rounded-lg bg-gradient-to-r from-green-900/20 to-emerald-900/20 border border-green-500/30">
+                                                    <h4 className="text-sm font-semibold text-green-400 mb-3 flex items-center gap-2">
+                                                        <span>📊</span> Financial Data (from Filed Accounts)
+                                                    </h4>
+                                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                        <div>
+                                                            <p className="text-xs text-sapphire-400">Turnover</p>
+                                                            <p className="text-lg font-bold text-white">
+                                                                {formatCurrency(profile.accounts?.turnover)}
+                                                            </p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-xs text-sapphire-400">Total Assets</p>
+                                                            <p className={`text-lg font-bold ${profile.accounts?.eis_checks?.assets_eligible === true
+                                                                    ? 'text-green-400'
+                                                                    : profile.accounts?.eis_checks?.assets_eligible === false
+                                                                        ? 'text-red-400'
+                                                                        : 'text-white'
+                                                                }`}>
+                                                                {formatCurrency(profile.accounts?.total_assets || profile.accounts?.net_assets)}
+                                                            </p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-xs text-sapphire-400">Employees</p>
+                                                            <p className={`text-lg font-bold ${profile.accounts?.eis_checks?.employees_eligible === true
+                                                                    ? 'text-green-400'
+                                                                    : profile.accounts?.eis_checks?.employees_eligible === false
+                                                                        ? 'text-red-400'
+                                                                        : 'text-white'
+                                                                }`}>
+                                                                {profile.accounts?.employees !== null && profile.accounts?.employees !== undefined
+                                                                    ? profile.accounts.employees.toString()
+                                                                    : 'N/A'}
+                                                            </p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-xs text-sapphire-400">Profit/Loss</p>
+                                                            <p className={`text-lg font-bold ${profile.accounts?.profit && profile.accounts.profit > 0
+                                                                    ? 'text-green-400'
+                                                                    : profile.accounts?.profit && profile.accounts.profit < 0
+                                                                        ? 'text-red-400'
+                                                                        : 'text-white'
+                                                                }`}>
+                                                                {formatCurrency(profile.accounts?.profit)}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <p className="text-xs text-sapphire-500 mt-2">
+                                                        Data extracted from iXBRL accounts filed {profile.accounts?.accounts_date}
+                                                    </p>
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Expandable Sections */}

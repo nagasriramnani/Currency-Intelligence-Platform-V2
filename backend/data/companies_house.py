@@ -457,20 +457,19 @@ class CompaniesHouseClient:
     
     def get_accounts_data(self, company_number: str) -> Dict[str, Any]:
         """
-        Get financial accounts data for a company.
+        Get financial accounts data for a company WITH ACTUAL VALUES.
         
-        Fetches the latest accounts filing and extracts key financial metrics
-        for EIS eligibility assessment:
-        - Gross assets (must be < £15m for EIS)
-        - Net assets
-        - Employee count (must be < 250 for EIS, < 500 for KIC)
-        - Turnover (helps determine KIC status)
+        Uses iXBRL parsing to extract real financial figures from filed accounts:
+        - Turnover / Revenue
+        - Gross/Net/Current/Fixed Assets
+        - Employee count
+        - Profit/Loss
+        - Cash position
         
-        Note: Not all companies file detailed accounts. Micro-entity and 
-        small company exemptions mean some data may not be available.
+        Falls back to accounts type inference if iXBRL parsing fails.
         
         Returns:
-            Dict with financial data and data availability flags
+            Dict with actual financial values and EIS eligibility checks
         """
         company_number = company_number.zfill(8)
         
@@ -481,8 +480,11 @@ class CompaniesHouseClient:
             "net_assets": None,
             "current_assets": None,
             "fixed_assets": None,
+            "total_assets": None,
             "employees": None,
             "turnover": None,
+            "profit": None,
+            "cash": None,
             "accounts_date": None,
             "accounts_type": None,
             "eis_checks": {
@@ -495,7 +497,7 @@ class CompaniesHouseClient:
         }
         
         try:
-            # First get filing history to find latest accounts
+            # First get filing history to find latest accounts and determine type
             filings_data = self._make_request(
                 f"/company/{company_number}/filing-history",
                 {"category": "accounts", "items_per_page": 5}
@@ -524,72 +526,72 @@ class CompaniesHouseClient:
             # Determine accounts type
             if "micro" in description:
                 result["accounts_type"] = "micro-entity"
-                result["notes"].append("Micro-entity accounts - limited data available")
             elif "small" in description:
                 result["accounts_type"] = "small"
-                result["notes"].append("Small company accounts - abbreviated data")
             elif "dormant" in description:
                 result["accounts_type"] = "dormant"
-                result["notes"].append("Dormant company - no trading activity")
             elif "total exempt" in description:
                 result["accounts_type"] = "total-exemption"
-                result["notes"].append("Total exemption from audit - limited disclosure")
             elif "full" in description or "group" in description:
                 result["accounts_type"] = "full"
-                result["notes"].append("Full accounts filed - comprehensive data")
             elif "abbreviated" in description:
                 result["accounts_type"] = "abbreviated"
-                result["notes"].append("Abbreviated accounts - limited balance sheet")
             else:
                 result["accounts_type"] = "unknown"
             
-            # Try to get the accounts document link
+            # Try to get actual financial data via iXBRL parsing
+            try:
+                from data.ixbrl_parser import IXBRLParser, format_currency
+                
+                parser = IXBRLParser(self.api_key)
+                ixbrl_data = parser.get_financial_data(company_number)
+                
+                if ixbrl_data.get("parse_success"):
+                    # Copy parsed values
+                    result["turnover"] = ixbrl_data.get("turnover")
+                    result["total_assets"] = ixbrl_data.get("total_assets")
+                    result["net_assets"] = ixbrl_data.get("net_assets")
+                    result["current_assets"] = ixbrl_data.get("current_assets")
+                    result["fixed_assets"] = ixbrl_data.get("fixed_assets")
+                    result["employees"] = ixbrl_data.get("employees")
+                    result["profit"] = ixbrl_data.get("profit")
+                    result["cash"] = ixbrl_data.get("cash")
+                    result["data_available"] = True
+                    result["source"] = "ixbrl_parsing"
+                    
+                    # Update EIS checks with actual values
+                    if result["total_assets"] is not None:
+                        result["eis_checks"]["assets_eligible"] = result["total_assets"] < 15_000_000
+                        result["gross_assets"] = result["total_assets"]
+                    elif result["net_assets"] is not None:
+                        result["eis_checks"]["assets_eligible"] = result["net_assets"] < 15_000_000
+                        result["gross_assets"] = result["net_assets"]
+                    
+                    if result["employees"] is not None:
+                        result["eis_checks"]["employees_eligible"] = result["employees"] < 250
+                        result["eis_checks"]["employees_kic_eligible"] = result["employees"] < 500
+                    
+                    result["notes"].append(f"Extracted actual values from iXBRL accounts")
+                    result["notes"].extend(ixbrl_data.get("notes", []))
+                else:
+                    # iXBRL parsing didn't return data, fall back to inference
+                    result["notes"].append("iXBRL parsing failed - using accounts type inference")
+                    self._infer_from_accounts_type(result)
+                    
+            except ImportError:
+                logger.warning("iXBRL parser not available, using inference")
+                result["notes"].append("iXBRL parser not available")
+                self._infer_from_accounts_type(result)
+            except Exception as e:
+                logger.warning(f"iXBRL parsing error: {e}")
+                result["notes"].append(f"iXBRL parsing error: {str(e)}")
+                self._infer_from_accounts_type(result)
+            
+            # Try to get document link
             links = latest_accounts.get("links", {})
             document_link = links.get("document_metadata") or links.get("self")
-            
             if document_link:
-                result["data_available"] = True
                 result["filing_link"] = f"https://find-and-update.company-information.service.gov.uk{document_link}"
-            
-            # For UK companies, try to get accounts data from the company profile
-            # The /company/{id}/uk-establishments endpoint might have more data
-            # But the main data comes from parsing the actual accounts document
-            
-            # Try to infer size from accounts type
-            if result["accounts_type"] in ["micro-entity"]:
-                # Micro companies have assets < £316k and turnover < £632k
-                result["notes"].append("Micro-entity: likely well within EIS asset limits")
-                result["eis_checks"]["assets_eligible"] = True
-                result["eis_checks"]["employees_eligible"] = True
-            elif result["accounts_type"] in ["small"]:
-                # Small companies have assets < £5.1m and turnover < £10.2m
-                result["notes"].append("Small company: likely within EIS asset limits")
-                result["eis_checks"]["assets_eligible"] = True
-                result["eis_checks"]["employees_eligible"] = True
-            elif result["accounts_type"] in ["dormant"]:
-                result["notes"].append("Dormant: EIS requires trading company")
-                result["eis_checks"]["assets_eligible"] = True
-                result["eis_checks"]["employees_eligible"] = True
-            elif result["accounts_type"] in ["full"]:
-                result["notes"].append("Full accounts: may exceed EIS limits - verify manually")
-                # Can't determine without parsing actual document
-            
-            # Try to get more data from extended company profile
-            try:
-                extended_data = self._make_request(f"/company/{company_number}")
-                if extended_data:
-                    # Some companies have account information in profile
-                    accounts_info = extended_data.get("accounts", {})
-                    if accounts_info:
-                        result["next_accounts_due"] = accounts_info.get("next_due")
-                        result["last_accounts_made_up_to"] = accounts_info.get("last_accounts", {}).get("made_up_to")
-                    
-                    # Annual return/confirmation data
-                    annual_return = extended_data.get("annual_return", {}) or extended_data.get("confirmation_statement", {})
-                    if annual_return:
-                        result["last_confirmation_date"] = annual_return.get("last_made_up_to")
-            except Exception:
-                pass  # Non-critical
             
             return result
             
@@ -597,6 +599,28 @@ class CompaniesHouseClient:
             logger.warning(f"Failed to get accounts data for {company_number}: {e}")
             result["notes"].append(f"Error retrieving accounts: {str(e)}")
             return result
+    
+    def _infer_from_accounts_type(self, result: Dict) -> None:
+        """Fallback: Infer EIS eligibility from accounts type."""
+        accounts_type = result.get("accounts_type")
+        
+        if accounts_type == "micro-entity":
+            # Micro: assets < £316k, turnover < £632k
+            result["notes"].append("Micro-entity: assets < £316k (well within EIS limit)")
+            result["eis_checks"]["assets_eligible"] = True
+            result["eis_checks"]["employees_eligible"] = True
+        elif accounts_type == "small":
+            # Small: assets < £5.1m, turnover < £10.2m
+            result["notes"].append("Small company: assets < £5.1m (within EIS limit)")
+            result["eis_checks"]["assets_eligible"] = True
+            result["eis_checks"]["employees_eligible"] = True
+        elif accounts_type == "dormant":
+            result["notes"].append("Dormant company: EIS requires trading activity")
+            result["eis_checks"]["assets_eligible"] = True
+            result["eis_checks"]["employees_eligible"] = True
+        elif accounts_type == "full":
+            result["notes"].append("Full accounts: may exceed EIS limits - verify manually")
+            # Cannot determine without actual values
     
     def get_full_profile(self, company_number: str) -> Optional[Dict[str, Any]]:
         """
