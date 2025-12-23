@@ -2617,14 +2617,18 @@ async def get_subscribers():
 
 
 @app.post("/api/eis/automation/subscribers")
-async def manage_subscriber(
-    email: str = Body(..., embed=True),
-    action: str = Body(default="add", embed=True)
-):
-    """Add or remove a subscriber."""
+async def manage_subscriber(request: Dict = Body(...)):
+    """Add a subscriber with their preferred frequency."""
     from pathlib import Path
     import json
     from datetime import datetime
+    
+    email = request.get("email")
+    frequency = request.get("frequency", "weekly")
+    action = request.get("action", "add")
+    
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
     
     subscribers_file = Path(__file__).parent.parent / "automation" / "subscribers.json"
     
@@ -2633,14 +2637,14 @@ async def manage_subscriber(
         with open(subscribers_file, 'r') as f:
             data = json.load(f)
     else:
-        data = {"subscribers": [], "updated": datetime.now().isoformat()}
+        data = {"subscribers": [], "updated": datetime.now().isoformat(), "notes": "Add subscribers using: python mailer.py --add-subscriber email@example.com"}
     
     subscribers = data.get("subscribers", [])
     
     if action == "add":
         if email not in subscribers:
             subscribers.append(email)
-            message = f"Added {email}"
+            message = f"Added {email} with {frequency} frequency"
         else:
             message = f"{email} already subscribed"
     elif action == "remove":
