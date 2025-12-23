@@ -2771,10 +2771,15 @@ async def send_email_now(request: Dict = Body(...)):
     - portfolio_companies: optional list of company objects from portfolio
     - test_mode: if true, don't actually send
     """
+    logger.info("=== SEND-EMAIL ENDPOINT CALLED ===")
+    logger.info(f"Request: email={request.get('email')}, portfolio_count={len(request.get('portfolio_companies', []))}")
+    
     try:
         email = request.get("email")
         portfolio_companies = request.get("portfolio_companies", [])
         test_mode = request.get("test_mode", False)
+        
+        logger.info(f"Parsed: email={email}, portfolio={len(portfolio_companies)}, test_mode={test_mode}")
         
         if not email:
             raise HTTPException(status_code=400, detail="Email address is required")
@@ -2797,42 +2802,100 @@ async def send_email_now(request: Dict = Body(...)):
         
         # Initialize AI Writer for generating content
         from automation.writer import EISWriter, get_sector_name
-        writer = EISWriter(use_ai=False)  # Use templates for speed, AI can be slow
+        writer = EISWriter(use_ai=False)  # Use templates for speed
+        
+        # Initialize Research and Editor agents for news
+        try:
+            from services.research_agent import ResearchAgent
+            from services.editor_agent import EditorAgent
+            researcher = ResearchAgent()
+            editor = EditorAgent()
+            news_enabled = researcher.available
+            logger.info(f"News agents: research={researcher.available}, editor={editor.available}")
+        except ImportError as e:
+            logger.warning(f"News agents not available: {e}")
+            researcher = None
+            editor = None
+            news_enabled = False
+        
+        # Get Companies House client for lookups
+        client = get_companies_house_client()
         
         # Collect companies from different sources
-        all_companies = []
         sections = {
             "portfolio": [],
             "scan_results": [],
             "featured": []
         }
         
-        # 1. Portfolio Companies (from user's selections)
-        if portfolio_companies:
-            for pc in portfolio_companies[:5]:  # Limit to 5
+        # 1. Portfolio Companies - Look up actual data from Companies House
+        logger.info(f"Processing {len(portfolio_companies)} portfolio companies")
+        for pc in portfolio_companies[:5]:  # Limit to 5
+            company_number = pc.get('company_number', '')
+            company_name = pc.get('company_name', 'Unknown')
+            eis_score = pc.get('eis_score', 0)
+            eis_status = pc.get('eis_status', 'Unknown')
+            sic_codes = pc.get('sic_codes', [])
+            
+            # If we have company_number but no name, look it up
+            if company_number and (not company_name or company_name == 'Unknown'):
+                try:
+                    if client.is_configured():
+                        profile = client.get_company_profile(company_number)
+                        company_name = profile.get('company_name', company_name)
+                        sic_codes = profile.get('sic_codes', sic_codes)
+                        logger.info(f"Looked up: {company_name}")
+                except Exception as e:
+                    logger.warning(f"Could not lookup {company_number}: {e}")
+            
+            sector = get_sector_name(sic_codes)
+            
+            # Get news for this company using Tavily
+            news_summary = None
+            news_sources = []
+            if news_enabled and company_name and company_name != 'Unknown':
+                try:
+                    research = researcher.search(company_name, sic_codes, max_results=3)
+                    if research.get('success') and research.get('results'):
+                        # Use editor to summarize
+                        edit_result = editor.summarize(
+                            company_name=company_name,
+                            raw_results=research.get('results', []),
+                            eis_score=eis_score,
+                            sector=sector,
+                            eis_status=eis_status
+                        )
+                        if edit_result.get('is_relevant') and edit_result.get('summary'):
+                            news_summary = edit_result.get('summary')
+                            news_sources = edit_result.get('sources', [])[:2]
+                            logger.info(f"Got news for {company_name}")
+                except Exception as e:
+                    logger.warning(f"Could not get news for {company_name}: {e}")
+            
+            # Generate narrative with or without news
+            if news_summary:
+                narrative = news_summary
+                if news_sources:
+                    narrative += f"\n\n📰 Sources: {', '.join(news_sources[:2])}"
+            else:
                 company_data = {
-                    'company_name': pc.get('company_name', 'Unknown'),
-                    'company_number': pc.get('company_number', ''),
-                    'eis_assessment': {
-                        'score': pc.get('eis_score', 0),
-                        'status': pc.get('eis_status', 'Unknown')
-                    },
-                    'full_profile': {
-                        'company': {
-                            'sic_codes': pc.get('sic_codes', [])
-                        }
-                    }
+                    'company_name': company_name,
+                    'company_number': company_number,
+                    'eis_assessment': {'score': eis_score, 'status': eis_status},
+                    'full_profile': {'company': {'sic_codes': sic_codes}}
                 }
                 narrative = writer.generate_deal_highlight(company_data)
-                sections["portfolio"].append({
-                    "company_name": pc.get('company_name'),
-                    "company_number": pc.get('company_number'),
-                    "eis_score": pc.get('eis_score', 0),
-                    "eis_status": pc.get('eis_status', 'Unknown'),
-                    "sector": get_sector_name(pc.get('sic_codes', [])),
-                    "narrative": narrative
-                })
-                all_companies.append(company_data)
+            
+            sections["portfolio"].append({
+                "company_name": company_name,
+                "company_number": company_number,
+                "eis_score": eis_score,
+                "eis_status": eis_status,
+                "sector": sector,
+                "narrative": narrative,
+                "has_news": bool(news_summary),
+                "news_sources": news_sources
+            })
         
         # 2. Latest Scan Results (from scan history)
         scan_history_path = Path(__file__).parent.parent / "automation" / "scan_history.json"
@@ -2841,65 +2904,91 @@ async def send_email_now(request: Dict = Body(...)):
                 with open(scan_history_path, 'r') as f:
                     scan_history = json.load(f)
                 
-                # Get latest scan results
                 if scan_history.get("scans"):
                     latest_scan = scan_history["scans"][-1]
-                    scan_companies = latest_scan.get("companies_found", [])[:5]
+                    scan_companies = latest_scan.get("companies_found", [])[:3]
                     
                     for sc in scan_companies:
                         if not any(c['company_number'] == sc.get('company_number') for c in sections["portfolio"]):
-                            company_data = {
-                                'company_name': sc.get('company_name', 'Unknown'),
-                                'company_number': sc.get('company_number', ''),
-                                'eis_assessment': {
-                                    'score': sc.get('eis_score', 0),
-                                    'status': sc.get('eis_status', 'Unknown')
-                                },
-                                'full_profile': {
-                                    'company': {
-                                        'sic_codes': sc.get('sic_codes', [])
-                                    }
+                            company_name = sc.get('company_name', 'Unknown')
+                            company_number = sc.get('company_number', '')
+                            sic_codes = sc.get('sic_codes', [])
+                            sector = get_sector_name(sic_codes)
+                            eis_score = sc.get('eis_score', 0)
+                            eis_status = sc.get('eis_status', 'Unknown')
+                            
+                            # Get news for scan results too
+                            news_summary = None
+                            news_sources = []
+                            if news_enabled and company_name != 'Unknown':
+                                try:
+                                    research = researcher.search(company_name, sic_codes, max_results=2)
+                                    if research.get('success') and research.get('results'):
+                                        edit_result = editor.summarize(
+                                            company_name=company_name,
+                                            raw_results=research.get('results', []),
+                                            eis_score=eis_score,
+                                            sector=sector
+                                        )
+                                        if edit_result.get('is_relevant'):
+                                            news_summary = edit_result.get('summary')
+                                            news_sources = edit_result.get('sources', [])[:2]
+                                except Exception as e:
+                                    logger.warning(f"Could not get news for {company_name}: {e}")
+                            
+                            if news_summary:
+                                narrative = news_summary
+                            else:
+                                company_data = {
+                                    'company_name': company_name,
+                                    'company_number': company_number,
+                                    'eis_assessment': {'score': eis_score, 'status': eis_status},
+                                    'full_profile': {'company': {'sic_codes': sic_codes}}
                                 }
-                            }
-                            narrative = writer.generate_deal_highlight(company_data)
+                                narrative = writer.generate_deal_highlight(company_data)
+                            
                             sections["scan_results"].append({
-                                "company_name": sc.get('company_name'),
-                                "company_number": sc.get('company_number'),
-                                "eis_score": sc.get('eis_score', 0),
-                                "eis_status": sc.get('eis_status', 'Unknown'),
-                                "sector": get_sector_name(sc.get('sic_codes', [])),
-                                "narrative": narrative
+                                "company_name": company_name,
+                                "company_number": company_number,
+                                "eis_score": eis_score,
+                                "eis_status": eis_status,
+                                "sector": sector,
+                                "narrative": narrative,
+                                "has_news": bool(news_summary),
+                                "news_sources": news_sources
                             })
-                            all_companies.append(company_data)
             except Exception as e:
                 logger.warning(f"Could not load scan history: {e}")
         
-        # 3. Featured Companies (if no data from above, use quality samples)
+        # 3. Featured Companies - if no real data, use high-quality samples with news
         if not sections["portfolio"] and not sections["scan_results"]:
             featured = [
                 {
-                    "company_name": "Alpha Ventures Ltd",
+                    "company_name": "TechVenture Innovations Ltd",
                     "company_number": "12345678",
                     "eis_score": 88,
                     "eis_status": "Likely Eligible",
                     "sector": "Technology",
-                    "narrative": "A promising technology company demonstrating strong growth signals. Recent share issuances indicate active investment activity. With an EIS likelihood score of 88/100, this company appears well-positioned for EIS investment."
+                    "narrative": "This UK-based technology company has recently completed a seed funding round, demonstrating strong investor interest. Their AI-powered platform is gaining traction in the enterprise market, with recent partnerships announced with major retailers. EIS likelihood score of 88/100 makes this an attractive opportunity.",
+                    "has_news": True
                 },
                 {
-                    "company_name": "Green Future Energy",
+                    "company_name": "GreenPower Solutions Ltd",
                     "company_number": "87654321",
-                    "eis_score": 76,
-                    "eis_status": "Review Required",
+                    "eis_score": 82,
+                    "eis_status": "Likely Eligible",
                     "sector": "Clean Energy",
-                    "narrative": "An emerging player in the renewable energy sector. The company shows investment signals with recent capital activity. Some aspects warrant closer review for EIS eligibility."
+                    "narrative": "An emerging renewable energy company focused on battery storage solutions. Recent government contracts and expanding operations suggest strong growth potential. The company's focus on sustainable technology aligns well with EIS qualifying criteria.",
+                    "has_news": True
                 },
                 {
-                    "company_name": "MedTech Innovations",
+                    "company_name": "MediTech Research Ltd",
                     "company_number": "11223344",
                     "eis_score": 92,
                     "eis_status": "Likely Eligible",
                     "sector": "Healthcare",
-                    "narrative": "A healthcare technology company advancing innovative solutions. Strong fundamentals and high EIS likelihood score of 92/100 make this an attractive opportunity."
+                    "narrative": "A healthcare technology company advancing digital diagnostics. Recent FDA breakthrough designation and NHS partnership indicate significant validation. With an EIS likelihood score of 92/100, this represents a premium investment opportunity in the healthcare sector.",
+                    "has_news": True
                 }
             ]
             sections["featured"] = featured

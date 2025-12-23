@@ -165,7 +165,8 @@ export default function EISDashboard() {
                 setPortfolioCompanies(prev => [...prev, {
                     company_number: companyNumber,
                     company_name: companyName,
-                    eis_assessment: selectedCompany.eis_assessment
+                    eis_assessment: selectedCompany.eis_assessment,
+                    sic_codes: selectedCompany.company?.sic_codes || []
                 }]);
                 // Update stats
                 setPortfolioStats(prev => ({
@@ -285,14 +286,23 @@ export default function EISDashboard() {
 
         // If frequency is 'now', also send an immediate email with portfolio data
         if (frequency === 'now') {
-            // Format portfolio companies for the API
-            const portfolioData = portfolioCompanies.map(c => ({
-                company_number: c.company.company_number,
-                company_name: c.company.company_name,
-                eis_score: c.eisAssessment?.score || 0,
-                eis_status: c.eisAssessment?.status || 'Unknown',
-                sic_codes: c.company.sic_codes || []
-            }));
+            console.log('=== SENDING EMAIL NOW ===');
+            console.log('Portfolio companies:', portfolioCompanies);
+
+            // Format portfolio companies for the API - match actual data structure
+            const portfolioData = (portfolioCompanies || []).map(c => {
+                console.log('Processing company:', c);
+                // portfolioCompanies stores data directly, not nested under c.company
+                return {
+                    company_number: c?.company_number || '',
+                    company_name: c?.company_name || 'Unknown',
+                    eis_score: c?.eis_assessment?.score || 0,
+                    eis_status: c?.eis_assessment?.status || 'Unknown',
+                    sic_codes: c?.sic_codes || []
+                };
+            });
+
+            console.log('Formatted portfolio data:', portfolioData);
 
             const sendResponse = await fetch(`${API_BASE}/api/eis/automation/send-email`, {
                 method: 'POST',
@@ -303,10 +313,15 @@ export default function EISDashboard() {
                 })
             });
 
+            console.log('Send email response status:', sendResponse.status);
+
             if (!sendResponse.ok) {
                 const errorData = await sendResponse.json().catch(() => ({}));
+                console.error('Send email error:', errorData);
                 throw new Error(errorData.detail || 'Failed to send email');
             }
+
+            console.log('Email sent successfully!');
         }
     };
 
