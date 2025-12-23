@@ -1,8 +1,11 @@
 {
   "subscribers": [
     "nagasriramkochetti@gmail.com",
-    "nagasriram2000@gmail.com"
+    "nagasriram2000@gmail.com",
+    "akhilesh.namburu@icloud.com",
+    "nakhilesh822001@gmail.com",
+    "nakhilesh832001@gmail.com"
   ],
-  "updated": "2025-12-23T13:20:29.453110",
+  "updated": "2025-12-23T14:18:54.522576",
   "notes": "Add subscribers using: python mailer.py --add-subscriber email@example.com"
 }

@@ -2141,12 +2141,14 @@ async def get_company_news(company_number: str):
             researcher = ResearchAgent()
             
             if researcher.available:
+                # Use strict company match to ensure results are specifically about this company
                 research_results = researcher.search(
                     company_name=company_name,
                     sic_codes=sic_codes,
-                    max_results=5
+                    max_results=5,
+                    strict_company_match=True  # Only return news that mentions this company
                 )
-                logger.info(f"Research Agent found {len(research_results.get('results', []))} results")
+                logger.info(f"Research Agent found {len(research_results.get('results', []))} company-specific results")
         except ImportError:
             logger.warning("Research Agent not available")
         except Exception as e:

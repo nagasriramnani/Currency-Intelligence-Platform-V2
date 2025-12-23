@@ -164,33 +164,77 @@ class ResearchAgent:
         Build VC-focused search query.
         
         Query types:
-        - news: Latest company news
+        - news: Latest company news (general)
+        - company_specific: ONLY news about this specific company
         - funding: Investment/funding news
         - insights: Market/sector insights
         """
         sector_keywords = get_sector_keywords(sic_codes or [])
         clean_name = company_name.replace('"', '').replace("'", '').strip()
         
-        if query_type == "funding":
+        # Remove common suffixes for better matching
+        search_name = clean_name
+        for suffix in [' LTD', ' LIMITED', ' PLC', ' LP', ' LLP', ' INC', ' CORP']:
+            if search_name.upper().endswith(suffix):
+                search_name = search_name[:-len(suffix)].strip()
+        
+        if query_type == "company_specific":
+            # STRICT mode - only find news about this exact company
+            query = f'"{clean_name}" UK registered company news'
+        elif query_type == "funding":
             query = f'"{clean_name}" UK (funding OR investment OR raised OR round OR venture capital)'
         elif query_type == "insights":
             query = f'UK EIS Enterprise Investment Scheme {sector_keywords} startups investment 2024 2025'
         else:
-            # Default news query - more specific for investment-relevant news
+            # Default news query
             query = f'"{clean_name}" UK company (news OR funding OR growth OR expansion OR partnership OR acquisition)'
         
         logger.info(f"Built query [{query_type}]: {query}")
         return query
+    
+    def _result_mentions_company(self, content: str, title: str, company_name: str) -> bool:
+        """Check if the result actually mentions the company (not just sector news)."""
+        clean_name = company_name.lower().replace('"', '').replace("'", '').strip()
+        
+        # Remove common suffixes
+        search_terms = [clean_name]
+        for suffix in [' ltd', ' limited', ' plc', ' lp', ' llp', ' inc', ' corp']:
+            if clean_name.endswith(suffix):
+                base_name = clean_name[:-len(suffix)].strip()
+                search_terms.append(base_name)
+                break
+        
+        # Also add major words from company name
+        words = [w for w in clean_name.split() if len(w) > 3 and w not in ['limited', 'ltd', 'company', 'the']]
+        if words:
+            search_terms.extend(words[:2])  # First 2 significant words
+        
+        combined_text = (content + ' ' + title).lower()
+        
+        # Check if any search term is in the content
+        for term in search_terms:
+            if term in combined_text:
+                return True
+        
+        return False
     
     def search(
         self, 
         company_name: str, 
         sic_codes: List[str] = None,
         max_results: int = 5,
-        query_type: str = "news"
+        query_type: str = "news",
+        strict_company_match: bool = False
     ) -> Dict[str, Any]:
         """
         Search for company investment news using Tavily API.
+        
+        Args:
+            company_name: Company name to search for
+            sic_codes: SIC codes for sector context
+            max_results: Maximum results to return
+            query_type: Type of query (news, company_specific, funding, insights)
+            strict_company_match: If True, only return results that mention the company
         
         Returns only business-relevant results filtered by domain.
         """
@@ -203,14 +247,16 @@ class ResearchAgent:
                 'query': None
             }
         
-        query = self.build_query(company_name, sic_codes, query_type)
+        # Use company_specific query type if strict matching is enabled
+        effective_query_type = "company_specific" if strict_company_match else query_type
+        query = self.build_query(company_name, sic_codes, effective_query_type)
         
         try:
             # Perform search with Tavily
             response = self.client.search(
                 query=query,
                 search_depth="advanced",
-                max_results=max_results + 5,  # Get extra to filter
+                max_results=max_results + 8,  # Get extra to filter
                 include_answer=True,
                 include_raw_content=False
             )
@@ -227,18 +273,26 @@ class ResearchAgent:
                 
                 quality_score = score_url_quality(url)
                 content = item.get('content', '')
+                title = item.get('title', '')
                 
                 # Skip results with very short content
                 if len(content) < 50:
                     continue
                 
+                # If strict matching, ensure result actually mentions the company
+                if strict_company_match:
+                    if not self._result_mentions_company(content, title, company_name):
+                        logger.debug(f"Filtered: doesn't mention {company_name}")
+                        continue
+                
                 results.append({
-                    'title': item.get('title', ''),
+                    'title': title,
                     'content': content,
                     'url': url,
                     'score': item.get('score', 0),
                     'quality_score': quality_score,
-                    'published_date': item.get('published_date')
+                    'published_date': item.get('published_date'),
+                    'mentions_company': True if strict_company_match else None
                 })
             
             # Sort by quality score and limit
