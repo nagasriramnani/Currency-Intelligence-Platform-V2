@@ -2093,78 +2093,140 @@ async def get_company_full_profile(company_number: str):
 @app.get("/api/eis/company/{company_number}/news")
 async def get_company_news(company_number: str):
     """
-    Get AI-generated news summary for a company.
+    Get AI-powered news summary for a company using dual-agent pipeline.
     
-    Uses Tavily API for web search if available, otherwise returns a fallback message.
-    This powers the "AI Newsroom" feature in the frontend.
+    Agent A (Research): Uses Tavily API for contextual news search with SIC-sector keywords.
+    Agent B (Editor): Uses HuggingFace LLM to create professional 2-sentence investor briefings.
     
     Args:
         company_number: 8-character company registration number
         
     Returns:
-        News summary for the company
+        Professional news summary with sources for the company
     """
     try:
-        # First, get company name for better search
+        # Get company profile for context
         client = get_companies_house_client()
-        company_name = None
+        company_name = f'Company {company_number}'
+        sic_codes = []
+        eis_score = 0
+        sector = "Unknown"
         
         if client.is_configured():
             try:
                 profile = client.get_company_profile(company_number)
-                company_name = profile.get('company_name', f'Company {company_number}')
-            except:
-                company_name = f'Company {company_number}'
-        else:
-            company_name = f'Company {company_number}'
-        
-        # Try to use Tavily for news search
-        try:
-            from tavily import TavilyClient
-            tavily_api_key = os.environ.get('TAVILY_API_KEY')
-            
-            if tavily_api_key:
-                tavily = TavilyClient(api_key=tavily_api_key)
+                company_name = profile.get('company_name', company_name)
+                sic_codes = profile.get('sic_codes', [])
                 
-                # Search for recent news about the company
-                search_result = tavily.search(
-                    query=f"{company_name} UK company news investment",
-                    search_depth="basic",
+                # Get sector name from SIC codes
+                from automation.writer import get_sector_name
+                sector = get_sector_name(sic_codes)
+                
+                # Try to get EIS score if available
+                try:
+                    from core.eis_eligibility_scorer import EISEligibilityScorer
+                    scorer = EISEligibilityScorer()
+                    eis_result = scorer.quick_score({'company': profile})
+                    eis_score = eis_result.get('score', 0)
+                except:
+                    eis_score = 0
+                    
+            except Exception as e:
+                logger.warning(f"Could not get company profile: {e}")
+        
+        # === AGENT A: RESEARCH (Tavily) ===
+        research_results = None
+        try:
+            from services.research_agent import ResearchAgent
+            researcher = ResearchAgent()
+            
+            if researcher.available:
+                research_results = researcher.search(
+                    company_name=company_name,
+                    sic_codes=sic_codes,
                     max_results=5
                 )
-                
-                if search_result and search_result.get('results'):
-                    # Compile news summary
-                    news_items = []
-                    for item in search_result['results'][:3]:
-                        news_items.append(f"- {item.get('title', 'News')}: {item.get('content', '')[:200]}...")
-                    
-                    summary = f"Latest news for {company_name}:\n\n" + "\n\n".join(news_items)
-                    
-                    return {
-                        "company_number": company_number,
-                        "company_name": company_name,
-                        "summary": summary,
-                        "source": "tavily",
-                        "results": search_result.get('results', [])[:5]
-                    }
+                logger.info(f"Research Agent found {len(research_results.get('results', []))} results")
         except ImportError:
-            logger.info("Tavily not installed, using fallback")
+            logger.warning("Research Agent not available")
         except Exception as e:
-            logger.warning(f"Tavily search failed: {e}")
+            logger.warning(f"Research Agent failed: {e}")
         
-        # Fallback message when Tavily is not available
-        return {
-            "company_number": company_number,
-            "company_name": company_name,
-            "summary": f"AI news summary for {company_name} is currently being generated. "
-                       f"The Local AI Newsroom analyzes recent filings, press releases, and market data "
-                       f"to provide investment-relevant insights. "
-                       f"\n\nFor real-time news, set up the TAVILY_API_KEY environment variable "
-                       f"or check the company's official website and Companies House filings.",
-            "source": "fallback",
-            "results": []
-        }
+        # === AGENT B: EDITOR (HuggingFace LLM) ===
+        editor_summary = None
+        if research_results and research_results.get('success') and research_results.get('results'):
+            try:
+                from services.editor_agent import EditorAgent
+                editor = EditorAgent()
+                
+                editor_summary = editor.summarize(
+                    company_name=company_name,
+                    raw_results=research_results.get('results', []),
+                    eis_score=eis_score,
+                    sector=sector,
+                    eis_status="Under Review"
+                )
+                logger.info(f"Editor Agent generated summary (relevant: {editor_summary.get('is_relevant')})")
+            except ImportError:
+                logger.warning("Editor Agent not available")
+            except Exception as e:
+                logger.warning(f"Editor Agent failed: {e}")
+        
+        # Build response
+        if editor_summary and editor_summary.get('is_relevant') and editor_summary.get('summary'):
+            # Full pipeline success - return professional summary
+            return {
+                "company_number": company_number,
+                "company_name": company_name,
+                "sector": sector,
+                "summary": editor_summary.get('summary'),
+                "source": "ai-agents",
+                "agents": {
+                    "research": "tavily" if research_results.get('success') else "fallback",
+                    "editor": editor_summary.get('model', 'unknown')
+                },
+                "sources": editor_summary.get('sources', []),
+                "raw_results": research_results.get('results', [])[:3],
+                "tavily_answer": research_results.get('answer'),
+                "query": research_results.get('query')
+            }
+        elif research_results and research_results.get('results'):
+            # Research succeeded but no LLM summary - use Tavily's answer or raw results
+            news_items = []
+            for item in research_results['results'][:3]:
+                news_items.append(f"- {item.get('title', 'News')}: {item.get('content', '')[:150]}...")
+            
+            summary = research_results.get('answer') or f"Latest news for {company_name}:\n\n" + "\n\n".join(news_items)
+            
+            return {
+                "company_number": company_number,
+                "company_name": company_name,
+                "sector": sector,
+                "summary": summary,
+                "source": "tavily-raw",
+                "agents": {"research": "tavily", "editor": "none"},
+                "sources": [r.get('url') for r in research_results['results'][:3]],
+                "raw_results": research_results.get('results', [])[:3],
+                "query": research_results.get('query')
+            }
+        else:
+            # Fallback - no agents available
+            return {
+                "company_number": company_number,
+                "company_name": company_name,
+                "sector": sector,
+                "summary": (
+                    f"AI Newsroom for {company_name} ({sector} sector).\n\n"
+                    f"To enable real-time news:\n"
+                    f"1. Set TAVILY_API_KEY in your .env for news search\n"
+                    f"2. Set HUGGINGFACE_API_KEY for AI summaries\n\n"
+                    f"Currently using Companies House data for company analysis."
+                ),
+                "source": "fallback",
+                "agents": {"research": "unavailable", "editor": "unavailable"},
+                "sources": [],
+                "raw_results": []
+            }
         
     except Exception as e:
         logger.error(f"Failed to get news for {company_number}: {e}")

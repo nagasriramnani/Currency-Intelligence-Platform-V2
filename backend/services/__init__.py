@@ -1,13 +1,17 @@
-# Services __init__.py
+"""
+Services Module - AI Agents for EIS Intelligence Platform
+
+Contains:
+- Research Agent: Tavily API integration for news search
+- Editor Agent: Hugging Face LLM for professional summaries
+"""
+
 from .research_agent import ResearchAgent, search_company_news
-from .local_editor_agent import LocalEditorAgent
-from .newsroom_pipeline import NewsroomPipeline, generate_company_news_summary
+from .editor_agent import EditorAgent, summarize_company_news
 
 __all__ = [
     'ResearchAgent',
+    'EditorAgent', 
     'search_company_news',
-    'LocalEditorAgent',
-    'NewsroomPipeline',
-    'generate_company_news_summary'
+    'summarize_company_news'
 ]
-
