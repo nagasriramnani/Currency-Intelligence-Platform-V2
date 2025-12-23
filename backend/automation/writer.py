@@ -38,7 +38,8 @@ def get_sector_name(sic_codes: List[str]) -> str:
 class LocalAIWriter:
     """AI-powered narrative generator using local Hugging Face model."""
     
-    MODEL_NAME = "microsoft/Phi-3-mini-4k-instruct"
+    # Use TinyLlama instead of Phi-3 for better compatibility
+    MODEL_NAME = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
     
     def __init__(self):
         self.generator = None
@@ -47,17 +48,21 @@ class LocalAIWriter:
     
     def _initialize_model(self):
         try:
-            from transformers import pipeline
+            from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer
             import torch
             
             logger.info(f"Loading AI model: {self.MODEL_NAME}")
-            device = 0 if torch.cuda.is_available() else -1
             
+            # Check for CUDA
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            logger.info(f"Device: {device}")
+            
+            # Load with explicit settings to avoid DynamicCache issues
             self.generator = pipeline(
                 "text-generation",
                 model=self.MODEL_NAME,
-                device=device,
-                trust_remote_code=True
+                device_map="auto" if torch.cuda.is_available() else None,
+                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
             )
             self.available = True
             logger.info("AI model loaded!")

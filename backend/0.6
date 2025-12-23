@@ -1,0 +1,37 @@
+Defaulting to user installation because normal site-packages is not writeable
+Collecting gotrue
+  Using cached gotrue-2.12.4-py3-none-any.whl.metadata (2.0 kB)
+Collecting supafunc
+  Downloading supafunc-0.10.2-py3-none-any.whl.metadata (1.9 kB)
+Requirement already satisfied: httpx<0.29,>=0.26 in c:\users\nagas\appdata\roaming\python\python314\site-packages (from httpx[http2]<0.29,>=0.26->gotrue) (0.28.1)
+Requirement already satisfied: pydantic<3,>=1.10 in c:\users\nagas\appdata\roaming\python\python314\site-packages (from gotrue) (2.12.5)
+Collecting pyjwt<3.0.0,>=2.10.1 (from gotrue)
+  Using cached PyJWT-2.10.1-py3-none-any.whl.metadata (4.0 kB)
+Requirement already satisfied: anyio in c:\users\nagas\appdata\roaming\python\python314\site-packages (from httpx<0.29,>=0.26->httpx[http2]<0.29,>=0.26->gotrue) (4.11.0)
+Requirement already satisfied: certifi in c:\users\nagas\appdata\roaming\python\python314\site-packages (from httpx<0.29,>=0.26->httpx[http2]<0.29,>=0.26->gotrue) (2025.11.12)
+Requirement already satisfied: httpcore==1.* in c:\users\nagas\appdata\roaming\python\python314\site-packages (from httpx<0.29,>=0.26->httpx[http2]<0.29,>=0.26->gotrue) (1.0.9)
+Requirement already satisfied: idna in c:\users\nagas\appdata\roaming\python\python314\site-packages (from httpx<0.29,>=0.26->httpx[http2]<0.29,>=0.26->gotrue) (3.11)
+Requirement already satisfied: h11>=0.16 in c:\users\nagas\appdata\roaming\python\python314\site-packages (from httpcore==1.*->httpx<0.29,>=0.26->httpx[http2]<0.29,>=0.26->gotrue) (0.16.0)
+Collecting h2<5,>=3 (from httpx[http2]<0.29,>=0.26->gotrue)
+  Using cached h2-4.3.0-py3-none-any.whl.metadata (5.1 kB)
+Collecting hyperframe<7,>=6.1 (from h2<5,>=3->httpx[http2]<0.29,>=0.26->gotrue)
+  Using cached hyperframe-6.1.0-py3-none-any.whl.metadata (4.3 kB)
+Collecting hpack<5,>=4.1 (from h2<5,>=3->httpx[http2]<0.29,>=0.26->gotrue)
+  Using cached hpack-4.1.0-py3-none-any.whl.metadata (4.6 kB)
+Requirement already satisfied: annotated-types>=0.6.0 in c:\users\nagas\appdata\roaming\python\python314\site-packages (from pydantic<3,>=1.10->gotrue) (0.7.0)
+Requirement already satisfied: pydantic-core==2.41.5 in c:\users\nagas\appdata\roaming\python\python314\site-packages (from pydantic<3,>=1.10->gotrue) (2.41.5)
+Requirement already satisfied: typing-extensions>=4.14.1 in c:\users\nagas\appdata\roaming\python\python314\site-packages (from pydantic<3,>=1.10->gotrue) (4.15.0)
+Requirement already satisfied: typing-inspection>=0.4.2 in c:\users\nagas\appdata\roaming\python\python314\site-packages (from pydantic<3,>=1.10->gotrue) (0.4.2)
+Collecting strenum<0.5.0,>=0.4.15 (from supafunc)
+  Using cached StrEnum-0.4.15-py3-none-any.whl.metadata (5.3 kB)
+Requirement already satisfied: sniffio>=1.1 in c:\users\nagas\appdata\roaming\python\python314\site-packages (from anyio->httpx<0.29,>=0.26->httpx[http2]<0.29,>=0.26->gotrue) (1.3.1)
+Downloading gotrue-2.12.4-py3-none-any.whl (42 kB)
+Using cached h2-4.3.0-py3-none-any.whl (61 kB)
+Using cached hpack-4.1.0-py3-none-any.whl (34 kB)
+Using cached hyperframe-6.1.0-py3-none-any.whl (13 kB)
+Using cached PyJWT-2.10.1-py3-none-any.whl (22 kB)
+Downloading supafunc-0.10.2-py3-none-any.whl (8.4 kB)
+Using cached StrEnum-0.4.15-py3-none-any.whl (8.9 kB)
+Installing collected packages: strenum, pyjwt, hyperframe, hpack, h2, supafunc, gotrue
+
+Successfully installed gotrue-2.12.4 h2-4.3.0 hpack-4.1.0 hyperframe-6.1.0 pyjwt-2.10.1 strenum-0.4.15 supafunc-0.10.2
