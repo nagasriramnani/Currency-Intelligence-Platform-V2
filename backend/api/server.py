@@ -2999,27 +2999,24 @@ async def send_email_now(request: Dict = Body(...)):
         eligible_count = sum(1 for d in all_deals if 'Eligible' in d.get('eis_status', ''))
         avg_score = sum(d.get('eis_score', 0) for d in all_deals) / max(total_companies, 1)
         
-        # Generate AI insights using research from Tavily if available
+        # Generate AI insights using new get_market_insights method
         ai_insights = []
         if news_enabled and researcher:
             try:
-                # Search for EIS policy news
-                policy_research = researcher.search("UK EIS Enterprise Investment Scheme HMRC", [], max_results=2)
-                if policy_research.get('success') and policy_research.get('results'):
-                    for result in policy_research.get('results', [])[:2]:
-                        content = result.get('content', '')
-                        if content and len(content) > 50:
-                            # Summarize the insight
-                            ai_insights.append(content[:200] + '...' if len(content) > 200 else content)
+                # Get market insights from Tavily
+                insights_result = researcher.get_market_insights()
+                if insights_result.get('success') and insights_result.get('insights'):
+                    ai_insights = insights_result.get('insights', [])[:3]
+                    logger.info(f"Got {len(ai_insights)} market insights from Tavily")
             except Exception as e:
-                logger.warning(f"Could not get AI insights: {e}")
+                logger.warning(f"Could not get market insights: {e}")
         
-        # Default insights if Tavily not available
+        # Professional default insights if Tavily not available
         if not ai_insights:
             ai_insights = [
-                "EIS qualifying trade requirements continue to focus on growth-oriented activities with emphasis on innovation",
+                "EIS qualifying trade requirements continue to focus on growth-oriented activities with emphasis on innovation and R&D",
                 "Technology and healthcare sectors demonstrate strong EIS eligibility patterns based on recent HMRC guidance",
-                "The 7-year trading age threshold remains a critical compliance checkpoint for EIS qualification"
+                "The 7-year trading age threshold and £12M lifetime investment cap remain critical compliance checkpoints"
             ]
         
         # Prepare companies for professional newsletter format
