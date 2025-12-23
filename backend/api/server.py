@@ -2999,29 +2999,60 @@ async def send_email_now(request: Dict = Body(...)):
         eligible_count = sum(1 for d in all_deals if 'Eligible' in d.get('eis_status', ''))
         avg_score = sum(d.get('eis_score', 0) for d in all_deals) / max(total_companies, 1)
         
-        exec_summary = f"""This week's EIS Deal Scanner has curated {total_companies} high-potential investment opportunities.
-
-{'📁 **Your Portfolio:** ' + str(len(sections["portfolio"])) + ' companies from your saved selections.' if sections["portfolio"] else ''}
-{'🔍 **Latest Scan:** ' + str(len(sections["scan_results"])) + ' newly discovered companies from our automated scans.' if sections["scan_results"] else ''}
-{'⭐ **Featured Deals:** ' + str(len(sections["featured"])) + ' curated opportunities meeting our quality criteria.' if sections["featured"] else ''}
-
-**Summary:** {eligible_count} companies ({eligible_count/max(total_companies,1)*100:.0f}%) score as Likely Eligible for EIS investment with an average score of {avg_score:.0f}/100.
-
-All companies listed have demonstrated recent investment activity through Statement of Capital filings, indicating active share issuances."""
+        # Generate AI insights using research from Tavily if available
+        ai_insights = []
+        if news_enabled and researcher:
+            try:
+                # Search for EIS policy news
+                policy_research = researcher.search("UK EIS Enterprise Investment Scheme HMRC", [], max_results=2)
+                if policy_research.get('success') and policy_research.get('results'):
+                    for result in policy_research.get('results', [])[:2]:
+                        content = result.get('content', '')
+                        if content and len(content) > 50:
+                            # Summarize the insight
+                            ai_insights.append(content[:200] + '...' if len(content) > 200 else content)
+            except Exception as e:
+                logger.warning(f"Could not get AI insights: {e}")
         
-        # Build comprehensive newsletter
-        newsletter = {
-            "title": "EIS Intelligence Weekly - AI-Powered Deal Scanner",
-            "executive_summary": exec_summary,
-            "sections": sections,
-            "deal_highlights": all_deals,
-            "ai_generated": True,
-            "generated_at": datetime.now().isoformat(),
-            "disclaimer": (
-                "This newsletter is for informational purposes only and does not constitute financial advice. "
-                "EIS eligibility assessments are indicative only - HMRC Advance Assurance is required for confirmation. "
-                "Always consult with qualified tax and investment professionals before making investment decisions."
-            )
+        # Default insights if Tavily not available
+        if not ai_insights:
+            ai_insights = [
+                "EIS qualifying trade requirements continue to focus on growth-oriented activities with emphasis on innovation",
+                "Technology and healthcare sectors demonstrate strong EIS eligibility patterns based on recent HMRC guidance",
+                "The 7-year trading age threshold remains a critical compliance checkpoint for EIS qualification"
+            ]
+        
+        # Prepare companies for professional newsletter format
+        # Convert scores to /110 scale and add risk flags
+        formatted_companies = []
+        for deal in all_deals:
+            score_100 = deal.get('eis_score', 0)
+            score_110 = int(score_100 * 1.1) if score_100 <= 100 else score_100
+            
+            # Determine risk flags
+            risk_flags = []
+            if score_100 < 50:
+                risk_flags.append("Low EIS score")
+            if 'Review' in deal.get('eis_status', ''):
+                risk_flags.append("Requires compliance review")
+            
+            formatted_companies.append({
+                'company_name': deal.get('company_name', 'Unknown'),
+                'company_number': deal.get('company_number', ''),
+                'eis_score': score_110,
+                'eis_status': deal.get('eis_status', 'Unknown'),
+                'sector': deal.get('sector', 'N/A'),
+                'narrative': deal.get('narrative', ''),
+                'news_summary': deal.get('narrative', ''),
+                'news_sources': deal.get('news_sources', []),
+                'risk_flags': risk_flags if risk_flags else None
+            })
+        
+        # Build professional newsletter data
+        newsletter_data = {
+            'companies': formatted_companies,
+            'ai_insights': ai_insights,
+            'frequency': 'Weekly'
         }
         
         if test_mode:
@@ -3029,15 +3060,16 @@ All companies listed have demonstrated recent investment activity through Statem
                 "success": True,
                 "message": f"Test mode: Would send email to {email}",
                 "email": email,
-                "newsletter": newsletter
+                "newsletter_data": newsletter_data,
+                "companies_count": len(formatted_companies)
             }
         
-        # Import mailer and send
-        from automation.mailer import EISMailer
-        mailer = EISMailer(gmail_address=gmail_address, gmail_password=gmail_password)
+        # Import professional mailer and send
+        from automation.mailer import ProfessionalNewsletterGenerator
+        mailer = ProfessionalNewsletterGenerator(gmail_address=gmail_address, gmail_password=gmail_password)
         
         results = mailer.send_newsletter(
-            newsletter=newsletter,
+            newsletter_data=newsletter_data,
             recipients=[email],
             test_mode=False
         )
@@ -3045,9 +3077,10 @@ All companies listed have demonstrated recent investment activity through Statem
         if results.get("sent", 0) > 0:
             return {
                 "success": True,
-                "message": f"Newsletter sent to {email}",
+                "message": f"Professional EIS Intelligence Report sent to {email}",
                 "email": email,
                 "sent": results["sent"],
+                "subject": results.get("subject", "EIS Portfolio Intelligence"),
                 "companies_included": total_companies,
                 "sections": {
                     "portfolio": len(sections["portfolio"]),
