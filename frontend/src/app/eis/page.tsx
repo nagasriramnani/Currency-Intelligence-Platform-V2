@@ -286,17 +286,27 @@ export default function EISDashboard() {
     // Export Portfolio Report as PDF
     const exportPortfolioReport = async () => {
         try {
-            // Get company numbers from portfolio
-            const companyNumbers = portfolioCompanies.map(c => c.company_number);
-            if (companyNumbers.length === 0) {
+            if (portfolioCompanies.length === 0) {
                 alert('No companies in portfolio to export');
                 return;
             }
 
+            // Format companies for the API - send full company data
+            const companiesForReport = portfolioCompanies.map(c => ({
+                company_number: c.company_number,
+                company_name: c.company_name,
+                company_status: c.company_status || 'active',
+                date_of_creation: c.date_of_creation,
+                sic_codes: c.sic_codes || [],
+                registered_office_address: c.registered_office_address || {},
+                eis_score: c.eis_assessment?.score || 0,
+                eis_status: c.eis_assessment?.status || 'Unknown'
+            }));
+
             const response = await fetch(`${API_BASE}/api/eis/newsletter`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ company_numbers: companyNumbers })
+                body: JSON.stringify(companiesForReport)  // Send array directly, not wrapped in object
             });
 
             if (response.ok) {
@@ -310,7 +320,8 @@ export default function EISDashboard() {
                 a.remove();
                 window.URL.revokeObjectURL(url);
             } else {
-                alert('Failed to generate report');
+                const errorData = await response.json().catch(() => ({}));
+                alert(`Failed to generate report: ${errorData.detail || 'Unknown error'}`);
             }
         } catch (error) {
             console.error('Export failed:', error);
