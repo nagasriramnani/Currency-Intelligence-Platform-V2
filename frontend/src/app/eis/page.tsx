@@ -283,6 +283,26 @@ export default function EISDashboard() {
         }
     };
 
+    // Send Now - instant email with sample newsletter
+    const handleSendNow = async (email: string) => {
+        // First subscribe the email
+        await handleSubscribe(email, 'now');
+
+        // Then trigger an immediate send
+        const response = await fetch(`${API_BASE}/api/eis/automation/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                test_mode: false,
+                recipient: email
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to send email');
+        }
+    };
+
     // Export Portfolio Report as PDF
     const exportPortfolioReport = async () => {
         try {
@@ -699,6 +719,7 @@ export default function EISDashboard() {
                 open={newsletterOpen}
                 onOpenChange={setNewsletterOpen}
                 onSubscribe={handleSubscribe}
+                onSendNow={handleSendNow}
             />
 
             {/* AI Newsroom Modal */}
@@ -718,7 +739,7 @@ export default function EISDashboard() {
                             initial={{ opacity: 0, scale: 0.95, y: 20 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-lg rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 shadow-2xl p-6"
+                            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-lg max-h-[80vh] rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 shadow-2xl p-6 overflow-y-auto"
                         >
                             <button
                                 onClick={() => setAiNewsOpen(false)}

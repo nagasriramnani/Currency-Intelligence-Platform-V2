@@ -5,19 +5,22 @@ import { motion, AnimatePresence } from "framer-motion"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { cn } from "./button"
 import { Button } from "./button"
-import { X, Mail, Bell, Check, Loader2 } from "lucide-react"
+import { X, Mail, Bell, Check, Loader2, Send } from "lucide-react"
 
 interface NewsletterModalProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     onSubscribe: (email: string, frequency: string) => Promise<void>
+    onSendNow?: (email: string) => Promise<void>
 }
 
-export function NewsletterModal({ open, onOpenChange, onSubscribe }: NewsletterModalProps) {
+export function NewsletterModal({ open, onOpenChange, onSubscribe, onSendNow }: NewsletterModalProps) {
     const [email, setEmail] = useState("")
     const [frequency, setFrequency] = useState("weekly")
     const [loading, setLoading] = useState(false)
+    const [sendingNow, setSendingNow] = useState(false)
     const [success, setSuccess] = useState(false)
+    const [successMessage, setSuccessMessage] = useState("Subscribed!")
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -26,6 +29,7 @@ export function NewsletterModal({ open, onOpenChange, onSubscribe }: NewsletterM
         setLoading(true)
         try {
             await onSubscribe(email, frequency)
+            setSuccessMessage("Subscribed!")
             setSuccess(true)
             setTimeout(() => {
                 onOpenChange(false)
@@ -36,6 +40,33 @@ export function NewsletterModal({ open, onOpenChange, onSubscribe }: NewsletterM
             console.error(err)
         } finally {
             setLoading(false)
+        }
+    }
+
+    const handleSendNow = async () => {
+        if (!email) {
+            alert("Please enter your email first")
+            return
+        }
+
+        setSendingNow(true)
+        try {
+            if (onSendNow) {
+                await onSendNow(email)
+            } else {
+                // Fallback: subscribe first then notify
+                await onSubscribe(email, frequency)
+            }
+            setSuccessMessage("Sample email sent!")
+            setSuccess(true)
+            setTimeout(() => {
+                setSuccess(false)
+            }, 3000)
+        } catch (err) {
+            console.error(err)
+            alert("Failed to send email. Please try again.")
+        } finally {
+            setSendingNow(false)
         }
     }
 
@@ -67,10 +98,10 @@ export function NewsletterModal({ open, onOpenChange, onSubscribe }: NewsletterM
                                 transition={{ type: "spring", damping: 25, stiffness: 300 }}
                                 className={cn(
                                     "fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2",
-                                    "w-full max-w-md rounded-2xl",
+                                    "w-full max-w-md max-h-[90vh] rounded-2xl",
                                     "bg-gradient-to-b from-slate-900 to-slate-950",
                                     "border border-slate-800 shadow-2xl shadow-black/40",
-                                    "p-6 focus:outline-none"
+                                    "p-6 focus:outline-none overflow-y-auto"
                                 )}
                             >
                                 {/* Close button */}
@@ -110,8 +141,8 @@ export function NewsletterModal({ open, onOpenChange, onSubscribe }: NewsletterM
                                             >
                                                 <Check className="h-8 w-8 text-emerald-400" />
                                             </motion.div>
-                                            <p className="text-lg font-medium text-white">Subscribed!</p>
-                                            <p className="text-sm text-slate-400">Check your inbox for confirmation</p>
+                                            <p className="text-lg font-medium text-white">{successMessage}</p>
+                                            <p className="text-sm text-slate-400">Check your inbox</p>
                                         </motion.div>
                                     ) : (
                                         <motion.form
@@ -151,7 +182,7 @@ export function NewsletterModal({ open, onOpenChange, onSubscribe }: NewsletterM
                                                 <label className="block text-sm font-medium text-slate-300 mb-2">
                                                     Frequency
                                                 </label>
-                                                <div className="grid grid-cols-3 gap-2">
+                                                <div className="grid grid-cols-4 gap-2">
                                                     {frequencies.map((freq) => (
                                                         <button
                                                             key={freq.value}
@@ -167,7 +198,27 @@ export function NewsletterModal({ open, onOpenChange, onSubscribe }: NewsletterM
                                                             <span className="block text-sm font-medium">{freq.label}</span>
                                                         </button>
                                                     ))}
+                                                    {/* Send Now Button */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleSendNow}
+                                                        disabled={sendingNow}
+                                                        className={cn(
+                                                            "p-3 rounded-xl border text-center transition-all duration-200",
+                                                            "bg-emerald-500/20 border-emerald-500 text-emerald-300 hover:bg-emerald-500/30",
+                                                            sendingNow && "opacity-50 cursor-not-allowed"
+                                                        )}
+                                                    >
+                                                        {sendingNow ? (
+                                                            <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                                                        ) : (
+                                                            <span className="block text-sm font-medium">Now</span>
+                                                        )}
+                                                    </button>
                                                 </div>
+                                                <p className="text-xs text-slate-500 mt-2">
+                                                    Select frequency, or click "Now" to receive a sample immediately
+                                                </p>
                                             </div>
 
                                             {/* Submit Button */}
