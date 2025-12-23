@@ -34,3 +34,23 @@ pytest>=7.4.0
 # SHAP for explainability (optional - may not work on Render free tier)
 # shap>=0.44.0
 
+# Local AI (TinyLlama)
+torch>=2.0.0
+transformers>=4.36.0
+accelerate>=0.25.0
+# bitsandbytes>=0.41.0  # Optional: 4-bit quantization (GPU only)
+
+# Research Agent
+tavily-python>=0.3.0
+feedparser>=6.0.0
+
+# Background Tasks
+celery>=5.3.0
+# redis>=5.0.0  # Optional: use Redis broker instead of SQLite
+
+# Database (Newsletter)
+sqlalchemy>=2.0.0
+alembic>=1.13.0
+
+# Email Templates
+jinja2>=3.1.0
