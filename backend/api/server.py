@@ -2135,20 +2135,20 @@ async def get_company_news(company_number: str):
                 logger.warning(f"Could not get company profile: {e}")
         
         # === AGENT A: RESEARCH (Tavily) ===
+        # Use comprehensive search to find investment cases, major news, and company-specific news
         research_results = None
         try:
             from services.research_agent import ResearchAgent
             researcher = ResearchAgent()
             
             if researcher.available:
-                # Use strict company match to ensure results are specifically about this company
-                research_results = researcher.search(
+                # Use comprehensive search for investment cases, major news, and company news
+                research_results = researcher.search_comprehensive(
                     company_name=company_name,
                     sic_codes=sic_codes,
-                    max_results=5,
-                    strict_company_match=True  # Only return news that mentions this company
+                    max_results=5
                 )
-                logger.info(f"Research Agent found {len(research_results.get('results', []))} company-specific results")
+                logger.info(f"Comprehensive search found {research_results.get('total_found', 0)} results across {len(research_results.get('query_types_tried', []))} query types")
         except ImportError:
             logger.warning("Research Agent not available")
         except Exception as e:

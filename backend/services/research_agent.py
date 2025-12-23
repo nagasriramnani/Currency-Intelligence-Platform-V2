@@ -167,6 +167,8 @@ class ResearchAgent:
         - news: Latest company news (general)
         - company_specific: ONLY news about this specific company
         - funding: Investment/funding news
+        - investment_cases: Detailed investment/funding cases
+        - major_news: Major business news, deals, partnerships
         - insights: Market/sector insights
         """
         sector_keywords = get_sector_keywords(sic_codes or [])
@@ -177,12 +179,19 @@ class ResearchAgent:
         for suffix in [' LTD', ' LIMITED', ' PLC', ' LP', ' LLP', ' INC', ' CORP']:
             if search_name.upper().endswith(suffix):
                 search_name = search_name[:-len(suffix)].strip()
+                break
         
         if query_type == "company_specific":
             # STRICT mode - only find news about this exact company
             query = f'"{clean_name}" UK registered company news'
         elif query_type == "funding":
             query = f'"{clean_name}" UK (funding OR investment OR raised OR round OR venture capital)'
+        elif query_type == "investment_cases":
+            # Search for investment/funding cases specifically
+            query = f'"{search_name}" UK (investment case OR funding round OR Series A OR Series B OR seed round OR venture capital OR angel investment OR EIS investment)'
+        elif query_type == "major_news":
+            # Search for major business news
+            query = f'"{search_name}" UK (acquisition OR partnership OR major deal OR contract win OR expansion OR growth OR breakthrough OR launch)'
         elif query_type == "insights":
             query = f'UK EIS Enterprise Investment Scheme {sector_keywords} startups investment 2024 2025'
         else:
@@ -316,6 +325,102 @@ class ResearchAgent:
                 'results': [],
                 'answer': None
             }
+    
+    def search_comprehensive(
+        self,
+        company_name: str,
+        sic_codes: List[str] = None,
+        max_results: int = 5
+    ) -> Dict[str, Any]:
+        """
+        Comprehensive search for a company - tries multiple query strategies.
+        
+        Searches for:
+        1. Investment cases (funding rounds, VC investments)
+        2. Major news (partnerships, acquisitions, deals)
+        3. Company-specific news (if above yield few results)
+        
+        Returns the best results from across all queries.
+        """
+        if not self.available:
+            return {
+                'success': False,
+                'error': 'Research Agent not available',
+                'results': [],
+                'query_types_tried': []
+            }
+        
+        all_results = []
+        query_types_tried = []
+        
+        # Strategy 1: Search for investment cases
+        try:
+            investment_results = self.search(
+                company_name=company_name,
+                sic_codes=sic_codes,
+                max_results=3,
+                query_type="investment_cases",
+                strict_company_match=True
+            )
+            query_types_tried.append("investment_cases")
+            if investment_results.get('success') and investment_results.get('results'):
+                for r in investment_results.get('results', []):
+                    r['query_type'] = 'investment'
+                    all_results.append(r)
+                logger.info(f"Found {len(investment_results.get('results', []))} investment results")
+        except Exception as e:
+            logger.warning(f"Investment search failed: {e}")
+        
+        # Strategy 2: Search for major news
+        try:
+            major_results = self.search(
+                company_name=company_name,
+                sic_codes=sic_codes,
+                max_results=3,
+                query_type="major_news",
+                strict_company_match=True
+            )
+            query_types_tried.append("major_news")
+            if major_results.get('success') and major_results.get('results'):
+                for r in major_results.get('results', []):
+                    r['query_type'] = 'major_news'
+                    # Avoid duplicates by checking URL
+                    if not any(existing['url'] == r['url'] for existing in all_results):
+                        all_results.append(r)
+                logger.info(f"Found {len(major_results.get('results', []))} major news results")
+        except Exception as e:
+            logger.warning(f"Major news search failed: {e}")
+        
+        # Strategy 3: If still not enough, try company-specific
+        if len(all_results) < 2:
+            try:
+                specific_results = self.search(
+                    company_name=company_name,
+                    sic_codes=sic_codes,
+                    max_results=3,
+                    query_type="company_specific",
+                    strict_company_match=True
+                )
+                query_types_tried.append("company_specific")
+                if specific_results.get('success') and specific_results.get('results'):
+                    for r in specific_results.get('results', []):
+                        r['query_type'] = 'company_news'
+                        if not any(existing['url'] == r['url'] for existing in all_results):
+                            all_results.append(r)
+                    logger.info(f"Found {len(specific_results.get('results', []))} company-specific results")
+            except Exception as e:
+                logger.warning(f"Company-specific search failed: {e}")
+        
+        # Sort by quality and take top results
+        all_results = sorted(all_results, key=lambda x: x.get('quality_score', 50), reverse=True)[:max_results]
+        
+        return {
+            'success': len(all_results) > 0,
+            'results': all_results,
+            'query_types_tried': query_types_tried,
+            'total_found': len(all_results),
+            'searched_at': datetime.now().isoformat()
+        }
     
     def get_market_insights(self, sector_focus: str = None) -> Dict[str, Any]:
         """
