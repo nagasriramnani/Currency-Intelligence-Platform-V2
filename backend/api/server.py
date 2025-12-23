@@ -2707,6 +2707,7 @@ async def send_email_now(request: Dict = Body(...)):
             raise HTTPException(status_code=400, detail="Email address is required")
         
         # Load .env from backend directory
+        from pathlib import Path
         from dotenv import load_dotenv
         env_path = Path(__file__).parent.parent / ".env"
         load_dotenv(env_path)
