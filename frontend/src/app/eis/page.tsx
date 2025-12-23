@@ -228,11 +228,79 @@ export default function EISDashboard() {
         }
     }, []);
 
-    // Newsletter subscription
+    // Newsletter subscription - REAL API
     const handleSubscribe = async (email: string, frequency: string) => {
-        // TODO: Implement API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        console.log('Subscribed:', email, frequency);
+        const response = await fetch(`${API_BASE}/api/eis/automation/subscribers`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, frequency })
+        });
+        if (!response.ok) {
+            throw new Error('Failed to subscribe');
+        }
+    };
+
+    // Export Portfolio Report as PDF
+    const exportPortfolioReport = async () => {
+        try {
+            // Get company numbers from portfolio
+            const companyNumbers = portfolioCompanies.map(c => c.company_number);
+            if (companyNumbers.length === 0) {
+                alert('No companies in portfolio to export');
+                return;
+            }
+
+            const response = await fetch(`${API_BASE}/api/eis/newsletter`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ company_numbers: companyNumbers })
+            });
+
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `EIS_Portfolio_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+            } else {
+                alert('Failed to generate report');
+            }
+        } catch (error) {
+            console.error('Export failed:', error);
+            alert('Failed to export report');
+        }
+    };
+
+    // Generate AI News Summary (AI Newsroom)
+    const [aiNewsroomLoading, setAiNewsroomLoading] = useState(false);
+    const [aiNewsSummary, setAiNewsSummary] = useState<string | null>(null);
+    const [aiNewsOpen, setAiNewsOpen] = useState(false);
+
+    const generateAiNews = async () => {
+        if (!selectedCompany) {
+            alert('Please select a company first');
+            return;
+        }
+        setAiNewsroomLoading(true);
+        setAiNewsOpen(true);
+        try {
+            // This would call the newsroom pipeline
+            const response = await fetch(`${API_BASE}/api/eis/company/${selectedCompany.company.company_number}/news`);
+            if (response.ok) {
+                const data = await response.json();
+                setAiNewsSummary(data.summary || data.content || 'No news available');
+            } else {
+                setAiNewsSummary('AI summary generation not available. The Local AI Newsroom requires the TinyLlama model to be loaded on the backend.');
+            }
+        } catch (error) {
+            setAiNewsSummary('Failed to generate AI summary. Please ensure the backend is running.');
+        } finally {
+            setAiNewsroomLoading(false);
+        }
     };
 
     // Format gates for display
@@ -303,13 +371,24 @@ export default function EISDashboard() {
                         <FadeIn delay={0.1}>
                             <div className="flex items-center gap-3">
                                 <Button
+                                    variant="outline"
+                                    onClick={exportPortfolioReport}
+                                >
+                                    <Download className="h-4 w-4 mr-2" />
+                                    Export Report
+                                </Button>
+                                <Button
                                     variant="ghost"
                                     onClick={() => setNewsletterOpen(true)}
                                 >
                                     <Bell className="h-4 w-4 mr-2" />
                                     Subscribe
                                 </Button>
-                                <Button variant="glow">
+                                <Button
+                                    variant="glow"
+                                    onClick={generateAiNews}
+                                    loading={aiNewsroomLoading}
+                                >
                                     <Sparkles className="h-4 w-4 mr-2" />
                                     AI Newsroom
                                 </Button>
@@ -359,8 +438,8 @@ export default function EISDashboard() {
 
             <main className="relative max-w-7xl mx-auto px-6 py-8">
                 <div className="flex gap-8">
-                    {/* Left Panel - Portfolio / Search Results */}
-                    <div className="w-96 flex-shrink-0">
+                    {/* Left Panel - Portfolio / Search Results - EXPANDED */}
+                    <div className="w-[450px] flex-shrink-0">
                         <div className="sticky top-8">
                             {/* Mode Toggle */}
                             <div className="flex items-center gap-2 mb-4 p-1 bg-slate-900/80 rounded-xl border border-slate-800">
@@ -565,6 +644,61 @@ export default function EISDashboard() {
                 onOpenChange={setNewsletterOpen}
                 onSubscribe={handleSubscribe}
             />
+
+            {/* AI Newsroom Modal */}
+            <AnimatePresence>
+                {aiNewsOpen && (
+                    <>
+                        {/* Backdrop */}
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setAiNewsOpen(false)}
+                            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+                        />
+                        {/* Modal */}
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-lg rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 shadow-2xl p-6"
+                        >
+                            <button
+                                onClick={() => setAiNewsOpen(false)}
+                                className="absolute right-4 top-4 p-2 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="p-3 rounded-xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30">
+                                    <Sparkles className="h-6 w-6 text-purple-400" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-semibold text-white">AI Newsroom</h3>
+                                    <p className="text-sm text-slate-400">
+                                        {selectedCompany?.company.company_name || 'Company'} News Summary
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="bg-slate-800/50 rounded-xl p-4 min-h-[150px]">
+                                {aiNewsroomLoading ? (
+                                    <div className="flex items-center justify-center h-full py-8">
+                                        <Loader2 className="h-8 w-8 text-purple-500 animate-spin" />
+                                    </div>
+                                ) : (
+                                    <p className="text-slate-300 leading-relaxed">
+                                        {aiNewsSummary || 'No news summary available.'}
+                                    </p>
+                                )}
+                            </div>
+                            <p className="text-xs text-slate-500 mt-4 text-center">
+                                Powered by Local AI • TinyLlama 1.1B
+                            </p>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
