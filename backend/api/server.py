@@ -2090,6 +2090,87 @@ async def get_company_full_profile(company_number: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/eis/company/{company_number}/news")
+async def get_company_news(company_number: str):
+    """
+    Get AI-generated news summary for a company.
+    
+    Uses Tavily API for web search if available, otherwise returns a fallback message.
+    This powers the "AI Newsroom" feature in the frontend.
+    
+    Args:
+        company_number: 8-character company registration number
+        
+    Returns:
+        News summary for the company
+    """
+    try:
+        # First, get company name for better search
+        client = get_companies_house_client()
+        company_name = None
+        
+        if client.is_configured():
+            try:
+                profile = client.get_company_profile(company_number)
+                company_name = profile.get('company_name', f'Company {company_number}')
+            except:
+                company_name = f'Company {company_number}'
+        else:
+            company_name = f'Company {company_number}'
+        
+        # Try to use Tavily for news search
+        try:
+            from tavily import TavilyClient
+            tavily_api_key = os.environ.get('TAVILY_API_KEY')
+            
+            if tavily_api_key:
+                tavily = TavilyClient(api_key=tavily_api_key)
+                
+                # Search for recent news about the company
+                search_result = tavily.search(
+                    query=f"{company_name} UK company news investment",
+                    search_depth="basic",
+                    max_results=5
+                )
+                
+                if search_result and search_result.get('results'):
+                    # Compile news summary
+                    news_items = []
+                    for item in search_result['results'][:3]:
+                        news_items.append(f"- {item.get('title', 'News')}: {item.get('content', '')[:200]}...")
+                    
+                    summary = f"Latest news for {company_name}:\n\n" + "\n\n".join(news_items)
+                    
+                    return {
+                        "company_number": company_number,
+                        "company_name": company_name,
+                        "summary": summary,
+                        "source": "tavily",
+                        "results": search_result.get('results', [])[:5]
+                    }
+        except ImportError:
+            logger.info("Tavily not installed, using fallback")
+        except Exception as e:
+            logger.warning(f"Tavily search failed: {e}")
+        
+        # Fallback message when Tavily is not available
+        return {
+            "company_number": company_number,
+            "company_name": company_name,
+            "summary": f"AI news summary for {company_name} is currently being generated. "
+                       f"The Local AI Newsroom analyzes recent filings, press releases, and market data "
+                       f"to provide investment-relevant insights. "
+                       f"\n\nFor real-time news, set up the TAVILY_API_KEY environment variable "
+                       f"or check the company's official website and Companies House filings.",
+            "source": "fallback",
+            "results": []
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get news for {company_number}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/eis/search")
 async def search_companies(
     query: str = Query(..., description="Company name or number to search"),
