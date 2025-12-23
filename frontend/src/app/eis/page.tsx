@@ -283,12 +283,24 @@ export default function EISDashboard() {
             throw new Error('Failed to subscribe');
         }
 
-        // If frequency is 'now', also send an immediate email
+        // If frequency is 'now', also send an immediate email with portfolio data
         if (frequency === 'now') {
+            // Format portfolio companies for the API
+            const portfolioData = portfolioCompanies.map(c => ({
+                company_number: c.company.company_number,
+                company_name: c.company.company_name,
+                eis_score: c.eisAssessment?.score || 0,
+                eis_status: c.eisAssessment?.status || 'Unknown',
+                sic_codes: c.company.sic_codes || []
+            }));
+
             const sendResponse = await fetch(`${API_BASE}/api/eis/automation/send-email`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email })
+                body: JSON.stringify({
+                    email,
+                    portfolio_companies: portfolioData
+                })
             });
 
             if (!sendResponse.ok) {
