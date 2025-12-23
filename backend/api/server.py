@@ -2706,19 +2706,24 @@ async def send_email_now(request: Dict = Body(...)):
         if not email:
             raise HTTPException(status_code=400, detail="Email address is required")
         
-        # Import mailer
-        import sys
-        sys.path.append(str(Path(__file__).parent.parent / "automation"))
-        from automation.mailer import EISMailer
+        # Load .env from backend directory
+        from dotenv import load_dotenv
+        env_path = Path(__file__).parent.parent / ".env"
+        load_dotenv(env_path)
         
-        mailer = EISMailer()
+        # Get Gmail credentials from environment
+        gmail_address = os.environ.get('GMAIL_ADDRESS')
+        gmail_password = os.environ.get('GMAIL_APP_PASSWORD')
         
-        # Check Gmail credentials
-        if not mailer.gmail_address or not mailer.gmail_password:
+        if not gmail_address or not gmail_password:
             raise HTTPException(
                 status_code=400, 
                 detail="Gmail credentials not configured. Set GMAIL_ADDRESS and GMAIL_APP_PASSWORD in .env"
             )
+        
+        # Import mailer and create with credentials
+        from automation.mailer import EISMailer
+        mailer = EISMailer(gmail_address=gmail_address, gmail_password=gmail_password)
         
         # Create sample newsletter content
         sample_newsletter = {

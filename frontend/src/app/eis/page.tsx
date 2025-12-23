@@ -273,31 +273,28 @@ export default function EISDashboard() {
 
     // Newsletter subscription - REAL API
     const handleSubscribe = async (email: string, frequency: string) => {
-        const response = await fetch(`${API_BASE}/api/eis/automation/subscribers`, {
+        // First, always subscribe the email
+        const subscribeResponse = await fetch(`${API_BASE}/api/eis/automation/subscribers`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, frequency })
         });
-        if (!response.ok) {
+        if (!subscribeResponse.ok) {
             throw new Error('Failed to subscribe');
         }
-    };
 
-    // Send Now - instant email with sample newsletter
-    const handleSendNow = async (email: string) => {
-        // First subscribe the email
-        await handleSubscribe(email, 'now');
+        // If frequency is 'now', also send an immediate email
+        if (frequency === 'now') {
+            const sendResponse = await fetch(`${API_BASE}/api/eis/automation/send-email`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
 
-        // Then trigger an immediate send using the new email endpoint
-        const response = await fetch(`${API_BASE}/api/eis/automation/send-email`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.detail || 'Failed to send email');
+            if (!sendResponse.ok) {
+                const errorData = await sendResponse.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Failed to send email');
+            }
         }
     };
 
@@ -717,7 +714,6 @@ export default function EISDashboard() {
                 open={newsletterOpen}
                 onOpenChange={setNewsletterOpen}
                 onSubscribe={handleSubscribe}
-                onSendNow={handleSendNow}
             />
 
             {/* AI Newsroom Modal */}

@@ -5,20 +5,18 @@ import { motion, AnimatePresence } from "framer-motion"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { cn } from "./button"
 import { Button } from "./button"
-import { X, Mail, Bell, Check, Loader2, Send } from "lucide-react"
+import { X, Mail, Bell, Check, Loader2, Zap } from "lucide-react"
 
 interface NewsletterModalProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     onSubscribe: (email: string, frequency: string) => Promise<void>
-    onSendNow?: (email: string) => Promise<void>
 }
 
-export function NewsletterModal({ open, onOpenChange, onSubscribe, onSendNow }: NewsletterModalProps) {
+export function NewsletterModal({ open, onOpenChange, onSubscribe }: NewsletterModalProps) {
     const [email, setEmail] = useState("")
     const [frequency, setFrequency] = useState("weekly")
     const [loading, setLoading] = useState(false)
-    const [sendingNow, setSendingNow] = useState(false)
     const [success, setSuccess] = useState(false)
     const [successMessage, setSuccessMessage] = useState("Subscribed!")
 
@@ -29,51 +27,34 @@ export function NewsletterModal({ open, onOpenChange, onSubscribe, onSendNow }: 
         setLoading(true)
         try {
             await onSubscribe(email, frequency)
-            setSuccessMessage("Subscribed!")
+
+            // Show appropriate success message
+            if (frequency === 'now') {
+                setSuccessMessage("Sample email sent!")
+            } else {
+                setSuccessMessage("Subscribed!")
+            }
+
             setSuccess(true)
             setTimeout(() => {
                 onOpenChange(false)
                 setSuccess(false)
                 setEmail("")
+                setFrequency("weekly")
             }, 2000)
         } catch (err) {
             console.error(err)
+            alert("Failed to subscribe. Please try again.")
         } finally {
             setLoading(false)
         }
     }
 
-    const handleSendNow = async () => {
-        if (!email) {
-            alert("Please enter your email first")
-            return
-        }
-
-        setSendingNow(true)
-        try {
-            if (onSendNow) {
-                await onSendNow(email)
-            } else {
-                // Fallback: subscribe first then notify
-                await onSubscribe(email, frequency)
-            }
-            setSuccessMessage("Sample email sent!")
-            setSuccess(true)
-            setTimeout(() => {
-                setSuccess(false)
-            }, 3000)
-        } catch (err) {
-            console.error(err)
-            alert("Failed to send email. Please try again.")
-        } finally {
-            setSendingNow(false)
-        }
-    }
-
     const frequencies = [
-        { value: "daily", label: "Daily", description: "Every morning at 7am" },
-        { value: "weekly", label: "Weekly", description: "Every Monday" },
-        { value: "monthly", label: "Monthly", description: "First of each month" }
+        { value: "daily", label: "Daily", icon: null },
+        { value: "weekly", label: "Weekly", icon: null },
+        { value: "monthly", label: "Monthly", icon: null },
+        { value: "now", label: "Now", icon: <Zap className="h-3 w-3" /> }
     ]
 
     return (
@@ -191,33 +172,23 @@ export function NewsletterModal({ open, onOpenChange, onSubscribe, onSendNow }: 
                                                             className={cn(
                                                                 "p-3 rounded-xl border text-center transition-all duration-200",
                                                                 frequency === freq.value
-                                                                    ? "bg-indigo-500/20 border-indigo-500 text-indigo-300"
+                                                                    ? freq.value === 'now'
+                                                                        ? "bg-amber-500/20 border-amber-500 text-amber-300"
+                                                                        : "bg-indigo-500/20 border-indigo-500 text-indigo-300"
                                                                     : "bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600"
                                                             )}
                                                         >
-                                                            <span className="block text-sm font-medium">{freq.label}</span>
+                                                            <span className="flex items-center justify-center gap-1 text-sm font-medium">
+                                                                {freq.icon}
+                                                                {freq.label}
+                                                            </span>
                                                         </button>
                                                     ))}
-                                                    {/* Send Now Button */}
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleSendNow}
-                                                        disabled={sendingNow}
-                                                        className={cn(
-                                                            "p-3 rounded-xl border text-center transition-all duration-200",
-                                                            "bg-emerald-500/20 border-emerald-500 text-emerald-300 hover:bg-emerald-500/30",
-                                                            sendingNow && "opacity-50 cursor-not-allowed"
-                                                        )}
-                                                    >
-                                                        {sendingNow ? (
-                                                            <Loader2 className="h-4 w-4 animate-spin mx-auto" />
-                                                        ) : (
-                                                            <span className="block text-sm font-medium">Now</span>
-                                                        )}
-                                                    </button>
                                                 </div>
                                                 <p className="text-xs text-slate-500 mt-2">
-                                                    Select frequency, or click "Now" to receive a sample immediately
+                                                    {frequency === 'now'
+                                                        ? "Send a sample newsletter to your email immediately"
+                                                        : "Select when you want to receive updates"}
                                                 </p>
                                             </div>
 
@@ -228,7 +199,7 @@ export function NewsletterModal({ open, onOpenChange, onSubscribe, onSendNow }: 
                                                 className="w-full"
                                                 size="lg"
                                             >
-                                                Subscribe Now
+                                                {frequency === 'now' ? 'Send Sample Now' : 'Subscribe Now'}
                                             </Button>
 
                                             <p className="text-xs text-center text-slate-500">
