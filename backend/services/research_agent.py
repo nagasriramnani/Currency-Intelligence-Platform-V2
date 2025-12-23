@@ -176,27 +176,50 @@ class ResearchAgent:
         
         # Remove common suffixes for better matching
         search_name = clean_name
-        for suffix in [' LTD', ' LIMITED', ' PLC', ' LP', ' LLP', ' INC', ' CORP']:
+        for suffix in [' LTD', ' LIMITED', ' PLC', ' LP', ' LLP', ' INC', ' CORP', ' UK', ' GROUP']:
             if search_name.upper().endswith(suffix):
                 search_name = search_name[:-len(suffix)].strip()
-                break
+        
+        # Also remove these words from anywhere
+        for word in [' HOLDING', ' HOLDINGS', ' TRADING', ' SERVICES', ' SOLUTIONS', ' TECHNOLOGIES']:
+            search_name = search_name.upper().replace(word, '').strip()
+        
+        # Extract brand name (first 1-2 significant words) for news search
+        # E.g., "MONZO BANK HOLDING GROUP LIMITED" -> "Monzo"
+        # E.g., "VIRGIN MONEY UK PLC" -> "Virgin Money"
+        words = search_name.split()
+        brand_name = search_name.title()  # Default to cleaned name
+        
+        if words:
+            # Filter out common company type words
+            skip_words = {'BANK', 'FINANCIAL', 'GROUP', 'THE', 'UK', 'INTERNATIONAL', 'GLOBAL'}
+            significant_words = [w for w in words if w.upper() not in skip_words]
+            
+            if significant_words:
+                # Use first 1-2 significant words as brand name
+                if len(significant_words) >= 2:
+                    brand_name = ' '.join(significant_words[:2]).title()
+                else:
+                    brand_name = significant_words[0].title()
+        
+        logger.info(f"Company: {clean_name} -> Brand: {brand_name}")
         
         if query_type == "company_specific":
-            # STRICT mode - only find news about this exact company
+            # STRICT mode - use full name
             query = f'"{clean_name}" UK registered company news'
         elif query_type == "funding":
-            query = f'"{clean_name}" UK (funding OR investment OR raised OR round OR venture capital)'
+            query = f'"{brand_name}" UK (funding OR investment OR raised OR round OR venture capital)'
         elif query_type == "investment_cases":
-            # Search for investment/funding cases specifically
-            query = f'"{search_name}" UK (investment case OR funding round OR Series A OR Series B OR seed round OR venture capital OR angel investment OR EIS investment)'
+            # Search for investment/funding using brand name
+            query = f'"{brand_name}" UK fintech startup (investment OR funding round OR Series OR venture capital OR valuation)'
         elif query_type == "major_news":
-            # Search for major business news
-            query = f'"{search_name}" UK (acquisition OR partnership OR major deal OR contract win OR expansion OR growth OR breakthrough OR launch)'
+            # Search for major business news using brand name
+            query = f'"{brand_name}" UK (acquisition OR partnership OR launch OR expansion OR growth OR news 2024 2025)'
         elif query_type == "insights":
             query = f'UK EIS Enterprise Investment Scheme {sector_keywords} startups investment 2024 2025'
         else:
-            # Default news query
-            query = f'"{clean_name}" UK company (news OR funding OR growth OR expansion OR partnership OR acquisition)'
+            # Default news query - use brand name for better matching
+            query = f'"{brand_name}" UK company (news OR funding OR growth OR expansion OR partnership OR acquisition)'
         
         logger.info(f"Built query [{query_type}]: {query}")
         return query
