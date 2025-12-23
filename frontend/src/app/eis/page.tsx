@@ -57,7 +57,10 @@ import {
     List,
     RefreshCw,
     ChevronRight,
-    X
+    X,
+    Plus,
+    Check,
+    FolderPlus
 } from 'lucide-react';
 
 // === TYPES ===
@@ -143,6 +146,46 @@ export default function EISDashboard() {
         avgScore: 0,
         total: 0
     });
+
+    // User's manually added portfolio companies
+    const [myPortfolio, setMyPortfolio] = useState<Set<string>>(new Set());
+
+    // Add company to portfolio
+    const addToPortfolio = (companyNumber: string, companyName: string) => {
+        if (myPortfolio.has(companyNumber)) {
+            // Remove from portfolio
+            const newPortfolio = new Set(myPortfolio);
+            newPortfolio.delete(companyNumber);
+            setMyPortfolio(newPortfolio);
+        } else {
+            // Add to portfolio
+            setMyPortfolio(prev => new Set([...prev, companyNumber]));
+            // Also add to portfolioCompanies for display
+            if (selectedCompany && !portfolioCompanies.find(c => c.company_number === companyNumber)) {
+                setPortfolioCompanies(prev => [...prev, {
+                    company_number: companyNumber,
+                    company_name: companyName,
+                    eis_assessment: selectedCompany.eis_assessment
+                }]);
+                // Update stats
+                setPortfolioStats(prev => ({
+                    ...prev,
+                    total: prev.total + 1,
+                    likelyEligible: selectedCompany.eis_assessment?.status?.includes('Eligible')
+                        ? prev.likelyEligible + 1
+                        : prev.likelyEligible,
+                    reviewRequired: selectedCompany.eis_assessment?.status?.includes('Review')
+                        ? prev.reviewRequired + 1
+                        : prev.reviewRequired
+                }));
+            }
+        }
+    };
+
+    // Check if company is in portfolio
+    const isInPortfolio = (companyNumber: string) => {
+        return myPortfolio.has(companyNumber) || portfolioCompanies.some(c => c.company_number === companyNumber);
+    };
 
     // Load portfolio on mount
     useEffect(() => {
@@ -613,6 +656,8 @@ export default function EISDashboard() {
                                     company={selectedCompany}
                                     formatGates={formatGates}
                                     formatScoreBreakdown={formatScoreBreakdown}
+                                    addToPortfolio={addToPortfolio}
+                                    isInPortfolio={isInPortfolio}
                                 />
                             ) : (
                                 <motion.div
@@ -707,11 +752,15 @@ export default function EISDashboard() {
 function CompanyDetails({
     company,
     formatGates,
-    formatScoreBreakdown
+    formatScoreBreakdown,
+    addToPortfolio,
+    isInPortfolio
 }: {
     company: CompanyProfile;
     formatGates: (assessment: any) => any[];
     formatScoreBreakdown: (factors: any[]) => any[];
+    addToPortfolio: (companyNumber: string, companyName: string) => void;
+    isInPortfolio: (companyNumber: string) => boolean;
 }) {
     const { company: co, eis_assessment, officers, pscs, filings } = company;
 
@@ -758,9 +807,24 @@ function CompanyDetails({
                                 </div>
                             </div>
                         </div>
-                        <Button variant="outline">
-                            <Download className="h-4 w-4 mr-2" />
-                            Export Report
+                        <Button
+                            variant={isInPortfolio(co.company_number) ? "default" : "outline"}
+                            onClick={() => addToPortfolio(co.company_number, co.company_name)}
+                            className={isInPortfolio(co.company_number)
+                                ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                : ""}
+                        >
+                            {isInPortfolio(co.company_number) ? (
+                                <>
+                                    <Check className="h-4 w-4 mr-2" />
+                                    In Portfolio
+                                </>
+                            ) : (
+                                <>
+                                    <FolderPlus className="h-4 w-4 mr-2" />
+                                    Add to Portfolio
+                                </>
+                            )}
                         </Button>
                     </div>
                 </CardContent>
