@@ -132,7 +132,56 @@ export default function EISDashboard() {
     const [newsletterOpen, setNewsletterOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('overview');
     const [recentSearches, setRecentSearches] = useState<string[]>([]);
-    const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+    const [viewMode, setViewMode] = useState<'portfolio' | 'search'>('portfolio');
+
+    // Portfolio state
+    const [portfolioCompanies, setPortfolioCompanies] = useState<any[]>([]);
+    const [portfolioLoading, setPortfolioLoading] = useState(true);
+    const [portfolioStats, setPortfolioStats] = useState({
+        likelyEligible: 0,
+        reviewRequired: 0,
+        avgScore: 0,
+        total: 0
+    });
+
+    // Load portfolio on mount
+    useEffect(() => {
+        loadPortfolio();
+    }, []);
+
+    const loadPortfolio = async () => {
+        setPortfolioLoading(true);
+        try {
+            const response = await fetch(
+                `${API_BASE}/api/eis/automation/scan?days=30&min_score=50&limit=50`
+            );
+            const data = await response.json();
+            const companies = data.companies || [];
+            setPortfolioCompanies(companies);
+
+            // Calculate stats
+            const eligible = companies.filter((c: any) =>
+                c.eis_assessment?.status?.includes('Eligible')
+            ).length;
+            const review = companies.filter((c: any) =>
+                c.eis_assessment?.status?.includes('Review')
+            ).length;
+            const avgScore = companies.length > 0
+                ? companies.reduce((sum: number, c: any) => sum + (c.eis_assessment?.score || 0), 0) / companies.length
+                : 0;
+
+            setPortfolioStats({
+                likelyEligible: eligible,
+                reviewRequired: review,
+                avgScore: Math.round(avgScore),
+                total: companies.length
+            });
+        } catch (error) {
+            console.error('Failed to load portfolio:', error);
+        } finally {
+            setPortfolioLoading(false);
+        }
+    };
 
     // Search companies
     const handleSearch = useCallback(async () => {
@@ -141,10 +190,12 @@ export default function EISDashboard() {
         setSearchLoading(true);
         try {
             const response = await fetch(
-                `${API_BASE}/api/companies/search?q=${encodeURIComponent(searchQuery)}`
+                `${API_BASE}/api/eis/search?query=${encodeURIComponent(searchQuery)}&limit=30`
             );
             const data = await response.json();
-            setSearchResults(data.items || []);
+            // Handle both formats: items array or direct array
+            const results = data.items || data.results || data || [];
+            setSearchResults(Array.isArray(results) ? results : []);
 
             // Add to recent searches
             setRecentSearches(prev => {
@@ -308,96 +359,155 @@ export default function EISDashboard() {
 
             <main className="relative max-w-7xl mx-auto px-6 py-8">
                 <div className="flex gap-8">
-                    {/* Left Panel - Search Results */}
+                    {/* Left Panel - Portfolio / Search Results */}
                     <div className="w-96 flex-shrink-0">
                         <div className="sticky top-8">
-                            {/* Results Header */}
-                            <div className="flex items-center justify-between mb-4">
-                                <h2 className="text-lg font-semibold text-white">
-                                    {searchResults.length > 0
-                                        ? `${searchResults.length} Companies Found`
-                                        : 'Search Results'
-                                    }
-                                </h2>
-                                <div className="flex items-center gap-1">
-                                    <button
-                                        onClick={() => setViewMode('list')}
-                                        className={cn(
-                                            "p-2 rounded-lg transition-colors",
-                                            viewMode === 'list'
-                                                ? "bg-slate-800 text-white"
-                                                : "text-slate-500 hover:text-white"
-                                        )}
-                                    >
-                                        <List className="h-4 w-4" />
-                                    </button>
-                                    <button
-                                        onClick={() => setViewMode('grid')}
-                                        className={cn(
-                                            "p-2 rounded-lg transition-colors",
-                                            viewMode === 'grid'
-                                                ? "bg-slate-800 text-white"
-                                                : "text-slate-500 hover:text-white"
-                                        )}
-                                    >
-                                        <LayoutGrid className="h-4 w-4" />
-                                    </button>
-                                </div>
+                            {/* Mode Toggle */}
+                            <div className="flex items-center gap-2 mb-4 p-1 bg-slate-900/80 rounded-xl border border-slate-800">
+                                <button
+                                    onClick={() => setViewMode('portfolio')}
+                                    className={cn(
+                                        "flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                                        viewMode === 'portfolio'
+                                            ? "bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg"
+                                            : "text-slate-400 hover:text-white"
+                                    )}
+                                >
+                                    Portfolio ({portfolioCompanies.length})
+                                </button>
+                                <button
+                                    onClick={() => setViewMode('search')}
+                                    className={cn(
+                                        "flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                                        viewMode === 'search'
+                                            ? "bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg"
+                                            : "text-slate-400 hover:text-white"
+                                    )}
+                                >
+                                    Search ({searchResults.length})
+                                </button>
                             </div>
 
-                            {/* Results List */}
-                            <div className="space-y-3 max-h-[calc(100vh-300px)] overflow-y-auto pr-2">
-                                <AnimatePresence mode="popLayout">
-                                    {searchResults.map((result, index) => (
-                                        <motion.div
-                                            key={result.company_number}
-                                            initial={{ opacity: 0, x: -20 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            exit={{ opacity: 0, x: 20 }}
-                                            transition={{ delay: index * 0.05 }}
-                                            onClick={() => loadCompanyDetails(result.company_number)}
-                                            className={cn(
-                                                "p-4 rounded-xl border cursor-pointer transition-all duration-200",
-                                                "hover:bg-slate-800/50",
-                                                selectedCompany?.company.company_number === result.company_number
-                                                    ? "border-indigo-500 bg-indigo-500/10"
-                                                    : "border-slate-800 bg-slate-900/50"
-                                            )}
-                                        >
-                                            <div className="flex items-start justify-between">
-                                                <div>
-                                                    <p className="font-medium text-white truncate">
-                                                        {result.title}
-                                                    </p>
-                                                    <p className="text-sm text-slate-500 mt-1">
-                                                        #{result.company_number}
-                                                    </p>
-                                                </div>
-                                                <Badge
-                                                    variant={result.company_status === 'active' ? 'success' : 'warning'}
-                                                    size="sm"
-                                                >
-                                                    {result.company_status}
-                                                </Badge>
-                                            </div>
-                                            {result.address_snippet && (
-                                                <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
-                                                    <MapPin className="h-3 w-3" />
-                                                    {result.address_snippet}
-                                                </p>
-                                            )}
-                                        </motion.div>
-                                    ))}
-                                </AnimatePresence>
-
-                                {searchResults.length === 0 && !searchLoading && (
-                                    <div className="text-center py-12">
-                                        <Search className="h-12 w-12 text-slate-700 mx-auto mb-4" />
-                                        <p className="text-slate-500">
-                                            Search for companies to analyze
-                                        </p>
+                            {/* Portfolio Stats (only in portfolio mode) */}
+                            {viewMode === 'portfolio' && !portfolioLoading && (
+                                <div className="grid grid-cols-2 gap-2 mb-4">
+                                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+                                        <p className="text-2xl font-bold text-emerald-400">{portfolioStats.likelyEligible}</p>
+                                        <p className="text-xs text-slate-400">Likely Eligible</p>
                                     </div>
-                                )}
+                                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                                        <p className="text-2xl font-bold text-amber-400">{portfolioStats.reviewRequired}</p>
+                                        <p className="text-xs text-slate-400">Review Required</p>
+                                    </div>
+                                    <div className="p-3 bg-indigo-500/10 border border-indigo-500/30 rounded-lg">
+                                        <p className="text-2xl font-bold text-indigo-400">{portfolioStats.avgScore}</p>
+                                        <p className="text-xs text-slate-400">Avg Score</p>
+                                    </div>
+                                    <div className="p-3 bg-slate-800/50 border border-slate-700 rounded-lg">
+                                        <p className="text-2xl font-bold text-white">{portfolioStats.total}</p>
+                                        <p className="text-xs text-slate-400">Total</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Companies List */}
+                            <div className="space-y-3 max-h-[calc(100vh-400px)] overflow-y-auto pr-2">
+                                <AnimatePresence mode="popLayout">
+                                    {viewMode === 'portfolio' ? (
+                                        portfolioLoading ? (
+                                            <div className="flex items-center justify-center py-12">
+                                                <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
+                                            </div>
+                                        ) : (
+                                            portfolioCompanies.map((company, index) => (
+                                                <motion.div
+                                                    key={company.company_number}
+                                                    initial={{ opacity: 0, x: -20 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    exit={{ opacity: 0, x: 20 }}
+                                                    transition={{ delay: index * 0.03 }}
+                                                    onClick={() => loadCompanyDetails(company.company_number)}
+                                                    className={cn(
+                                                        "p-4 rounded-xl border cursor-pointer transition-all duration-200",
+                                                        "hover:bg-slate-800/50",
+                                                        selectedCompany?.company.company_number === company.company_number
+                                                            ? "border-indigo-500 bg-indigo-500/10"
+                                                            : "border-slate-800 bg-slate-900/50"
+                                                    )}
+                                                >
+                                                    <div className="flex items-start justify-between">
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-medium text-white truncate">
+                                                                {company.company_name}
+                                                            </p>
+                                                            <p className="text-sm text-slate-500 mt-1">
+                                                                #{company.company_number}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex flex-col items-end gap-1">
+                                                            <Badge
+                                                                variant={company.eis_assessment?.status?.includes('Eligible') ? 'success' : 'warning'}
+                                                                size="sm"
+                                                            >
+                                                                {company.eis_assessment?.score || 0}/100
+                                                            </Badge>
+                                                        </div>
+                                                    </div>
+                                                </motion.div>
+                                            ))
+                                        )
+                                    ) : (
+                                        searchResults.length > 0 ? (
+                                            searchResults.map((result, index) => (
+                                                <motion.div
+                                                    key={result.company_number}
+                                                    initial={{ opacity: 0, x: -20 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    exit={{ opacity: 0, x: 20 }}
+                                                    transition={{ delay: index * 0.05 }}
+                                                    onClick={() => loadCompanyDetails(result.company_number)}
+                                                    className={cn(
+                                                        "p-4 rounded-xl border cursor-pointer transition-all duration-200",
+                                                        "hover:bg-slate-800/50",
+                                                        selectedCompany?.company.company_number === result.company_number
+                                                            ? "border-indigo-500 bg-indigo-500/10"
+                                                            : "border-slate-800 bg-slate-900/50"
+                                                    )}
+                                                >
+                                                    <div className="flex items-start justify-between">
+                                                        <div>
+                                                            <p className="font-medium text-white truncate">
+                                                                {result.title}
+                                                            </p>
+                                                            <p className="text-sm text-slate-500 mt-1">
+                                                                #{result.company_number}
+                                                            </p>
+                                                        </div>
+                                                        <Badge
+                                                            variant={result.company_status === 'active' ? 'success' : 'warning'}
+                                                            size="sm"
+                                                        >
+                                                            {result.company_status}
+                                                        </Badge>
+                                                    </div>
+                                                    {result.address_snippet && (
+                                                        <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
+                                                            <MapPin className="h-3 w-3" />
+                                                            {result.address_snippet}
+                                                        </p>
+                                                    )}
+                                                </motion.div>
+                                            ))
+                                        ) : (
+                                            <div className="text-center py-12">
+                                                <Search className="h-12 w-12 text-slate-700 mx-auto mb-4" />
+                                                <p className="text-slate-500">
+                                                    Search for companies to analyze
+                                                </p>
+                                            </div>
+                                        )
+                                    )}
+                                </AnimatePresence>
                             </div>
                         </div>
                     </div>
