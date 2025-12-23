@@ -2690,6 +2690,98 @@ async def send_newsletter_email(request: Dict = Body(default={})):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/eis/automation/send-email")
+async def send_email_now(request: Dict = Body(...)):
+    """
+    Send a sample newsletter email to a specific recipient immediately.
+    
+    Request body:
+    - email: target email address
+    - test_mode: if true, don't actually send
+    """
+    try:
+        email = request.get("email")
+        test_mode = request.get("test_mode", False)
+        
+        if not email:
+            raise HTTPException(status_code=400, detail="Email address is required")
+        
+        # Import mailer
+        import sys
+        sys.path.append(str(Path(__file__).parent.parent / "automation"))
+        from automation.mailer import EISMailer
+        
+        mailer = EISMailer()
+        
+        # Check Gmail credentials
+        if not mailer.gmail_address or not mailer.gmail_password:
+            raise HTTPException(
+                status_code=400, 
+                detail="Gmail credentials not configured. Set GMAIL_ADDRESS and GMAIL_APP_PASSWORD in .env"
+            )
+        
+        # Create sample newsletter content
+        sample_newsletter = {
+            "title": "EIS Deal Scanner - Sample Alert",
+            "executive_summary": (
+                "This is a sample email from the EIS Investment Scanner. "
+                "When subscribed, you will receive AI-powered investment opportunities "
+                "featuring companies analyzed for EIS eligibility."
+            ),
+            "deal_highlights": [
+                {
+                    "company_name": "Sample Tech Ltd",
+                    "eis_score": 85,
+                    "eis_status": "Likely Eligible",
+                    "sector": "Technology",
+                    "narrative": "A fast-growing UK tech company that meets most EIS criteria. "
+                                 "Strong fundamentals and clear growth trajectory."
+                },
+                {
+                    "company_name": "Green Energy Co",
+                    "eis_score": 72,
+                    "eis_status": "Review Required",
+                    "sector": "Clean Energy",
+                    "narrative": "Promising renewable energy startup. Some aspects require further review."
+                }
+            ],
+            "disclaimer": (
+                "This is a sample email for demonstration purposes only. "
+                "Not financial advice. Always consult with a qualified advisor."
+            )
+        }
+        
+        if test_mode:
+            return {
+                "success": True,
+                "message": f"Test mode: Would send email to {email}",
+                "email": email
+            }
+        
+        # Send the email
+        results = mailer.send_newsletter(
+            newsletter=sample_newsletter,
+            recipients=[email],
+            test_mode=False
+        )
+        
+        if results.get("sent", 0) > 0:
+            return {
+                "success": True,
+                "message": f"Sample email sent to {email}",
+                "email": email,
+                "sent": results["sent"]
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to send email")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to send email: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

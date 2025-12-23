@@ -288,18 +288,16 @@ export default function EISDashboard() {
         // First subscribe the email
         await handleSubscribe(email, 'now');
 
-        // Then trigger an immediate send
-        const response = await fetch(`${API_BASE}/api/eis/automation/send`, {
+        // Then trigger an immediate send using the new email endpoint
+        const response = await fetch(`${API_BASE}/api/eis/automation/send-email`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                test_mode: false,
-                recipient: email
-            })
+            body: JSON.stringify({ email })
         });
 
         if (!response.ok) {
-            throw new Error('Failed to send email');
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Failed to send email');
         }
     };
 
