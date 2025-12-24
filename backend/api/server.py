@@ -2111,6 +2111,7 @@ async def get_company_news(company_number: str):
         sic_codes = []
         eis_score = 0
         sector = "Unknown"
+        company_status = "active"
         
         if client.is_configured():
             try:
@@ -2119,22 +2120,55 @@ async def get_company_news(company_number: str):
                 if profile:
                     company_name = profile.company_name if hasattr(profile, 'company_name') else company_name
                     sic_codes = profile.sic_codes if hasattr(profile, 'sic_codes') else []
+                    company_status = profile.company_status if hasattr(profile, 'company_status') else "active"
                     
-                    logger.info(f"Got company profile: {company_name}, SIC: {sic_codes}")
+                    logger.info(f"Got company profile: {company_name}, SIC: {sic_codes}, Status: {company_status}")
                     
                     # Get sector name from SIC codes
                     from automation.writer import get_sector_name
                     sector = get_sector_name(sic_codes)
                     
-                    # Try to get EIS score if available
-                    try:
-                        from core.eis_eligibility_scorer import EISEligibilityScorer
-                        scorer = EISEligibilityScorer()
-                        profile_dict = profile.to_dict() if hasattr(profile, 'to_dict') else {}
-                        eis_result = scorer.quick_score({'company': profile_dict})
-                        eis_score = eis_result.get('score', 0)
-                    except:
+                    # === BUG FIX 3: ZOMBIE COMPANY HARD GATE ===
+                    # Dissolved/liquidated companies get 0 score immediately
+                    zombie_statuses = ['dissolved', 'liquidation', 'closed', 'struck-off', 'converted-closed']
+                    if company_status.lower() in zombie_statuses:
                         eis_score = 0
+                        logger.info(f"ZOMBIE COMPANY DETECTED: {company_name} status is '{company_status}' - EIS Score forced to 0")
+                    else:
+                        # Try to get EIS score using the proper scorer
+                        try:
+                            from analytics.eis_heuristics import EISHeuristicEngine
+                            engine = EISHeuristicEngine()
+                            profile_dict = profile.to_dict() if hasattr(profile, 'to_dict') else {}
+                            
+                            # Build data structure for heuristic scoring
+                            company_data = {
+                                'company': profile_dict,
+                                'officers': [],  # Would need to fetch separately
+                                'filing_history': []
+                            }
+                            
+                            result = engine.score(company_data)
+                            eis_score = result.get('score', 0)
+                            logger.info(f"EIS Heuristic Score for {company_name}: {eis_score}/100")
+                            
+                        except Exception as scorer_error:
+                            # Fallback: Simple heuristic based on status and age
+                            logger.warning(f"EIS scorer failed: {scorer_error}, using simple heuristic")
+                            
+                            # Simple scoring: Active companies get base score
+                            if company_status.lower() == 'active':
+                                eis_score = 50  # Base score for active
+                                
+                                # Bonus for tech/eligible sectors
+                                if sic_codes:
+                                    eligible_sics = ['62', '63', '72', '86']  # Tech, software, R&D, healthcare
+                                    if any(sic.startswith(tuple(eligible_sics)) for sic in sic_codes):
+                                        eis_score += 20
+                                
+                                logger.info(f"Fallback EIS Score for {company_name}: {eis_score}/100")
+                            else:
+                                eis_score = 20  # Low score for other statuses
                     
             except Exception as e:
                 logger.warning(f"Could not get company profile: {e}")

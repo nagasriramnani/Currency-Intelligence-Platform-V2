@@ -200,6 +200,41 @@ def calculate_eis_likelihood(full_profile: Dict[str, Any]) -> Dict[str, Any]:
     filings = full_profile.get("filings", {})
     accounts = full_profile.get("accounts", {})  # NEW: Financial data
     
+    # =========================================================================
+    # ZOMBIE COMPANY HARD GATE (Bug Fix #3)
+    # Dissolved/liquidated companies get immediate 0 score - do not calculate
+    # =========================================================================
+    status = company.get("company_status", "").lower()
+    zombie_statuses = ['dissolved', 'liquidation', 'closed', 'struck-off', 'converted-closed', 'receivership', 'administration']
+    
+    if status in zombie_statuses:
+        logger.info(f"ZOMBIE COMPANY HARD GATE: Status is '{status}' - returning 0 score immediately")
+        return {
+            "score": 0,
+            "max_score": 110,
+            "percentage": 0,
+            "status": "Likely Ineligible",
+            "status_description": f"Company is {status} - cannot be eligible for EIS investment",
+            "confidence": "High",
+            "confidence_description": "Companies House status is definitive",
+            "factors": [{
+                "factor": "Company Status",
+                "value": status.title(),
+                "points": 0,
+                "max_points": 110,
+                "rationale": f"Company is {status} - this is an automatic disqualification for EIS",
+                "impact": "negative"
+            }],
+            "flags": [f"⛔ DISQUALIFIED: Company status is '{status}' - legally dead companies cannot receive EIS investment"],
+            "recommendations": ["This company is not eligible for EIS investment - it is no longer active"],
+            "sic_analysis": {"has_exclusions": False, "excluded_codes": [], "positive_codes": [], "all_codes": []},
+            "is_kic": False,
+            "kic_sic_codes": [],
+            "methodology": "Hard gate - dissolved companies are automatically ineligible",
+            "disclaimer": "This is an automatic disqualification. Dissolved companies cannot receive EIS investment.",
+            "assessed_at": datetime.now().isoformat()
+        }
+    
     # Initialize scoring
     score = 0
     max_score = 110  # Updated: includes new Financial Size factor (10 points)

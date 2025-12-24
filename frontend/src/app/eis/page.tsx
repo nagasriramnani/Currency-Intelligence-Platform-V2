@@ -391,7 +391,7 @@ export default function EISDashboard() {
                 const data = await response.json();
                 setAiNewsSummary(data.summary || data.content || 'No news available');
             } else {
-                setAiNewsSummary('AI summary generation not available. The Local AI Newsroom requires the TinyLlama model to be loaded on the backend.');
+                setAiNewsSummary('AI summary generation not available. The Mistral 7B model is required on the backend.');
             }
         } catch (error) {
             setAiNewsSummary('Failed to generate AI summary. Please ensure the backend is running.');
@@ -795,7 +795,7 @@ export default function EISDashboard() {
                                 )}
                             </div>
                             <p className="text-xs text-slate-500 mt-4 text-center">
-                                Powered by Local AI • TinyLlama 1.1B
+                                Powered by Mistral 7B AI Analyst
                             </p>
                         </motion.div>
                     </>
