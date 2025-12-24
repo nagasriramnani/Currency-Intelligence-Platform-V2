@@ -2114,22 +2114,27 @@ async def get_company_news(company_number: str):
         
         if client.is_configured():
             try:
-                profile = client.get_company_profile(company_number)
-                company_name = profile.get('company_name', company_name)
-                sic_codes = profile.get('sic_codes', [])
-                
-                # Get sector name from SIC codes
-                from automation.writer import get_sector_name
-                sector = get_sector_name(sic_codes)
-                
-                # Try to get EIS score if available
-                try:
-                    from core.eis_eligibility_scorer import EISEligibilityScorer
-                    scorer = EISEligibilityScorer()
-                    eis_result = scorer.quick_score({'company': profile})
-                    eis_score = eis_result.get('score', 0)
-                except:
-                    eis_score = 0
+                # Use get_company() method - returns CompanyProfile object
+                profile = client.get_company(company_number)
+                if profile:
+                    company_name = profile.company_name if hasattr(profile, 'company_name') else company_name
+                    sic_codes = profile.sic_codes if hasattr(profile, 'sic_codes') else []
+                    
+                    logger.info(f"Got company profile: {company_name}, SIC: {sic_codes}")
+                    
+                    # Get sector name from SIC codes
+                    from automation.writer import get_sector_name
+                    sector = get_sector_name(sic_codes)
+                    
+                    # Try to get EIS score if available
+                    try:
+                        from core.eis_eligibility_scorer import EISEligibilityScorer
+                        scorer = EISEligibilityScorer()
+                        profile_dict = profile.to_dict() if hasattr(profile, 'to_dict') else {}
+                        eis_result = scorer.quick_score({'company': profile_dict})
+                        eis_score = eis_result.get('score', 0)
+                    except:
+                        eis_score = 0
                     
             except Exception as e:
                 logger.warning(f"Could not get company profile: {e}")
