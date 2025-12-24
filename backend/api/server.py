@@ -2548,7 +2548,7 @@ async def get_automation_status():
     }
 
 
-@app.post("/api/eis/automation/scan")
+@app.get("/api/eis/automation/scan")
 async def run_automation_scan(
     days: int = Query(default=7, ge=1, le=30),
     min_score: int = Query(default=50, ge=0, le=100),
