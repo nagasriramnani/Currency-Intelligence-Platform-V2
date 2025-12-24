@@ -3102,6 +3102,143 @@ async def send_email_now(request: Dict = Body(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# =============================================================================
+# AI Daily News Endpoint for EIS Investment Opportunities
+# =============================================================================
+
+@app.get("/api/eis/daily-news")
+async def get_eis_daily_news(sector: str = "all"):
+    """
+    Get AI-powered daily news for UK EIS investment opportunities.
+    
+    Uses Tavily to search for:
+    - UK startup funding news
+    - EIS/SEIS investment announcements
+    - Sector-specific company news
+    
+    Args:
+        sector: Filter by sector (all, technology, healthcare, cleantech, fintech)
+    
+    Returns:
+        List of news items with EIS relevance scoring
+    """
+    import uuid
+    from datetime import datetime
+    
+    try:
+        news_items = []
+        
+        # Try to use Research Agent for real news
+        try:
+            from services.research_agent import ResearchAgent
+            researcher = ResearchAgent()
+            
+            if researcher.available:
+                # Build sector-specific query
+                sector_queries = {
+                    'all': 'UK startup funding EIS SEIS investment 2024 2025',
+                    'technology': 'UK technology startup funding investment Series A B seed round 2024 2025',
+                    'healthcare': 'UK healthcare biotech medtech startup funding investment 2024 2025',
+                    'cleantech': 'UK cleantech green energy clean technology startup funding investment 2024 2025',
+                    'fintech': 'UK fintech digital banking payments startup funding investment 2024 2025'
+                }
+                
+                query = sector_queries.get(sector.lower(), sector_queries['all'])
+                
+                # Use Tavily to search for news
+                response = researcher.client.search(
+                    query=query,
+                    search_depth="advanced",
+                    max_results=12,
+                    include_answer=True
+                )
+                
+                for i, item in enumerate(response.get('results', [])):
+                    url = item.get('url', '')
+                    title = item.get('title', '')
+                    content = item.get('content', '')
+                    
+                    # Skip low-quality results
+                    if len(content) < 100:
+                        continue
+                    
+                    # Determine EIS relevance
+                    eis_keywords = ['eis', 'seis', 'enterprise investment', 'tax relief', 'venture capital', 
+                                    'series a', 'series b', 'seed', 'funding', 'raised', 'investment']
+                    content_lower = content.lower() + title.lower()
+                    
+                    keyword_count = sum(1 for kw in eis_keywords if kw in content_lower)
+                    
+                    if keyword_count >= 3:
+                        eis_relevance = 'high'
+                    elif keyword_count >= 1:
+                        eis_relevance = 'medium'
+                    else:
+                        eis_relevance = 'low'
+                    
+                    # Extract company mentions (simple approach)
+                    company_mentions = []
+                    if 'Ltd' in content or 'Limited' in content or 'PLC' in content:
+                        # Very simple extraction - in production use NER
+                        words = content.split()
+                        for j, word in enumerate(words):
+                            if word in ['Ltd', 'Limited', 'PLC'] and j > 0:
+                                company_mentions.append(words[j-1] + ' ' + word)
+                    
+                    # Determine sector from content
+                    detected_sector = 'technology'  # default
+                    if any(w in content_lower for w in ['healthcare', 'medtech', 'biotech', 'medical']):
+                        detected_sector = 'healthcare'
+                    elif any(w in content_lower for w in ['cleantech', 'green', 'renewable', 'energy', 'climate']):
+                        detected_sector = 'cleantech'
+                    elif any(w in content_lower for w in ['fintech', 'banking', 'payments', 'financial']):
+                        detected_sector = 'fintech'
+                    
+                    # Extract source domain
+                    try:
+                        from urllib.parse import urlparse
+                        source = urlparse(url).netloc.replace('www.', '')
+                    except:
+                        source = 'Unknown'
+                    
+                    news_items.append({
+                        'id': str(uuid.uuid4()),
+                        'title': title,
+                        'content': content[:500] + '...' if len(content) > 500 else content,
+                        'source': source,
+                        'url': url,
+                        'published_date': item.get('published_date', datetime.now().isoformat()),
+                        'sector': detected_sector,
+                        'eis_relevance': eis_relevance,
+                        'company_mentions': company_mentions[:3]
+                    })
+                
+                logger.info(f"Found {len(news_items)} news items for sector: {sector}")
+                
+        except ImportError:
+            logger.warning("Research Agent not available for daily news")
+        except Exception as e:
+            logger.warning(f"Failed to get news from Tavily: {e}")
+        
+        # Return whatever we found (could be empty, frontend has fallback)
+        return {
+            'success': True,
+            'sector': sector,
+            'news': news_items,
+            'total': len(news_items),
+            'fetched_at': datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Daily news endpoint failed: {e}")
+        return {
+            'success': False,
+            'error': str(e),
+            'news': [],
+            'total': 0
+        }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

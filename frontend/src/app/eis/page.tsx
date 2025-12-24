@@ -35,6 +35,7 @@ import {
     TabsContent,
     cn
 } from '@/components/ui';
+import { EISHeader } from '@/components/EISHeader';
 import {
     Building2,
     TrendingUp,
@@ -444,7 +445,10 @@ export default function EISDashboard() {
                 <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
             </div>
 
-            {/* Header */}
+            {/* Navigation Header */}
+            <EISHeader />
+
+            {/* Sub-Header */}
             <header className="relative border-b border-slate-800/50 backdrop-blur-xl bg-slate-900/30">
                 <div className="max-w-7xl mx-auto px-6 py-6">
                     <div className="flex items-center justify-between">
