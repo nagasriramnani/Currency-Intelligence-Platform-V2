@@ -174,7 +174,7 @@ class ProfessionalNewsletterGenerator:
                                 <td style="padding-right: 10px;">
                                     <span style="background: {self.HEADER_BG}; color: white; padding: 6px 12px; 
                                                  border-radius: 6px; font-weight: 700; font-size: 14px; display: inline-block;">
-                                        {score}/110
+                                        {score}/100
                                     </span>
                                 </td>
                                 <td style="padding-right: 10px;">
@@ -274,7 +274,7 @@ class ProfessionalNewsletterGenerator:
                         </h3>
                         <span style="background: {self.HEADER_BG}; color: white; padding: 4px 10px; 
                                      border-radius: 4px; font-weight: 700; font-size: 13px;">
-                            {score}/110
+                            {score}/100
                         </span>
                     </div>
                     <div style="margin-top: 6px;">
@@ -448,7 +448,7 @@ PORTFOLIO OVERVIEW
 {'-'*50}
 """
         for c in companies[:10]:
-            text += f"{c.get('company_name', 'Unknown')} | {c.get('eis_score', 0)}/110 | {c.get('eis_status', 'Unknown')} | {c.get('sector', 'N/A')}\n"
+            text += f"{c.get('company_name', 'Unknown')} | {c.get('eis_score', 0)}/100 | {c.get('eis_status', 'Unknown')} | {c.get('sector', 'N/A')}\n"
         
         text += f"""
 TOP COMPANY SPOTLIGHT
@@ -456,7 +456,7 @@ TOP COMPANY SPOTLIGHT
 """
         for c in spotlight:
             text += f"""
-{c.get('company_name', 'Unknown')} - {c.get('eis_score', 0)}/110 ({c.get('eis_status', 'Unknown')})
+{c.get('company_name', 'Unknown')} - {c.get('eis_score', 0)}/100 ({c.get('eis_status', 'Unknown')})
 Sector: {c.get('sector', 'N/A')}
 {c.get('news_summary', c.get('narrative', 'No recent updates available.'))}
 """
@@ -472,7 +472,7 @@ AI MARKET INSIGHTS
 ACTION SUMMARY
 {'-'*50}
 This report enables rapid screening and prioritisation of EIS investment candidates.
-Companies scoring above 80/110 with "Likely Eligible" status can proceed to detailed due diligence.
+Companies scoring above 80/100 with "Likely Eligible" status can proceed to detailed due diligence.
 Companies flagged under Risk Watch should undergo manual review or HMRC Advance Assurance.
 
 {'-'*50}
@@ -543,10 +543,8 @@ class EISMailer:
         # Convert old format to new format
         companies = newsletter.get('deal_highlights', [])
         
-        # Normalize scores to /110 scale
-        for c in companies:
-            if c.get('eis_score', 0) <= 100:
-                c['eis_score'] = int(c.get('eis_score', 0) * 1.1)
+        # Keep scores on /100 scale (EIS standard)
+        # No conversion needed - scores are already 0-100
         
         data = {
             'companies': companies,

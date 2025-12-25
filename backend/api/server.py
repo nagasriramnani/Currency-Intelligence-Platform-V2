@@ -3061,15 +3061,14 @@ async def send_email_now(request: Dict = Body(...)):
             ]
         
         # Prepare companies for professional newsletter format
-        # Convert scores to /110 scale and add risk flags
+        # Keep scores on /100 scale (EIS standard)
         formatted_companies = []
         for deal in all_deals:
-            score_100 = deal.get('eis_score', 0)
-            score_110 = int(score_100 * 1.1) if score_100 <= 100 else score_100
+            score = deal.get('eis_score', 0)
             
             # Determine risk flags
             risk_flags = []
-            if score_100 < 50:
+            if score < 50:
                 risk_flags.append("Low EIS score")
             if 'Review' in deal.get('eis_status', ''):
                 risk_flags.append("Requires compliance review")
@@ -3077,7 +3076,7 @@ async def send_email_now(request: Dict = Body(...)):
             formatted_companies.append({
                 'company_name': deal.get('company_name', 'Unknown'),
                 'company_number': deal.get('company_number', ''),
-                'eis_score': score_110,
+                'eis_score': score,  # Keep on /100 scale
                 'eis_status': deal.get('eis_status', 'Unknown'),
                 'sector': deal.get('sector', 'N/A'),
                 'narrative': deal.get('narrative', ''),

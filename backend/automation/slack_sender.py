@@ -97,7 +97,7 @@ class EISSlackSender:
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": f"*{deal.get('company_name', 'Unknown')}*\n{emoji} Score: {score}/110 | {status}\n📊 Accounts: {accounts_type} | {size_text}\n_{deal.get('narrative', '')[:180]}_"
+                        "text": f"*{deal.get('company_name', 'Unknown')}*\n{emoji} Score: {score}/100 | {status}\n📊 Accounts: {accounts_type} | {size_text}\n_{deal.get('narrative', '')[:180]}_"
                     }
                 })
         

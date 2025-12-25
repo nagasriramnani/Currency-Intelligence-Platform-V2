@@ -27,7 +27,7 @@ TASK_PROMPT = """Summarize the following news for {company_name} into exactly 2 
 
 Company Profile:
 - Company: {company_name}
-- EIS Score: {eis_score}/110
+- EIS Score: {eis_score}/100
 - Sector: {sector}
 - Status: {eis_status}
 
@@ -162,7 +162,7 @@ class EditorAgent:
         
         prompt = TASK_PROMPT.format(
             company_name=company_name,
-            eis_score=int(eis_score * 1.1) if eis_score <= 100 else eis_score,
+            eis_score=int(eis_score),  # Score is now /100 scale
             sector=sector,
             eis_status=eis_status,
             raw_results=self.format_raw_results(quality_results)
@@ -230,7 +230,7 @@ class EditorAgent:
             if any(word in content_lower for word in ['funding', 'investment', 'raised', 'million', 'round']):
                 # Extract funding info
                 summary = f"{company_name} has recent investment activity according to market sources. "
-                summary += f"The company operates in the {sector} sector with an EIS likelihood score of {int(eis_score * 1.1)}/110."
+                summary += f"The company operates in the {sector} sector with an EIS likelihood score of {int(eis_score)}/100."
             elif any(word in content_lower for word in ['partnership', 'collaboration', 'deal', 'contract']):
                 summary = f"{company_name} has announced strategic business developments. "
                 summary += f"As a {sector} sector company, it maintains a strong EIS eligibility profile."
