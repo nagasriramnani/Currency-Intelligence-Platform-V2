@@ -3324,6 +3324,177 @@ async def get_eis_daily_news(sector: str = "all"):
         }
 
 
+# =============================================================================
+# COMPANY RESEARCH AGENT API
+# =============================================================================
+
+class ResearchRequest(BaseModel):
+    """Request model for company research."""
+    company_name: str = Field(..., description="Company name to research")
+    company_url: Optional[str] = Field(None, description="Company website URL")
+    company_hq: Optional[str] = Field(None, description="Company headquarters location")
+    company_industry: Optional[str] = Field(None, description="Company industry/sector")
+
+class EmailReportRequest(BaseModel):
+    """Request model for emailing report."""
+    email: str = Field(..., description="Recipient email address")
+    report: Dict = Field(..., description="Research report data")
+
+@app.post("/api/research/company")
+async def research_company_endpoint(request: ResearchRequest):
+    """
+    Conduct in-depth company research using Tavily.
+    
+    Generates 16 queries across 4 categories:
+    - Company (products, history, leadership, business model)
+    - Industry (market position, competitors, trends, size)
+    - Financial (funding, revenue, statements, profit)
+    - News (announcements, press releases, partnerships, latest)
+    """
+    try:
+        from services.company_researcher import CompanyResearcher
+        
+        researcher = CompanyResearcher()
+        
+        if not researcher.is_available():
+            return {
+                "success": False,
+                "error": "Tavily API key not configured. Set TAVILY_API_KEY in backend/.env"
+            }
+        
+        logger.info(f"Starting company research: {request.company_name}")
+        
+        report = await researcher.conduct_research(
+            company_name=request.company_name,
+            company_url=request.company_url,
+            company_hq=request.company_hq,
+            company_industry=request.company_industry
+        )
+        
+        return {
+            "success": True,
+            "report": report
+        }
+        
+    except Exception as e:
+        logger.error(f"Company research failed: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+@app.post("/api/research/pdf")
+async def generate_research_pdf(report: Dict = Body(...)):
+    """
+    Generate PDF from research report using WeasyPrint.
+    
+    Returns PDF as base64-encoded string.
+    """
+    try:
+        from automation.pdf_generator import generate_pdf
+        import base64
+        
+        pdf_bytes = generate_pdf(report)
+        pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
+        
+        company_name = report.get("company_name", "Company")
+        filename = f"{company_name.replace(' ', '_')}_Research_Report.pdf"
+        
+        return {
+            "success": True,
+            "pdf": pdf_base64,
+            "filename": filename,
+            "size": len(pdf_bytes)
+        }
+        
+    except ImportError as e:
+        logger.error(f"WeasyPrint not installed: {e}")
+        return {
+            "success": False,
+            "error": "PDF generation requires WeasyPrint. Install with: pip install weasyprint"
+        }
+    except Exception as e:
+        logger.error(f"PDF generation failed: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+@app.post("/api/research/email")
+async def email_research_report(request: EmailReportRequest):
+    """
+    Email research report to specified address.
+    
+    Sends HTML email with report content and optional PDF attachment.
+    """
+    try:
+        import smtplib
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+        from email.mime.base import MIMEBase
+        from email import encoders
+        from automation.pdf_generator import generate_report_html, generate_pdf
+        
+        # Get Gmail credentials
+        gmail_address = os.environ.get('GMAIL_ADDRESS')
+        gmail_password = os.environ.get('GMAIL_APP_PASSWORD')
+        
+        if not gmail_address or not gmail_password:
+            return {
+                "success": False,
+                "error": "Gmail credentials not configured. Set GMAIL_ADDRESS and GMAIL_APP_PASSWORD in .env"
+            }
+        
+        report = request.report
+        company_name = report.get("company_name", "Company")
+        
+        # Create email
+        msg = MIMEMultipart()
+        msg['From'] = gmail_address
+        msg['To'] = request.email
+        msg['Subject'] = f"{company_name} Research Report - Sapphire Intelligence"
+        
+        # Generate HTML body
+        html_content = generate_report_html(report)
+        msg.attach(MIMEText(html_content, 'html'))
+        
+        # Generate and attach PDF
+        try:
+            pdf_bytes = generate_pdf(report)
+            pdf_attachment = MIMEBase('application', 'pdf')
+            pdf_attachment.set_payload(pdf_bytes)
+            encoders.encode_base64(pdf_attachment)
+            pdf_attachment.add_header(
+                'Content-Disposition',
+                f'attachment; filename="{company_name.replace(" ", "_")}_Research_Report.pdf"'
+            )
+            msg.attach(pdf_attachment)
+        except Exception as pdf_error:
+            logger.warning(f"Could not attach PDF: {pdf_error}")
+        
+        # Send email
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+            server.starttls()
+            server.login(gmail_address, gmail_password)
+            server.send_message(msg)
+        
+        logger.info(f"Research report emailed to: {request.email}")
+        
+        return {
+            "success": True,
+            "message": f"Report sent to {request.email}"
+        }
+        
+    except Exception as e:
+        logger.error(f"Email sending failed: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
