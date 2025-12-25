@@ -3093,6 +3093,58 @@ async def send_email_now(request: Dict = Body(...)):
             'frequency': 'Weekly'
         }
         
+        # =====================================================================
+        # NEW: Fetch Top Sector News using Tavily (like AI Daily News)
+        # =====================================================================
+        sector_news = []
+        if news_enabled and researcher:
+            try:
+                sector_queries = [
+                    ('Technology', 'UK technology startup funding investment Series A 2024 2025'),
+                    ('Healthcare', 'UK healthcare biotech medtech startup funding 2024 2025'),
+                    ('Fintech', 'UK fintech digital banking payments startup investment 2024 2025'),
+                    ('Clean Energy', 'UK cleantech green energy clean technology funding 2024 2025')
+                ]
+                
+                for sector_name, query in sector_queries[:3]:  # Limit to 3 sectors
+                    try:
+                        response = researcher.client.search(
+                            query=query,
+                            search_depth="basic",
+                            max_results=2,
+                            include_answer=False
+                        )
+                        
+                        for item in response.get('results', [])[:1]:  # 1 per sector
+                            title = item.get('title', '')
+                            content = item.get('content', '')[:200]
+                            url = item.get('url', '')
+                            
+                            if title and len(content) > 50:
+                                # Extract source domain
+                                try:
+                                    from urllib.parse import urlparse
+                                    source = urlparse(url).netloc.replace('www.', '')
+                                except:
+                                    source = 'Unknown'
+                                
+                                sector_news.append({
+                                    'sector': sector_name,
+                                    'title': title,
+                                    'content': content + '...' if len(content) == 200 else content,
+                                    'source': source,
+                                    'url': url
+                                })
+                    except Exception as e:
+                        logger.warning(f"Could not get news for {sector_name}: {e}")
+                
+                logger.info(f"Fetched {len(sector_news)} sector news items for newsletter")
+            except Exception as e:
+                logger.warning(f"Could not fetch sector news: {e}")
+        
+        # Add sector news to newsletter data
+        newsletter_data['sector_news'] = sector_news
+        
         if test_mode:
             return {
                 "success": True,

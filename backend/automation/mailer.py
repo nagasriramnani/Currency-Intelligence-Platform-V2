@@ -56,13 +56,14 @@ class ProfessionalNewsletterGenerator:
         Generate complete newsletter with HTML and plain text versions.
         
         Args:
-            data: Newsletter data containing companies, scores, insights
+            data: Newsletter data containing companies, scores, insights, sector_news
             
         Returns:
             Dict with 'subject', 'html', 'plain_text' keys
         """
         companies = data.get('companies', [])
         ai_insights = data.get('ai_insights', [])
+        sector_news = data.get('sector_news', [])  # NEW: Sector news from Tavily
         timestamp = datetime.now().strftime("%d %B %Y, %H:%M UTC")
         date_display = datetime.now().strftime("%d %B %Y")
         
@@ -81,6 +82,7 @@ class ProfessionalNewsletterGenerator:
             spotlight=spotlight,
             risk_companies=risk_companies,
             ai_insights=ai_insights,
+            sector_news=sector_news,  # NEW
             portfolio_count=portfolio_count,
             eligible_count=eligible_count,
             review_count=review_count,
@@ -108,23 +110,137 @@ class ProfessionalNewsletterGenerator:
         }
     
     def _generate_html(self, **kwargs) -> str:
-        """Generate professional HTML email."""
+        """Generate professional HTML email with 3 sections: Portfolio, Sector News, Company News."""
         companies = kwargs['companies']
         spotlight = kwargs['spotlight']
         risk_companies = kwargs['risk_companies']
         ai_insights = kwargs['ai_insights']
+        sector_news = kwargs.get('sector_news', [])  # NEW
         portfolio_count = kwargs['portfolio_count']
         eligible_count = kwargs['eligible_count']
         review_count = kwargs['review_count']
         date_display = kwargs['date_display']
         timestamp = kwargs['timestamp']
         
-        # Build portfolio overview rows
-        portfolio_rows = ""
-        for c in companies[:10]:
+        # =====================================================================
+        # SECTION 1: PORTFOLIO INTRO - Company cards with scores
+        # =====================================================================
+        portfolio_cards = ""
+        for c in companies[:8]:
             status = c.get('eis_status', 'Unknown')
             score = c.get('eis_score', 0)
             
+            if 'Eligible' in status and 'Ineligible' not in status:
+                status_color = self.ELIGIBLE_COLOR
+                badge_bg = "#dcfce7"
+            elif 'Review' in status:
+                status_color = self.REVIEW_COLOR
+                badge_bg = "#fef3c7"
+            else:
+                status_color = self.RISK_COLOR
+                badge_bg = "#fee2e2"
+            
+            # Sector badge color
+            sector = c.get('sector', 'N/A')
+            sector_colors = {
+                'Technology': ('#8b5cf6', '#f3e8ff'),
+                'Healthcare': ('#10b981', '#d1fae5'),
+                'Fintech': ('#3b82f6', '#dbeafe'),
+                'Clean Energy': ('#22c55e', '#dcfce7'),
+                'Financial Services': ('#6366f1', '#e0e7ff'),
+            }
+            sector_text, sector_bg = sector_colors.get(sector, ('#64748b', '#f1f5f9'))
+            
+            portfolio_cards += f"""
+            <div style="background: white; border: 1px solid {self.BORDER_COLOR}; border-radius: 8px; 
+                        padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-weight: 600; color: {self.TEXT_PRIMARY}; font-size: 15px;">
+                        {c.get('company_name', 'Unknown')}
+                    </span>
+                    <span style="background: {badge_bg}; color: {status_color}; padding: 4px 10px; 
+                                 border-radius: 12px; font-size: 11px; font-weight: 600;">
+                        {status}
+                    </span>
+                </div>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <span style="background: {self.HEADER_BG}; color: white; padding: 6px 12px; 
+                                 border-radius: 6px; font-weight: 700; font-size: 14px;">
+                        {score}/110
+                    </span>
+                    <span style="background: {sector_bg}; color: {sector_text}; padding: 4px 10px; 
+                                 border-radius: 12px; font-size: 11px; font-weight: 500;">
+                        {sector}
+                    </span>
+                    <span style="color: {self.TEXT_SECONDARY}; font-size: 12px;">
+                        #{c.get('company_number', 'N/A')}
+                    </span>
+                </div>
+            </div>
+            """
+        
+        if not portfolio_cards:
+            portfolio_cards = f"""
+            <div style="text-align: center; padding: 30px; color: {self.TEXT_SECONDARY};">
+                <p>No companies in your portfolio yet.</p>
+                <p style="font-size: 13px;">Add companies via the EIS Investment Scanner to start tracking.</p>
+            </div>
+            """
+        
+        # =====================================================================
+        # SECTION 2: TOP SECTOR NEWS - EIS-eligible sector news from Tavily
+        # =====================================================================
+        sector_news_html = ""
+        if sector_news:
+            for news in sector_news[:4]:
+                sector = news.get('sector', 'General')
+                sector_text, sector_bg = {
+                    'Technology': ('#8b5cf6', '#f3e8ff'),
+                    'Healthcare': ('#10b981', '#d1fae5'),
+                    'Fintech': ('#3b82f6', '#dbeafe'),
+                    'Clean Energy': ('#22c55e', '#dcfce7'),
+                }.get(sector, ('#64748b', '#f1f5f9'))
+                
+                sector_news_html += f"""
+                <div style="background: {self.SECTION_BG}; border-left: 4px solid {sector_text}; 
+                            padding: 16px; margin-bottom: 12px; border-radius: 0 8px 8px 0;">
+                    <div style="margin-bottom: 8px;">
+                        <span style="background: {sector_bg}; color: {sector_text}; padding: 3px 8px; 
+                                     border-radius: 10px; font-size: 10px; font-weight: 600; text-transform: uppercase;">
+                            {sector}
+                        </span>
+                        <span style="color: {self.TEXT_SECONDARY}; font-size: 11px; margin-left: 8px;">
+                            {news.get('source', 'Unknown')}
+                        </span>
+                    </div>
+                    <h4 style="margin: 0 0 6px 0; color: {self.TEXT_PRIMARY}; font-size: 14px; font-weight: 600; line-height: 1.4;">
+                        {news.get('title', 'No title')}
+                    </h4>
+                    <p style="margin: 0; color: {self.TEXT_SECONDARY}; font-size: 13px; line-height: 1.5;">
+                        {news.get('content', '')[:150]}...
+                    </p>
+                </div>
+                """
+        else:
+            sector_news_html = f"""
+            <div style="background: {self.SECTION_BG}; padding: 20px; border-radius: 8px; text-align: center;">
+                <p style="margin: 0; color: {self.TEXT_SECONDARY}; font-size: 13px;">
+                    Sector news not available. Tavily API may be rate-limited.
+                </p>
+            </div>
+            """
+        
+        # =====================================================================
+        # SECTION 3: COMPANY-SPECIFIC NEWS - AI summaries for each company
+        # =====================================================================
+        company_news_html = ""
+        for c in spotlight[:3]:  # Top 3 companies by score
+            news = c.get('news_summary', c.get('narrative', 'No recent updates available.'))
+            sources = c.get('news_sources', [])
+            sources_text = f"<span style='color: {self.TEXT_SECONDARY}; font-size: 11px;'>Sources: {', '.join(sources[:2])}</span>" if sources else ""
+            
+            score = c.get('eis_score', 0)
+            status = c.get('eis_status', 'Unknown')
             if 'Eligible' in status and 'Ineligible' not in status:
                 status_color = self.ELIGIBLE_COLOR
             elif 'Review' in status:
@@ -132,68 +248,45 @@ class ProfessionalNewsletterGenerator:
             else:
                 status_color = self.RISK_COLOR
             
-            risk_flag = c.get('risk_flags', ['None'])[0] if c.get('risk_flags') else 'None'
-            
-            portfolio_rows += f"""
-            <tr style="border-bottom: 1px solid {self.BORDER_COLOR};">
-                <td style="padding: 12px; font-weight: 500;">{c.get('company_name', 'Unknown')}</td>
-                <td style="padding: 12px; text-align: center;">{score}/110</td>
-                <td style="padding: 12px; color: {status_color}; font-weight: 500;">{status}</td>
-                <td style="padding: 12px; color: {self.TEXT_SECONDARY}; font-size: 13px;">{risk_flag}</td>
-                <td style="padding: 12px; color: {self.TEXT_SECONDARY}; font-size: 13px;">{c.get('sector', 'N/A')}</td>
-            </tr>
-            """
-        
-        # Build spotlight sections
-        spotlight_html = ""
-        for i, c in enumerate(spotlight, 1):
-            news = c.get('news_summary', c.get('narrative', 'No recent updates available.'))
-            sources = c.get('news_sources', [])
-            sources_text = f"<p style='font-size: 12px; color: {self.TEXT_SECONDARY}; margin-top: 10px;'>Sources: {', '.join(sources[:2])}</p>" if sources else ""
-            
-            spotlight_html += f"""
-            <div style="background: {self.SECTION_BG}; border-left: 3px solid {self.ELIGIBLE_COLOR}; 
-                        padding: 20px; margin: 15px 0;">
-                <h4 style="margin: 0 0 8px 0; color: {self.TEXT_PRIMARY};">
-                    {c.get('company_name', 'Unknown')} — {c.get('eis_score', 0)}/110 ({c.get('eis_status', 'Unknown')})
-                </h4>
-                <p style="margin: 0 0 8px 0; font-size: 13px; color: {self.TEXT_SECONDARY};">
-                    Sector: {c.get('sector', 'N/A')}
-                </p>
-                <p style="margin: 0; color: {self.TEXT_PRIMARY}; line-height: 1.6;">
+            company_news_html += f"""
+            <div style="background: white; border: 1px solid {self.BORDER_COLOR}; border-radius: 8px; 
+                        padding: 20px; margin-bottom: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <div style="border-bottom: 1px solid {self.BORDER_COLOR}; padding-bottom: 12px; margin-bottom: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3 style="margin: 0; color: {self.TEXT_PRIMARY}; font-size: 16px; font-weight: 600;">
+                            {c.get('company_name', 'Unknown')}
+                        </h3>
+                        <span style="background: {self.HEADER_BG}; color: white; padding: 4px 10px; 
+                                     border-radius: 4px; font-weight: 700; font-size: 13px;">
+                            {score}/110
+                        </span>
+                    </div>
+                    <div style="margin-top: 6px;">
+                        <span style="color: {status_color}; font-weight: 500; font-size: 13px;">{status}</span>
+                        <span style="color: {self.TEXT_SECONDARY}; font-size: 12px; margin-left: 12px;">
+                            {c.get('sector', 'N/A')}
+                        </span>
+                    </div>
+                </div>
+                <div style="color: {self.TEXT_PRIMARY}; font-size: 14px; line-height: 1.7;">
                     {news}
-                </p>
-                {sources_text}
+                </div>
+                <div style="margin-top: 10px;">
+                    {sources_text}
+                </div>
             </div>
             """
         
-        # Build risk section
-        risk_html = ""
-        for c in risk_companies[:3]:
-            flags = c.get('risk_flags', ['Under review'])
-            risk_html += f"""
-            <div style="background: #fef2f2; border-left: 3px solid {self.RISK_COLOR}; 
-                        padding: 15px; margin: 10px 0;">
-                <strong>{c.get('company_name', 'Unknown')}</strong> — {', '.join(flags)}
-                <br><span style="font-size: 13px; color: {self.TEXT_SECONDARY};">
-                    Recommended: Seek HMRC Advance Assurance before investment
-                </span>
+        if not company_news_html:
+            company_news_html = f"""
+            <div style="text-align: center; padding: 30px; color: {self.TEXT_SECONDARY};">
+                <p>Add companies to your portfolio to receive AI-powered news summaries.</p>
             </div>
             """
-        if not risk_html:
-            risk_html = f"<p style='color: {self.ELIGIBLE_COLOR};'>No companies require immediate attention.</p>"
         
-        # Build AI insights
-        insights_html = ""
-        for insight in ai_insights[:3]:
-            insights_html += f"<li style='margin-bottom: 8px;'>{insight}</li>"
-        if not insights_html:
-            insights_html = """
-            <li style='margin-bottom: 8px;'>EIS qualifying trade requirements remain focused on growth-oriented activities</li>
-            <li style='margin-bottom: 8px;'>Technology and healthcare sectors continue to show strong EIS eligibility patterns</li>
-            <li style='margin-bottom: 8px;'>Recent HMRC guidance emphasizes importance of 7-year trading age threshold</li>
-            """
-        
+        # =====================================================================
+        # BUILD COMPLETE EMAIL
+        # =====================================================================
         return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -204,101 +297,79 @@ class ProfessionalNewsletterGenerator:
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; 
              background-color: #f1f5f9; margin: 0; padding: 20px; color: {self.TEXT_PRIMARY};">
     
-    <div style="max-width: 700px; margin: 0 auto; background: white; border-radius: 4px; 
-                box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+    <div style="max-width: 650px; margin: 0 auto;">
         
         <!-- Header -->
-        <div style="background: {self.HEADER_BG}; padding: 30px; text-align: center;">
-            <h1 style="color: white; margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.5px;">
-                EIS Investment Intelligence Report
+        <div style="background: linear-gradient(135deg, {self.HEADER_BG} 0%, #312e81 100%); 
+                    padding: 35px 30px; text-align: center; border-radius: 12px 12px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">
+                📊 EIS Intelligence Newsletter
             </h1>
-            <p style="color: rgba(255,255,255,0.7); margin: 8px 0 0 0; font-size: 14px;">
-                Prepared for: Portfolio Subscribers | Date: {date_display}
+            <p style="color: rgba(255,255,255,0.8); margin: 10px 0 0 0; font-size: 14px;">
+                Your Weekly Investment Intelligence Briefing
+            </p>
+            <p style="color: rgba(255,255,255,0.6); margin: 5px 0 0 0; font-size: 12px;">
+                {date_display}
             </p>
         </div>
         
-        <!-- Executive Summary -->
-        <div style="padding: 25px; border-bottom: 1px solid {self.BORDER_COLOR};">
-            <h2 style="color: {self.TEXT_PRIMARY}; margin: 0 0 15px 0; font-size: 16px; font-weight: 600;">
-                EXECUTIVE SUMMARY
-            </h2>
-            <ul style="margin: 0; padding-left: 20px; color: {self.TEXT_PRIMARY}; line-height: 1.8;">
-                <li>Portfolio contains <strong>{portfolio_count} companies</strong> under active review</li>
-                <li><strong>{eligible_count} companies</strong> ({int(eligible_count/max(portfolio_count,1)*100)}%) assessed as Likely Eligible for EIS</li>
-                <li><strong>{review_count} companies</strong> flagged for additional compliance review</li>
-                <li>Analysis based on Companies House filings, HMRC EIS criteria, and AI-enhanced screening</li>
-            </ul>
+        <!-- Stats Bar -->
+        <div style="background: white; padding: 20px 30px; display: flex; justify-content: space-around; 
+                    border-bottom: 1px solid {self.BORDER_COLOR};">
+            <div style="text-align: center;">
+                <div style="font-size: 28px; font-weight: 700; color: {self.HEADER_BG};">{portfolio_count}</div>
+                <div style="font-size: 11px; color: {self.TEXT_SECONDARY}; text-transform: uppercase;">Companies</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 28px; font-weight: 700; color: {self.ELIGIBLE_COLOR};">{eligible_count}</div>
+                <div style="font-size: 11px; color: {self.TEXT_SECONDARY}; text-transform: uppercase;">Eligible</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 28px; font-weight: 700; color: {self.REVIEW_COLOR};">{review_count}</div>
+                <div style="font-size: 11px; color: {self.TEXT_SECONDARY}; text-transform: uppercase;">Review</div>
+            </div>
         </div>
         
-        <!-- Portfolio Overview -->
-        <div style="padding: 25px; border-bottom: 1px solid {self.BORDER_COLOR};">
-            <h2 style="color: {self.TEXT_PRIMARY}; margin: 0 0 15px 0; font-size: 16px; font-weight: 600;">
-                PORTFOLIO OVERVIEW
+        <!-- SECTION 1: Your Portfolio -->
+        <div style="background: white; padding: 25px 30px; border-bottom: 1px solid {self.BORDER_COLOR};">
+            <h2 style="color: {self.TEXT_PRIMARY}; margin: 0 0 20px 0; font-size: 18px; font-weight: 600;">
+                🏢 Your EIS Portfolio
             </h2>
-            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-                <thead>
-                    <tr style="background: {self.SECTION_BG}; border-bottom: 2px solid {self.BORDER_COLOR};">
-                        <th style="padding: 12px; text-align: left; font-weight: 600;">Company</th>
-                        <th style="padding: 12px; text-align: center; font-weight: 600;">Score</th>
-                        <th style="padding: 12px; text-align: left; font-weight: 600;">Status</th>
-                        <th style="padding: 12px; text-align: left; font-weight: 600;">Risk Flag</th>
-                        <th style="padding: 12px; text-align: left; font-weight: 600;">Sector</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {portfolio_rows if portfolio_rows else '<tr><td colspan="5" style="padding: 20px; text-align: center; color: #64748b;">No companies in portfolio</td></tr>'}
-                </tbody>
-            </table>
+            {portfolio_cards}
         </div>
         
-        <!-- Top Company Spotlight -->
-        <div style="padding: 25px; border-bottom: 1px solid {self.BORDER_COLOR};">
-            <h2 style="color: {self.TEXT_PRIMARY}; margin: 0 0 15px 0; font-size: 16px; font-weight: 600;">
-                TOP COMPANY SPOTLIGHT
+        <!-- SECTION 2: Top Sector News -->
+        <div style="background: white; padding: 25px 30px; border-bottom: 1px solid {self.BORDER_COLOR};">
+            <h2 style="color: {self.TEXT_PRIMARY}; margin: 0 0 20px 0; font-size: 18px; font-weight: 600;">
+                📰 UK EIS Sector Intelligence
             </h2>
-            {spotlight_html if spotlight_html else f"<p style='color: {self.TEXT_SECONDARY};'>Add companies to portfolio to see spotlight analysis.</p>"}
-        </div>
-        
-        <!-- Risk & Compliance Watch -->
-        <div style="padding: 25px; border-bottom: 1px solid {self.BORDER_COLOR};">
-            <h2 style="color: {self.TEXT_PRIMARY}; margin: 0 0 15px 0; font-size: 16px; font-weight: 600;">
-                RISK AND COMPLIANCE WATCH
-            </h2>
-            {risk_html}
-        </div>
-        
-        <!-- AI Insights -->
-        <div style="padding: 25px; border-bottom: 1px solid {self.BORDER_COLOR};">
-            <h2 style="color: {self.TEXT_PRIMARY}; margin: 0 0 15px 0; font-size: 16px; font-weight: 600;">
-                AI MARKET INSIGHTS
-            </h2>
-            <ul style="margin: 0; padding-left: 20px; color: {self.TEXT_PRIMARY}; line-height: 1.8;">
-                {insights_html}
-            </ul>
-        </div>
-        
-        <!-- Action Summary -->
-        <div style="padding: 25px; border-bottom: 1px solid {self.BORDER_COLOR};">
-            <h2 style="color: {self.TEXT_PRIMARY}; margin: 0 0 15px 0; font-size: 16px; font-weight: 600;">
-                ACTION SUMMARY
-            </h2>
-            <p style="margin: 0; color: {self.TEXT_PRIMARY}; line-height: 1.7;">
-                This report enables rapid screening and prioritisation of EIS investment candidates. 
-                Companies scoring above 80/110 with "Likely Eligible" status can proceed to detailed due diligence. 
-                Companies flagged under Risk Watch should undergo manual review or HMRC Advance Assurance before commitment.
+            <p style="color: {self.TEXT_SECONDARY}; font-size: 13px; margin: 0 0 15px 0;">
+                Latest funding news from EIS-eligible sectors
             </p>
+            {sector_news_html}
+        </div>
+        
+        <!-- SECTION 3: Portfolio Company News -->
+        <div style="background: white; padding: 25px 30px; border-bottom: 1px solid {self.BORDER_COLOR};">
+            <h2 style="color: {self.TEXT_PRIMARY}; margin: 0 0 20px 0; font-size: 18px; font-weight: 600;">
+                🤖 AI News Summaries
+            </h2>
+            <p style="color: {self.TEXT_SECONDARY}; font-size: 13px; margin: 0 0 15px 0;">
+                AI-generated news for your top portfolio companies
+            </p>
+            {company_news_html}
         </div>
         
         <!-- Footer -->
-        <div style="padding: 25px; background: {self.SECTION_BG}; font-size: 12px; color: {self.TEXT_SECONDARY};">
-            <p style="margin: 0 0 8px 0;">
-                <strong>Data Sources:</strong> Companies House, HMRC EIS Guidance, Extracted Statutory Filings, AI-Assisted Analysis (Tavily + HuggingFace)
+        <div style="background: {self.SECTION_BG}; padding: 25px 30px; border-radius: 0 0 12px 12px;">
+            <p style="margin: 0 0 8px 0; font-size: 12px; color: {self.TEXT_SECONDARY};">
+                <strong>Data Sources:</strong> Companies House, HMRC EIS Guidance, Tavily AI, HuggingFace
             </p>
-            <p style="margin: 0 0 8px 0;">
-                <strong>Generated by:</strong> EIS Investment Scanner — Sapphire Intelligence Platform
+            <p style="margin: 0 0 8px 0; font-size: 12px; color: {self.TEXT_SECONDARY};">
+                <strong>Generated:</strong> {timestamp} by Sapphire Intelligence Platform
             </p>
-            <p style="margin: 0;">
-                <strong>Timestamp:</strong> {timestamp}
+            <p style="margin: 0; font-size: 11px; color: {self.TEXT_SECONDARY};">
+                This newsletter provides indicative EIS assessments only. Consult HMRC for official eligibility.
             </p>
         </div>
         
