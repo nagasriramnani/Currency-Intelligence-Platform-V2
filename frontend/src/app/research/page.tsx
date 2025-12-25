@@ -8,7 +8,6 @@ import {
     Globe,
     MapPin,
     Briefcase,
-    FileText,
     Download,
     Mail,
     CheckCircle2,
@@ -21,11 +20,10 @@ import {
     TrendingUp,
     DollarSign,
     Newspaper,
-    Home,
     ArrowRight,
     AlertCircle
 } from 'lucide-react';
-import Link from 'next/link';
+import { EISHeader } from '@/components/EISHeader';
 
 // === CONSTANTS ===
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -248,26 +246,9 @@ export default function ResearchAgentPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
-            {/* Navigation */}
-            <nav className="fixed top-0 left-0 right-0 z-50 bg-slate-900/80 backdrop-blur-lg border-b border-white/10">
-                <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
-                            <Sparkles className="w-5 h-5 text-white" />
-                        </div>
-                        <span className="text-xl font-bold">Company Research Agent</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <Link href="/" className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition">
-                            <Home className="w-5 h-5" />
-                        </Link>
-                        <Link href="/eis" className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition">
-                            <Building2 className="w-5 h-5" />
-                        </Link>
-                    </div>
-                </div>
-            </nav>
+        <div className="min-h-screen bg-gradient-to-br from-sapphire-900 via-sapphire-800 to-sapphire-900 text-white">
+            {/* Sapphire Intelligence Header */}
+            <EISHeader />
 
             {/* Main Content */}
             <main className="pt-24 pb-12 px-6">
