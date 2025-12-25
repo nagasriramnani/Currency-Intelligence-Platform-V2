@@ -27,6 +27,7 @@ supabase>=2.3.0
 # PDF Reports & Parsing
 reportlab>=4.0.0
 pdfplumber>=0.11.0
+weasyprint>=60.0
 
 # Testing
 pytest>=7.4.0
