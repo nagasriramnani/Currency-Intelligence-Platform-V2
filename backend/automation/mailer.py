@@ -152,31 +152,47 @@ class ProfessionalNewsletterGenerator:
             sector_text, sector_bg = sector_colors.get(sector, ('#64748b', '#f1f5f9'))
             
             portfolio_cards += f"""
-            <div style="background: white; border: 1px solid {self.BORDER_COLOR}; border-radius: 8px; 
-                        padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <span style="font-weight: 600; color: {self.TEXT_PRIMARY}; font-size: 15px;">
-                        {c.get('company_name', 'Unknown')}
-                    </span>
-                    <span style="background: {badge_bg}; color: {status_color}; padding: 4px 10px; 
-                                 border-radius: 12px; font-size: 11px; font-weight: 600;">
-                        {status}
-                    </span>
-                </div>
-                <div style="display: flex; gap: 12px; align-items: center;">
-                    <span style="background: {self.HEADER_BG}; color: white; padding: 6px 12px; 
-                                 border-radius: 6px; font-weight: 700; font-size: 14px;">
-                        {score}/110
-                    </span>
-                    <span style="background: {sector_bg}; color: {sector_text}; padding: 4px 10px; 
-                                 border-radius: 12px; font-size: 11px; font-weight: 500;">
-                        {sector}
-                    </span>
-                    <span style="color: {self.TEXT_SECONDARY}; font-size: 12px;">
-                        #{c.get('company_number', 'N/A')}
-                    </span>
-                </div>
-            </div>
+            <table cellpadding="0" cellspacing="0" border="0" width="100%" 
+                   style="background: white; border: 1px solid {self.BORDER_COLOR}; border-radius: 8px; margin-bottom: 12px;">
+                <tr>
+                    <td style="padding: 16px;">
+                        <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                            <tr>
+                                <td style="font-weight: 600; color: {self.TEXT_PRIMARY}; font-size: 15px;">
+                                    {c.get('company_name', 'Unknown')}
+                                </td>
+                                <td style="text-align: right;">
+                                    <span style="background: {badge_bg}; color: {status_color}; padding: 4px 10px; 
+                                                 border-radius: 12px; font-size: 11px; font-weight: 600;">
+                                        {status}
+                                    </span>
+                                </td>
+                            </tr>
+                        </table>
+                        <table cellpadding="0" cellspacing="0" border="0" style="margin-top: 10px;">
+                            <tr>
+                                <td style="padding-right: 10px;">
+                                    <span style="background: {self.HEADER_BG}; color: white; padding: 6px 12px; 
+                                                 border-radius: 6px; font-weight: 700; font-size: 14px; display: inline-block;">
+                                        {score}/110
+                                    </span>
+                                </td>
+                                <td style="padding-right: 10px;">
+                                    <span style="background: {sector_bg}; color: {sector_text}; padding: 4px 10px; 
+                                                 border-radius: 12px; font-size: 11px; font-weight: 500; display: inline-block;">
+                                        {sector}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span style="color: {self.TEXT_SECONDARY}; font-size: 12px;">
+                                        #{c.get('company_number', 'N/A')}
+                                    </span>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
             """
         
         if not portfolio_cards:
@@ -285,7 +301,7 @@ class ProfessionalNewsletterGenerator:
             """
         
         # =====================================================================
-        # BUILD COMPLETE EMAIL
+        # BUILD COMPLETE EMAIL - Using TABLE layout for email compatibility
         # =====================================================================
         return f"""<!DOCTYPE html>
 <html>
@@ -297,83 +313,110 @@ class ProfessionalNewsletterGenerator:
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; 
              background-color: #f1f5f9; margin: 0; padding: 20px; color: {self.TEXT_PRIMARY};">
     
-    <div style="max-width: 650px; margin: 0 auto;">
-        
-        <!-- Header -->
-        <div style="background: linear-gradient(135deg, {self.HEADER_BG} 0%, #312e81 100%); 
-                    padding: 35px 30px; text-align: center; border-radius: 12px 12px 0 0;">
-            <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">
-                📊 EIS Intelligence Newsletter
-            </h1>
-            <p style="color: rgba(255,255,255,0.8); margin: 10px 0 0 0; font-size: 14px;">
-                Your Weekly Investment Intelligence Briefing
-            </p>
-            <p style="color: rgba(255,255,255,0.6); margin: 5px 0 0 0; font-size: 12px;">
-                {date_display}
-            </p>
-        </div>
-        
-        <!-- Stats Bar -->
-        <div style="background: white; padding: 20px 30px; display: flex; justify-content: space-around; 
-                    border-bottom: 1px solid {self.BORDER_COLOR};">
-            <div style="text-align: center;">
-                <div style="font-size: 28px; font-weight: 700; color: {self.HEADER_BG};">{portfolio_count}</div>
-                <div style="font-size: 11px; color: {self.TEXT_SECONDARY}; text-transform: uppercase;">Companies</div>
-            </div>
-            <div style="text-align: center;">
-                <div style="font-size: 28px; font-weight: 700; color: {self.ELIGIBLE_COLOR};">{eligible_count}</div>
-                <div style="font-size: 11px; color: {self.TEXT_SECONDARY}; text-transform: uppercase;">Eligible</div>
-            </div>
-            <div style="text-align: center;">
-                <div style="font-size: 28px; font-weight: 700; color: {self.REVIEW_COLOR};">{review_count}</div>
-                <div style="font-size: 11px; color: {self.TEXT_SECONDARY}; text-transform: uppercase;">Review</div>
-            </div>
-        </div>
-        
-        <!-- SECTION 1: Your Portfolio -->
-        <div style="background: white; padding: 25px 30px; border-bottom: 1px solid {self.BORDER_COLOR};">
-            <h2 style="color: {self.TEXT_PRIMARY}; margin: 0 0 20px 0; font-size: 18px; font-weight: 600;">
-                🏢 Your EIS Portfolio
-            </h2>
-            {portfolio_cards}
-        </div>
-        
-        <!-- SECTION 2: Top Sector News -->
-        <div style="background: white; padding: 25px 30px; border-bottom: 1px solid {self.BORDER_COLOR};">
-            <h2 style="color: {self.TEXT_PRIMARY}; margin: 0 0 20px 0; font-size: 18px; font-weight: 600;">
-                📰 UK EIS Sector Intelligence
-            </h2>
-            <p style="color: {self.TEXT_SECONDARY}; font-size: 13px; margin: 0 0 15px 0;">
-                Latest funding news from EIS-eligible sectors
-            </p>
-            {sector_news_html}
-        </div>
-        
-        <!-- SECTION 3: Portfolio Company News -->
-        <div style="background: white; padding: 25px 30px; border-bottom: 1px solid {self.BORDER_COLOR};">
-            <h2 style="color: {self.TEXT_PRIMARY}; margin: 0 0 20px 0; font-size: 18px; font-weight: 600;">
-                🤖 AI News Summaries
-            </h2>
-            <p style="color: {self.TEXT_SECONDARY}; font-size: 13px; margin: 0 0 15px 0;">
-                AI-generated news for your top portfolio companies
-            </p>
-            {company_news_html}
-        </div>
-        
-        <!-- Footer -->
-        <div style="background: {self.SECTION_BG}; padding: 25px 30px; border-radius: 0 0 12px 12px;">
-            <p style="margin: 0 0 8px 0; font-size: 12px; color: {self.TEXT_SECONDARY};">
-                <strong>Data Sources:</strong> Companies House, HMRC EIS Guidance, Tavily AI, HuggingFace
-            </p>
-            <p style="margin: 0 0 8px 0; font-size: 12px; color: {self.TEXT_SECONDARY};">
-                <strong>Generated:</strong> {timestamp} by Sapphire Intelligence Platform
-            </p>
-            <p style="margin: 0; font-size: 11px; color: {self.TEXT_SECONDARY};">
-                This newsletter provides indicative EIS assessments only. Consult HMRC for official eligibility.
-            </p>
-        </div>
-        
-    </div>
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width: 600px; margin: 0 auto;">
+        <tr>
+            <td>
+                <!-- Header -->
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" 
+                       style="background: linear-gradient(135deg, {self.HEADER_BG} 0%, #4f46e5 100%); 
+                              border-radius: 12px 12px 0 0;">
+                    <tr>
+                        <td style="padding: 40px 30px; text-align: center;">
+                            <h1 style="color: white; margin: 0; font-size: 26px; font-weight: 700;">
+                                EIS Intelligence Newsletter
+                            </h1>
+                            <p style="color: rgba(255,255,255,0.85); margin: 12px 0 0 0; font-size: 15px;">
+                                Your Weekly Investment Intelligence Briefing
+                            </p>
+                            <p style="color: rgba(255,255,255,0.6); margin: 8px 0 0 0; font-size: 13px;">
+                                {date_display}
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+                
+                <!-- Stats Bar -->
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" 
+                       style="background: white; border-bottom: 2px solid {self.BORDER_COLOR};">
+                    <tr>
+                        <td width="33%" style="padding: 25px 15px; text-align: center; border-right: 1px solid {self.BORDER_COLOR};">
+                            <div style="font-size: 32px; font-weight: 800; color: {self.HEADER_BG}; line-height: 1;">{portfolio_count}</div>
+                            <div style="font-size: 11px; color: {self.TEXT_SECONDARY}; text-transform: uppercase; letter-spacing: 1px; margin-top: 6px;">COMPANIES</div>
+                        </td>
+                        <td width="34%" style="padding: 25px 15px; text-align: center; border-right: 1px solid {self.BORDER_COLOR};">
+                            <div style="font-size: 32px; font-weight: 800; color: {self.ELIGIBLE_COLOR}; line-height: 1;">{eligible_count}</div>
+                            <div style="font-size: 11px; color: {self.TEXT_SECONDARY}; text-transform: uppercase; letter-spacing: 1px; margin-top: 6px;">ELIGIBLE</div>
+                        </td>
+                        <td width="33%" style="padding: 25px 15px; text-align: center;">
+                            <div style="font-size: 32px; font-weight: 800; color: {self.REVIEW_COLOR}; line-height: 1;">{review_count}</div>
+                            <div style="font-size: 11px; color: {self.TEXT_SECONDARY}; text-transform: uppercase; letter-spacing: 1px; margin-top: 6px;">REVIEW</div>
+                        </td>
+                    </tr>
+                </table>
+                
+                <!-- SECTION 1: Your Portfolio -->
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background: white;">
+                    <tr>
+                        <td style="padding: 30px;">
+                            <h2 style="color: {self.HEADER_BG}; margin: 0 0 20px 0; font-size: 20px; font-weight: 700; border-bottom: 2px solid {self.HEADER_BG}; padding-bottom: 10px;">
+                                Your EIS Portfolio
+                            </h2>
+                            {portfolio_cards}
+                        </td>
+                    </tr>
+                </table>
+                
+                <!-- SECTION 2: Top Sector News -->
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background: #f8fafc;">
+                    <tr>
+                        <td style="padding: 30px;">
+                            <h2 style="color: {self.HEADER_BG}; margin: 0 0 8px 0; font-size: 20px; font-weight: 700;">
+                                UK EIS Sector Intelligence
+                            </h2>
+                            <p style="color: {self.TEXT_SECONDARY}; font-size: 13px; margin: 0 0 20px 0;">
+                                Latest funding news from EIS-eligible sectors
+                            </p>
+                            {sector_news_html}
+                        </td>
+                    </tr>
+                </table>
+                
+                <!-- SECTION 3: Portfolio Company News -->
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background: white;">
+                    <tr>
+                        <td style="padding: 30px;">
+                            <h2 style="color: {self.HEADER_BG}; margin: 0 0 8px 0; font-size: 20px; font-weight: 700;">
+                                AI News Summaries
+                            </h2>
+                            <p style="color: {self.TEXT_SECONDARY}; font-size: 13px; margin: 0 0 20px 0;">
+                                AI-generated news for your top portfolio companies
+                            </p>
+                            {company_news_html}
+                        </td>
+                    </tr>
+                </table>
+                
+                <!-- Footer -->
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" 
+                       style="background: {self.HEADER_BG}; border-radius: 0 0 12px 12px;">
+                    <tr>
+                        <td style="padding: 25px 30px;">
+                            <p style="margin: 0 0 8px 0; font-size: 12px; color: rgba(255,255,255,0.7);">
+                                <strong style="color: white;">Data Sources:</strong> Companies House, HMRC EIS Guidance, Tavily AI, HuggingFace
+                            </p>
+                            <p style="margin: 0 0 8px 0; font-size: 12px; color: rgba(255,255,255,0.7);">
+                                <strong style="color: white;">Generated:</strong> {timestamp}
+                            </p>
+                            <p style="margin: 0; font-size: 11px; color: rgba(255,255,255,0.5);">
+                                This newsletter provides indicative EIS assessments only. Consult HMRC for official eligibility.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+                
+            </td>
+        </tr>
+    </table>
 </body>
 </html>"""
     
