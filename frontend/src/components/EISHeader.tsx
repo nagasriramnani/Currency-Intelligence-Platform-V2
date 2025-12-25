@@ -82,6 +82,24 @@ export function EISHeader() {
 
                 {/* Actions */}
                 <div className="flex items-center gap-3">
+                    {/* Company Research Agent Button */}
+                    <Link href="/research">
+                        <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            className={cn(
+                                'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300',
+                                pathname === '/research'
+                                    ? 'bg-gradient-to-r from-indigo-600 to-violet-500 text-white shadow-lg shadow-indigo-500/30'
+                                    : 'bg-gradient-to-r from-indigo-600/80 to-violet-500/80 text-white hover:from-indigo-500 hover:to-violet-400 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40'
+                            )}
+                        >
+                            <Newspaper className="h-4 w-4" />
+                            <span className="hidden sm:inline">Research Agent</span>
+                            <span className="sm:hidden">Research</span>
+                        </motion.button>
+                    </Link>
+
                     {/* AI Daily News Button */}
                     <Link href="/eis/news">
                         <motion.button
