@@ -189,43 +189,24 @@ export default function EISDashboard() {
         return myPortfolio.has(companyNumber) || portfolioCompanies.some(c => c.company_number === companyNumber);
     };
 
-    // Load portfolio on mount
+    // Load portfolio on mount - NO automatic loading of scan history
+    // Users must manually add companies to portfolio
     useEffect(() => {
-        loadPortfolio();
+        // Start with empty portfolio - no demo companies
+        setPortfolioLoading(false);
+        setPortfolioCompanies([]);
+        setPortfolioStats({
+            likelyEligible: 0,
+            reviewRequired: 0,
+            avgScore: 0,
+            total: 0
+        });
     }, []);
 
     const loadPortfolio = async () => {
-        setPortfolioLoading(true);
-        try {
-            const response = await fetch(
-                `${API_BASE}/api/eis/automation/scan?days=30&min_score=50&limit=50`
-            );
-            const data = await response.json();
-            const companies = data.companies || [];
-            setPortfolioCompanies(companies);
-
-            // Calculate stats
-            const eligible = companies.filter((c: any) =>
-                c.eis_assessment?.status?.includes('Eligible')
-            ).length;
-            const review = companies.filter((c: any) =>
-                c.eis_assessment?.status?.includes('Review')
-            ).length;
-            const avgScore = companies.length > 0
-                ? companies.reduce((sum: number, c: any) => sum + (c.eis_assessment?.score || 0), 0) / companies.length
-                : 0;
-
-            setPortfolioStats({
-                likelyEligible: eligible,
-                reviewRequired: review,
-                avgScore: Math.round(avgScore),
-                total: companies.length
-            });
-        } catch (error) {
-            console.error('Failed to load portfolio:', error);
-        } finally {
-            setPortfolioLoading(false);
-        }
+        // This function is now only called when user adds companies
+        // Not automatically loading scan results as portfolio
+        setPortfolioLoading(false);
     };
 
     // Search companies
