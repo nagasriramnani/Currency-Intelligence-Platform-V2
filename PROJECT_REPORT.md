@@ -9,8 +9,31 @@ The **Sapphire Intelligence Platform** is a dual-purpose enterprise analytics sy
 
 1. **Currency Intelligence** - FX monitoring, ML forecasting, and risk analytics for USD pairs
 2. **EIS Investment Scanner** - UK Companies House integration for Enterprise Investment Scheme eligibility screening
+3. **Company Research Agent** - Tavily-powered deep research with PDF export and email delivery
 
-**Project Status:** Production-ready with ongoing enhancements
+**Project Status:** Production-ready  
+**Latest Update:** December 26, 2024
+
+---
+
+## Key Highlights for Interview
+
+### 🎯 What I Built
+
+| Component | Tech Stack | Key Achievement |
+|-----------|------------|-----------------|
+| **Currency Dashboard** | Next.js 14 + Recharts | Real-time FX with ML forecasting |
+| **EIS Scanner** | FastAPI + Companies House API | 0-100 EIS eligibility scoring |
+| **Research Agent** | Tavily + WeasyPrint | Automated company research with PDF |
+| **AI Newsletter** | Tavily + HuggingFace | Smart email with company intelligence |
+
+### 🔧 Technical Skills Demonstrated
+
+- **Full-Stack Development**: React/Next.js frontend + Python FastAPI backend
+- **ML/AI Integration**: XGBoost forecasting, Prophet time series, HuggingFace LLM
+- **API Integration**: 5+ external APIs (Treasury, Companies House, Tavily, HuggingFace, Gmail)
+- **Data Engineering**: Pandas, time series analysis, risk calculations (VaR, CVaR)
+- **DevOps**: Environment management, .env configuration, deployment scripts
 
 ---
 
@@ -20,9 +43,8 @@ The **Sapphire Intelligence Platform** is a dual-purpose enterprise analytics sy
 graph TD
     subgraph Frontend["Next.js 14 Dashboard"]
         Dashboard[Currency Dashboard]
-        Analysis[Analysis Page]
-        Risk[Risk Page]
         EIS[EIS Investment Scanner]
+        Research[Company Research Agent]
         Settings[Settings]
     end
 
@@ -31,9 +53,10 @@ graph TD
         Analytics[FX Analytics Engine]
         EISEngine[EIS Heuristics Engine]
         ML[ML Models - XGBoost/Prophet]
-        Research[Research Agent - Tavily]
+        ResearchAgent[Research Agent - Tavily]
         Editor[Editor Agent - HuggingFace]
         Newsletter[Newsletter Generator]
+        PDF[PDF Generator - WeasyPrint]
     end
 
     subgraph External["External APIs"]
@@ -48,9 +71,10 @@ graph TD
     Frontend --> API
     Analytics --> Treasury
     EISEngine --> CompaniesHouse
-    Research --> Tavily
+    ResearchAgent --> Tavily
     Editor --> HuggingFace
     Newsletter --> Gmail
+    PDF --> Newsletter
     API --> Slack
 ```
 
@@ -68,14 +92,11 @@ graph TD
 | **Alerting** | Slack webhooks for significant market movements |
 
 ### Currencies Tracked
-- USD/EUR
-- USD/GBP
-- USD/CAD
+- USD/EUR, USD/GBP, USD/CAD
 
 ### Tech Stack
 - **Frontend**: Next.js 14, TypeScript, Tailwind CSS, Recharts
 - **Backend**: Python, FastAPI, Pandas, XGBoost, Prophet
-- **Data**: US Treasury Fiscal Data API
 
 ---
 
@@ -89,10 +110,10 @@ Screen UK companies for Enterprise Investment Scheme (EIS) eligibility using Com
 |---------|-------------|
 | **Company Search** | Search UK companies by name or registration number |
 | **EIS Scoring** | 0-100 heuristic scoring based on HMRC EIS criteria |
-| **Risk Flags** | Automatic detection of dissolved companies, insolvency, excluded sectors |
+| **Smart Eligibility** | Automatic "Likely Not Eligible" when age score = 0 or score < 50 |
 | **AI Newsroom** | Tavily-powered news with HuggingFace AI summaries |
 | **Portfolio Management** | Save and track companies for due diligence |
-| **Newsletter** | Professional HTML email with portfolio updates and sector news |
+| **Newsletter** | Professional HTML email with AI company intelligence |
 
 ### EIS Scoring Criteria (0-100)
 | Factor | Points |
@@ -104,48 +125,90 @@ Screen UK companies for Enterprise Investment Scheme (EIS) eligibility using Com
 | No Excluded Trades | +15 |
 | R&D/Knowledge Intensive | +15 |
 
-### External APIs
-| API | Purpose |
-|-----|---------|
-| **Companies House** | Company profiles, filings, PSCs, charges |
-| **Tavily** | Real-time news search |
-| **HuggingFace** | Mistral 7B for news summarization |
-| **Gmail SMTP** | Newsletter email delivery |
+### Smart Eligibility Warning
+```
+When Company Age Score = 0/20 OR EIS Score < 50:
+  Badge shows: "Likely Not Eligible" (RED)
+  
+Otherwise:
+  Badge shows: "Likely Eligible" (GREEN)
+```
 
 ---
 
-## Recent Work Completed
+## Module 3: Company Research Agent (NEW)
 
-### Critical Bug Fixes (December 2024)
-| Bug | Issue | Solution |
-|-----|-------|----------|
-| **Model Identity** | Frontend showed "TinyLlama 1.1B" instead of "Mistral 7B" | Updated frontend text |
-| **Score Disconnect** | EIS scores not passing to Editor Agent | Fixed silent exception, added fallback |
-| **Zombie Companies** | Dissolved companies getting positive scores | Added hard gate for dissolved/liquidated status |
+### Purpose
+Deep-dive company research using Tavily AI search, with PDF export and email delivery.
 
-### Newsletter Redesign
-| Before | After |
-|--------|-------|
-| Basic text email | Professional HTML with 3 sections |
-| No sector news | Tavily-powered sector intelligence |
-| Flexbox layout (broken in email) | Table-based email-safe layout |
+### Features
+| Feature | Description |
+|---------|-------------|
+| **Multi-Query Research** | 16 parallel Tavily queries across 4 categories |
+| **Structured Report** | Company Overview, Industry, Financial, News sections |
+| **PDF Generation** | Professional WeasyPrint PDF with styling |
+| **Email Delivery** | Gmail SMTP with PDF attachment |
+| **Example Companies** | Quick-fill demos (Spotify, Revolut, Stripe, Notion) |
 
-### Newsletter Sections
-1. **Your EIS Portfolio** - Company cards with scores, status badges, sector tags
-2. **UK EIS Sector Intelligence** - Technology, Healthcare, Fintech, Clean Energy news
-3. **AI News Summaries** - Company-specific news from Tavily + HuggingFace
+### Research Categories
+1. **Company Overview** - funding, valuation, team, headquarters
+2. **Industry Overview** - market size, trends, competitive landscape
+3. **Financial Overview** - revenue, growth, profitability
+4. **Recent News** - latest announcements, press coverage
 
-### Scoring System Update
-| Before | After |
-|--------|-------|
-| Scores displayed as X/110 | Scores displayed as X/100 |
-| 1.1 multiplier inflation | No artificial inflation |
-| Non-standard percentage | Standard EIS percentage |
+### API Endpoints
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/research/company` | POST | Trigger Tavily research |
+| `/api/research/pdf` | POST | Generate PDF from report |
+| `/api/research/email` | POST | Email report with PDF attachment |
 
-### Demo Data Removal
-- Removed automatic loading of scan history as portfolio
-- Portfolio now starts completely empty
-- Users must manually add companies
+---
+
+## Module 4: AI Newsletter System
+
+### Newsletter Structure
+| Section | Content |
+|---------|---------|
+| **Portfolio Summary** | Companies reviewed, eligible, review required, ineligible |
+| **Top Changes** | Top 3 companies with score, signals, recommendations |
+| **🤖 AI Company Intelligence** | Tavily-researched news per company |
+| **Watchlist** | Companies needing manual review |
+| **Full Portfolio** | Compact table with all companies |
+| **Data Sources** | Companies House, Tavily, HuggingFace |
+| **Next Scheduled Run** | Based on frequency (weekly/monthly/yearly) |
+
+### Frequency Support
+| Frequency | Next Run |
+|-----------|----------|
+| Weekly | Monday 08:00 |
+| Monthly | 1st of month 08:00 |
+| Yearly | 1st Jan 08:00 |
+| Now | On-demand (manual) |
+
+---
+
+## Recent Work Completed (December 2024)
+
+### Major Features Delivered
+
+| Feature | Description |
+|---------|-------------|
+| **Company Research Agent** | Full Tavily-powered research with PDF + email |
+| **AI Company Intelligence** | Tavily news in newsletter per company |
+| **Smart Eligibility Badge** | Auto-detects ineligible companies |
+| **Newsletter Redesign** | Professional HTML with 7 sections |
+| **Score Fix** | Changed from /110 to /100 scale |
+
+### Bug Fixes
+
+| Bug | Solution |
+|-----|----------|
+| Score showing /110 | Hardcoded maxScore to 100 |
+| Zombie companies eligible | Hard gate for dissolved status |
+| Age warning wrong logic | Now checks factor SCORE not years |
+| Email gaps/layout issues | Table-based email-safe HTML |
+| Demo data loading | Portfolio starts empty |
 
 ---
 
@@ -158,11 +221,13 @@ run.bat
 
 ### Manual Start
 ```bash
-# Backend (in backend directory)
+# Backend
 conda activate currency-intelligence
+cd backend
 python -m uvicorn api.server:app --host 0.0.0.0 --port 8000 --reload
 
-# Frontend (in frontend directory)
+# Frontend
+cd frontend
 npm run dev
 ```
 
@@ -171,33 +236,30 @@ npm run dev
 |---------|-----|
 | Dashboard | http://localhost:3000 |
 | EIS Scanner | http://localhost:3000/eis |
+| Research Agent | http://localhost:3000/research |
 | API Docs | http://localhost:8000/docs |
 
 ---
 
 ## Environment Variables
 
-### Backend (`backend/.env`)
+### Required (`backend/.env`)
 ```env
 # Companies House
 COMPANIES_HOUSE_API_KEY=your_api_key
 
 # Tavily (News Search)
-TAVILY_API_KEY=your_api_key
+TAVILY_API_KEY=tvly-xxxxxxxxxxxx
 
 # HuggingFace (AI Summarization)
-HF_API_KEY=your_api_key
+HF_API_KEY=hf_xxxxxxxxxxxx
 
 # Gmail (Newsletter)
 GMAIL_ADDRESS=your_email@gmail.com
 GMAIL_APP_PASSWORD=your_app_password
 
-# Slack (Alerts)
+# Slack (Optional)
 SLACK_WEBHOOK_URL=your_webhook_url
-
-# Supabase (Optional)
-SUPABASE_URL=your_supabase_url
-SUPABASE_KEY=your_supabase_key
 ```
 
 ---
@@ -207,30 +269,25 @@ SUPABASE_KEY=your_supabase_key
 ```
 sapphire-intelligence-platform/
 ├── backend/
-│   ├── api/                    # FastAPI endpoints
-│   │   └── server.py           # Main API (3300+ lines)
-│   ├── analytics/
-│   │   └── eis_heuristics.py   # EIS scoring engine
+│   ├── api/server.py                  # Main API (3500+ lines)
+│   ├── analytics/eis_heuristics.py    # EIS scoring engine
 │   ├── automation/
-│   │   ├── mailer.py           # Newsletter HTML generator
-│   │   ├── writer.py           # AI content writer
-│   │   └── slack_sender.py     # Slack integration
+│   │   ├── mailer.py                  # Newsletter HTML generator
+│   │   ├── pdf_generator.py           # WeasyPrint PDF generator
+│   │   └── slack_sender.py            # Slack integration
 │   ├── services/
-│   │   ├── research_agent.py   # Tavily news search
-│   │   └── editor_agent.py     # HuggingFace AI summarization
-│   ├── ml/                     # XGBoost/Prophet models
-│   └── trained_models/         # Saved ML models
+│   │   ├── research_agent.py          # Tavily news search
+│   │   ├── editor_agent.py            # HuggingFace summarization
+│   │   └── company_researcher.py      # Deep research agent
+│   └── ml/                            # XGBoost/Prophet models
 ├── frontend/
 │   ├── src/app/
-│   │   ├── page.tsx            # Currency Dashboard
-│   │   ├── analysis/           # Analysis page
-│   │   ├── risk/               # Risk analytics
-│   │   ├── eis/                # EIS Investment Scanner
-│   │   └── settings/           # Settings page
-│   └── src/components/         # React components
-├── run.bat                     # Windows startup script
-├── README.md                   # Project documentation
-└── PROJECT_REPORT.md           # This report
+│   │   ├── page.tsx                   # Currency Dashboard
+│   │   ├── eis/page.tsx               # EIS Investment Scanner
+│   │   └── research/page.tsx          # Company Research Agent
+│   └── src/components/                # React components
+├── run.bat                            # Windows startup script
+└── PROJECT_REPORT.md                  # This report
 ```
 
 ---
@@ -239,26 +296,38 @@ sapphire-intelligence-platform/
 
 | Commit | Description |
 |--------|-------------|
-| `5ba799a` | Change EIS score from /110 to /100 scale |
-| `e9bde75` | Remove demo companies from portfolio |
-| `3cfec3c` | Fix email layout with table-based design |
-| `b3c48a9` | Redesigned EIS Newsletter with 3 sections |
-| `fbc1f19` | Fix critical integration bugs (Model Identity, Score Disconnect, Zombie Companies) |
+| `cc6d445` | Badge shows "Likely Not Eligible" when age score is 0 |
+| `f312120` | Eligibility warning checks Company Age SCORE |
+| `65d5a6f` | Score displays /100 and adds eligibility warning |
+| `f28d497` | AI Company Intelligence section in newsletter |
+| `9b0e70d` | Complete newsletter redesign with 7 sections |
 
 ---
 
-## Future Roadmap
+## Skills Demonstrated
 
-### Currency Intelligence
-- Ensemble ML models (XGBoost + ARIMA + LSTM)
-- Additional currency pairs (JPY, CHF, AUD, CNY)
-- Portfolio hedging recommendations
+### Frontend
+- React/Next.js 14 with TypeScript
+- Tailwind CSS + Custom Components
+- Framer Motion animations
+- Recharts data visualization
 
-### EIS Investment Scanner
-- Supabase persistence for portfolios
-- PDF report generation
-- Scheduled newsletter automation
-- Multi-user support with authentication
+### Backend
+- FastAPI REST API design
+- Python data engineering (Pandas)
+- ML model integration (XGBoost, Prophet)
+- LLM integration (HuggingFace)
+
+### APIs & Integration
+- External API orchestration
+- Error handling and fallbacks
+- Rate limiting awareness
+- SMTP email delivery
+
+### DevOps
+- Git version control
+- Environment configuration
+- Cross-platform scripts
 
 ---
 
@@ -268,5 +337,5 @@ sapphire-intelligence-platform/
 
 ---
 
-*Report Generated: December 25, 2024*  
-*Platform Version: 2.1.0*
+*Report Generated: December 26, 2024*  
+*Platform Version: 2.2.0*
