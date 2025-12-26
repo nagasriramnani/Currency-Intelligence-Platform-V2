@@ -557,33 +557,83 @@ sequenceDiagram
 ## Technology Stack Summary
 
 ```mermaid
-mindmap
-  root((EIS Scanner))
-    Frontend
-      Next.js 14
-      TypeScript
-      Tailwind CSS
-      Framer Motion
-      Lucide Icons
-      Recharts
-    Backend
-      FastAPI
-      Python 3.11
-      Pandas
-      WeasyPrint
-    APIs
-      Companies House
-      Tavily AI
-      HuggingFace
-      Gmail SMTP
-    AI Models
-      Mistral 7B Instruct
-      Research Agent
-      Editor Agent
-    Storage
-      LocalStorage
-      scan_history.json
-      trained_models/
+flowchart LR
+    subgraph Center[" "]
+        EIS[🎯 EIS Scanner]
+    end
+    
+    subgraph FE["🖥️ FRONTEND"]
+        F1[Next.js 14]
+        F2[TypeScript]
+        F3[Tailwind CSS]
+        F4[Framer Motion]
+        F5[Lucide Icons]
+        F6[Recharts]
+    end
+    
+    subgraph BE["⚙️ BACKEND"]
+        B1[FastAPI]
+        B2[Python 3.11]
+        B3[Pandas]
+        B4[WeasyPrint]
+    end
+    
+    subgraph API["🌐 APIS"]
+        A1[Companies House]
+        A2[Tavily AI]
+        A3[HuggingFace]
+        A4[Gmail SMTP]
+    end
+    
+    subgraph AI["🤖 AI MODELS"]
+        M1[Mistral 7B Instruct]
+        M2[Research Agent]
+        M3[Editor Agent]
+    end
+    
+    subgraph ST["💾 STORAGE"]
+        S1[LocalStorage]
+        S2[scan_history.json]
+        S3[trained_models/]
+    end
+    
+    EIS --- FE
+    EIS --- BE
+    EIS --- API
+    EIS --- AI
+    EIS --- ST
+    
+    style EIS fill:#6366f1,stroke:#4f46e5,color:#ffffff
+    style FE fill:#1e293b,stroke:#3b82f6,color:#ffffff
+    style BE fill:#1e293b,stroke:#22c55e,color:#ffffff
+    style API fill:#1e293b,stroke:#f59e0b,color:#ffffff
+    style AI fill:#1e293b,stroke:#ec4899,color:#ffffff
+    style ST fill:#1e293b,stroke:#ef4444,color:#ffffff
+    
+    style F1 fill:#3b82f6,stroke:#2563eb,color:#ffffff
+    style F2 fill:#3b82f6,stroke:#2563eb,color:#ffffff
+    style F3 fill:#3b82f6,stroke:#2563eb,color:#ffffff
+    style F4 fill:#3b82f6,stroke:#2563eb,color:#ffffff
+    style F5 fill:#3b82f6,stroke:#2563eb,color:#ffffff
+    style F6 fill:#3b82f6,stroke:#2563eb,color:#ffffff
+    
+    style B1 fill:#22c55e,stroke:#16a34a,color:#ffffff
+    style B2 fill:#22c55e,stroke:#16a34a,color:#ffffff
+    style B3 fill:#22c55e,stroke:#16a34a,color:#ffffff
+    style B4 fill:#22c55e,stroke:#16a34a,color:#ffffff
+    
+    style A1 fill:#f59e0b,stroke:#d97706,color:#000000
+    style A2 fill:#f59e0b,stroke:#d97706,color:#000000
+    style A3 fill:#f59e0b,stroke:#d97706,color:#000000
+    style A4 fill:#f59e0b,stroke:#d97706,color:#000000
+    
+    style M1 fill:#ec4899,stroke:#db2777,color:#ffffff
+    style M2 fill:#ec4899,stroke:#db2777,color:#ffffff
+    style M3 fill:#ec4899,stroke:#db2777,color:#ffffff
+    
+    style S1 fill:#ef4444,stroke:#dc2626,color:#ffffff
+    style S2 fill:#ef4444,stroke:#dc2626,color:#ffffff
+    style S3 fill:#ef4444,stroke:#dc2626,color:#ffffff
 ```
 
 ---
