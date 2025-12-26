@@ -220,6 +220,61 @@ class ProfessionalNewsletterGenerator:
             watchlist_html = f'<p style="color: {self.TEXT_SECONDARY}; font-size: 13px;">No companies currently flagged for review.</p>'
         
         # =====================================================================
+        # AI COMPANY INTELLIGENCE - Tavily-researched news for each company
+        # =====================================================================
+        company_news_html = ""
+        companies_with_news = [c for c in companies if c.get('news_summary') or c.get('narrative')]
+        
+        if companies_with_news:
+            for c in companies_with_news[:5]:  # Top 5 companies with news
+                company_name = c.get('company_name', 'Unknown')
+                company_number = c.get('company_number', 'N/A')
+                news_summary = c.get('news_summary', c.get('narrative', ''))
+                news_sources = c.get('news_sources', [])
+                sector = c.get('sector', 'N/A')
+                score = c.get('eis_score', 0)
+                
+                # Status color
+                status = c.get('eis_status', 'Unknown')
+                if 'Eligible' in status and 'Ineligible' not in status:
+                    status_color = self.ELIGIBLE_COLOR
+                elif 'Review' in status:
+                    status_color = self.REVIEW_COLOR
+                else:
+                    status_color = self.RISK_COLOR
+                
+                # Format sources
+                sources_html = ""
+                if news_sources:
+                    sources_html = f'<div style="margin-top: 8px; font-size: 11px; color: {self.TEXT_SECONDARY};">📰 Sources: {", ".join(news_sources[:2])}</div>'
+                
+                # Truncate summary if too long
+                if news_summary and len(news_summary) > 300:
+                    news_summary = news_summary[:300] + '...'
+                
+                company_news_html += f'''
+                <div style="background: {self.SECTION_BG}; border-left: 4px solid {self.HEADER_BG}; padding: 14px; margin-bottom: 12px; border-radius: 0 6px 6px 0;">
+                    <div style="margin-bottom: 8px;">
+                        <span style="font-weight: 600; color: {self.TEXT_PRIMARY}; font-size: 14px;">{company_name}</span>
+                        <span style="color: {self.TEXT_SECONDARY}; font-size: 12px; margin-left: 8px;">({company_number})</span>
+                        <span style="background: {self.HEADER_BG}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-left: 8px;">{score}/100</span>
+                    </div>
+                    <div style="color: {self.TEXT_PRIMARY}; font-size: 13px; line-height: 1.6;">
+                        {news_summary if news_summary else 'No recent news available for this company.'}
+                    </div>
+                    {sources_html}
+                </div>
+                '''
+        else:
+            company_news_html = f'''
+            <div style="background: {self.SECTION_BG}; padding: 16px; border-radius: 6px; text-align: center;">
+                <p style="margin: 0; color: {self.TEXT_SECONDARY}; font-size: 13px;">
+                    No AI-generated news available. Add companies to your portfolio and ensure Tavily API is configured.
+                </p>
+            </div>
+            '''
+        
+        # =====================================================================
         # PORTFOLIO TABLE - Compact company list
         # =====================================================================
         portfolio_rows = ""
@@ -339,6 +394,22 @@ class ProfessionalNewsletterGenerator:
                                 Top Changes (This Period)
                             </h2>
                             {top_changes_html}
+                        </td>
+                    </tr>
+                </table>
+                
+                <!-- AI COMPANY INTELLIGENCE (Tavily News) -->
+                <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                    <tr>
+                        <td style="padding: 0 30px 20px 30px;">
+                            <h2 style="color: {self.HEADER_BG}; margin: 0 0 4px 0; font-size: 15px; font-weight: 600; 
+                                       text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid {self.HEADER_BG}; padding-bottom: 8px;">
+                                🤖 AI Company Intelligence
+                            </h2>
+                            <p style="color: {self.TEXT_SECONDARY}; font-size: 12px; margin: 0 0 16px 0; font-style: italic;">
+                                Real-time news research powered by Tavily AI
+                            </p>
+                            {company_news_html}
                         </td>
                     </tr>
                 </table>
