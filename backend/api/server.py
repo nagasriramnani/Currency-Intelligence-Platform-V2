@@ -2081,6 +2081,79 @@ async def get_company_full_profile(company_number: str):
         # Combine profile with assessment
         full_profile["eis_assessment"] = eis_assessment
         
+        # =====================================================================
+        # TAVILY FINANCIAL RESEARCH - Fetch if Companies House data unavailable
+        # =====================================================================
+        accounts = full_profile.get("accounts", {})
+        has_financial_data = accounts.get("gross_assets") or accounts.get("employees")
+        
+        if not has_financial_data:
+            try:
+                company_name = full_profile.get("company", {}).get("company_name", "")
+                if company_name:
+                    from services.research_agent import ResearchAgent
+                    researcher = ResearchAgent()
+                    
+                    if researcher.available:
+                        # Search for financial data using Tavily
+                        financial_query = f"{company_name} UK company revenue funding valuation 2024 2025"
+                        response = researcher.client.search(
+                            query=financial_query,
+                            search_depth="basic",
+                            max_results=3,
+                            include_answer=True
+                        )
+                        
+                        # Extract financial info from response
+                        financial_data = {
+                            "revenue": None,
+                            "revenue_source": "Tavily AI Research",
+                            "last_updated": datetime.now().isoformat()
+                        }
+                        
+                        # Parse answer or results for financial figures
+                        answer = response.get("answer", "")
+                        results = response.get("results", [])
+                        
+                        # Look for revenue/funding mentions
+                        import re
+                        
+                        # Check answer first
+                        search_text = answer + " ".join([r.get("content", "") for r in results[:2]])
+                        
+                        # Common patterns: £1.5M, $10 million, £2.3 billion, etc.
+                        money_patterns = [
+                            r'(?:revenue|turnover|sales|funding|raised|valuation|worth)[:\s]+(?:of\s+)?[£$€]?\s*(\d+(?:\.\d+)?)\s*(million|m|billion|b|thousand|k)',
+                            r'[£$€]\s*(\d+(?:\.\d+)?)\s*(million|m|billion|b|thousand|k)(?:\s+(?:revenue|turnover|sales|funding|valuation))?',
+                            r'(\d+(?:\.\d+)?)\s*(million|m|billion|b|thousand|k)\s+(?:pounds|dollars|euros|GBP|USD)?(?:\s+(?:in\s+)?(?:revenue|turnover|sales|funding|valuation))?'
+                        ]
+                        
+                        for pattern in money_patterns:
+                            match = re.search(pattern, search_text, re.IGNORECASE)
+                            if match:
+                                value = float(match.group(1))
+                                unit = match.group(2).lower()
+                                
+                                if unit in ['billion', 'b']:
+                                    financial_data["revenue"] = f"£{value}B"
+                                elif unit in ['million', 'm']:
+                                    financial_data["revenue"] = f"£{value}M"
+                                elif unit in ['thousand', 'k']:
+                                    financial_data["revenue"] = f"£{value}K"
+                                break
+                        
+                        # If no structured data found but we have an answer, note that
+                        if not financial_data["revenue"] and answer:
+                            # Just indicate data was searched
+                            financial_data["revenue"] = "Data not found"
+                            financial_data["notes"] = "Financial data not publicly available"
+                        
+                        full_profile["financial_data"] = financial_data
+                        logger.info(f"Tavily financial research for {company_name}: {financial_data.get('revenue', 'N/A')}")
+                        
+            except Exception as e:
+                logger.warning(f"Tavily financial research failed for {company_number}: {e}")
+        
         return full_profile
         
     except HTTPException:

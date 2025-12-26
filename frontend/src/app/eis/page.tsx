@@ -61,7 +61,9 @@ import {
     X,
     Plus,
     Check,
-    FolderPlus
+    FolderPlus,
+    DollarSign,
+    Banknote
 } from 'lucide-react';
 
 // === TYPES ===
@@ -112,6 +114,11 @@ interface CompanyProfile {
     accounts?: {
         gross_assets?: number;
         employees?: number;
+    };
+    financial_data?: {
+        revenue?: string;
+        revenue_source?: string;
+        last_updated?: string;
     };
 }
 
@@ -828,13 +835,12 @@ function CompanyDetails({
                                     #{co.company_number} • {co.jurisdiction}
                                 </p>
                                 <div className="flex items-center gap-3 mt-3">
-                                    {/* Check if Company Age score is 0 or EIS score < 50 - override to show Not Eligible */}
+                                    {/* Check if ANY factor score is 0 or EIS score < 50 - show Not Eligible */}
                                     {(() => {
-                                        const hasAgeIssue = eis_assessment.factors?.some((f: any) =>
-                                            (f.name?.toLowerCase().includes('age') || f.factor?.toLowerCase().includes('age')) &&
+                                        const hasZeroFactor = eis_assessment.factors?.some((f: any) =>
                                             (f.score <= 0 || f.value <= 0)
                                         );
-                                        const isNotEligible = eis_assessment.score < 50 || hasAgeIssue;
+                                        const isNotEligible = eis_assessment.score < 50 || hasZeroFactor;
 
                                         return (
                                             <Badge
@@ -895,7 +901,7 @@ function CompanyDetails({
             </Card>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-5 gap-4">
                 <StatsCard
                     title="Directors"
                     value={officers.director_count || 0}
@@ -926,6 +932,19 @@ function CompanyDetails({
                     icon={Clock}
                     variant="default"
                     delay={0.4}
+                />
+                <StatsCard
+                    title="Revenue"
+                    value={
+                        company.financial_data?.revenue
+                            ? company.financial_data.revenue
+                            : company.accounts?.gross_assets
+                                ? `£${(company.accounts.gross_assets / 1000000).toFixed(1)}M`
+                                : 'N/A'
+                    }
+                    icon={Banknote}
+                    variant="warning"
+                    delay={0.5}
                 />
             </div>
 
