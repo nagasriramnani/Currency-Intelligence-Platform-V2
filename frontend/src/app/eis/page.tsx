@@ -828,17 +828,30 @@ function CompanyDetails({
                                     #{co.company_number} • {co.jurisdiction}
                                 </p>
                                 <div className="flex items-center gap-3 mt-3">
-                                    <Badge
-                                        variant={
-                                            eis_assessment.status === 'Likely Eligible'
-                                                ? 'success'
-                                                : eis_assessment.status === 'Gated Out'
-                                                    ? 'danger'
-                                                    : 'warning'
-                                        }
-                                    >
-                                        {eis_assessment.status}
-                                    </Badge>
+                                    {/* Check if Company Age score is 0 or EIS score < 50 - override to show Not Eligible */}
+                                    {(() => {
+                                        const hasAgeIssue = eis_assessment.factors?.some((f: any) =>
+                                            (f.name?.toLowerCase().includes('age') || f.factor?.toLowerCase().includes('age')) &&
+                                            (f.score <= 0 || f.value <= 0)
+                                        );
+                                        const isNotEligible = eis_assessment.score < 50 || hasAgeIssue;
+
+                                        return (
+                                            <Badge
+                                                variant={
+                                                    isNotEligible
+                                                        ? 'danger'
+                                                        : eis_assessment.status === 'Likely Eligible'
+                                                            ? 'success'
+                                                            : eis_assessment.status === 'Gated Out'
+                                                                ? 'danger'
+                                                                : 'warning'
+                                                }
+                                            >
+                                                {isNotEligible ? 'Likely Not Eligible' : eis_assessment.status}
+                                            </Badge>
+                                        );
+                                    })()}
                                     <Badge variant="outline">
                                         {co.company_status}
                                     </Badge>
