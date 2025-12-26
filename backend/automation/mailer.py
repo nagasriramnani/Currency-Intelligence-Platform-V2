@@ -161,9 +161,20 @@ class ProfessionalNewsletterGenerator:
             company_number = c.get('company_number', 'N/A')
             company_name = c.get('company_name', 'Unknown')
             sector = c.get('sector', 'N/A')
+            revenue = c.get('revenue', c.get('financial_data', {}).get('revenue', 'N/A') if isinstance(c.get('financial_data'), dict) else 'N/A')
             
-            # Determine status color
-            if 'Eligible' in status and 'Ineligible' not in status:
+            # Check if any factor score is 0 - override to Not Eligible
+            factors = c.get('factors', [])
+            has_zero_factor = any(
+                (f.get('score', 1) <= 0 or f.get('value', 1) <= 0) 
+                for f in factors if isinstance(f, dict)
+            )
+            
+            # Determine status - override if any factor is 0 or score < 50
+            if has_zero_factor or score < 50:
+                status = 'Likely Not Eligible'
+                status_color = self.RISK_COLOR
+            elif 'Eligible' in status and 'Ineligible' not in status:
                 status_color = self.ELIGIBLE_COLOR
             elif 'Review' in status:
                 status_color = self.REVIEW_COLOR
@@ -171,7 +182,9 @@ class ProfessionalNewsletterGenerator:
                 status_color = self.RISK_COLOR
             
             # Generate recommendation
-            if 'Eligible' in status and 'Ineligible' not in status:
+            if status == 'Likely Not Eligible':
+                recommendation = "Remove from EIS candidate list (zero score detected)"
+            elif 'Eligible' in status and 'Ineligible' not in status:
                 recommendation = "Consider HMRC Advance Assurance check"
             elif 'Review' in status:
                 recommendation = "Confirm investment/EIS status and review changes"
@@ -193,6 +206,9 @@ class ProfessionalNewsletterGenerator:
                     {i}) {company_name} ({company_number}) — 
                     <span style="color: {status_color};">{status}</span>
                     <span style="color: {self.HEADER_BG}; font-weight: 700;">(Score: {score}/100)</span>
+                </div>
+                <div style="color: {self.TEXT_SECONDARY}; font-size: 12px; margin: 4px 0 4px 15px;">
+                    💰 Revenue: {revenue} | 🏢 Sector: {sector}
                 </div>
                 {signals_text}
                 <div style="color: {self.TEXT_SECONDARY}; font-size: 13px; margin: 6px 0 0 15px; font-style: italic;">
@@ -233,10 +249,21 @@ class ProfessionalNewsletterGenerator:
                 news_sources = c.get('news_sources', [])
                 sector = c.get('sector', 'N/A')
                 score = c.get('eis_score', 0)
+                revenue = c.get('revenue', c.get('financial_data', {}).get('revenue', 'N/A') if isinstance(c.get('financial_data'), dict) else 'N/A')
                 
-                # Status color
+                # Check if any factor score is 0 - override to Not Eligible
+                factors = c.get('factors', [])
+                has_zero_factor = any(
+                    (f.get('score', 1) <= 0 or f.get('value', 1) <= 0) 
+                    for f in factors if isinstance(f, dict)
+                )
+                
+                # Status and color with zero-factor override
                 status = c.get('eis_status', 'Unknown')
-                if 'Eligible' in status and 'Ineligible' not in status:
+                if has_zero_factor or score < 50:
+                    status = 'Likely Not Eligible'
+                    status_color = self.RISK_COLOR
+                elif 'Eligible' in status and 'Ineligible' not in status:
                     status_color = self.ELIGIBLE_COLOR
                 elif 'Review' in status:
                     status_color = self.REVIEW_COLOR
@@ -253,11 +280,14 @@ class ProfessionalNewsletterGenerator:
                     news_summary = news_summary[:300] + '...'
                 
                 company_news_html += f'''
-                <div style="background: {self.SECTION_BG}; border-left: 4px solid {self.HEADER_BG}; padding: 14px; margin-bottom: 12px; border-radius: 0 6px 6px 0;">
+                <div style="background: {self.SECTION_BG}; border-left: 4px solid {status_color}; padding: 14px; margin-bottom: 12px; border-radius: 0 6px 6px 0;">
                     <div style="margin-bottom: 8px;">
                         <span style="font-weight: 600; color: {self.TEXT_PRIMARY}; font-size: 14px;">{company_name}</span>
                         <span style="color: {self.TEXT_SECONDARY}; font-size: 12px; margin-left: 8px;">({company_number})</span>
-                        <span style="background: {self.HEADER_BG}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-left: 8px;">{score}/100</span>
+                        <span style="background: {status_color}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-left: 8px;">{score}/100</span>
+                    </div>
+                    <div style="color: {self.TEXT_SECONDARY}; font-size: 12px; margin-bottom: 8px;">
+                        💰 Revenue: {revenue} | 🏢 Sector: {sector} | 📊 Status: <span style="color: {status_color};">{status}</span>
                     </div>
                     <div style="color: {self.TEXT_PRIMARY}; font-size: 13px; line-height: 1.6;">
                         {news_summary if news_summary else 'No recent news available for this company.'}
