@@ -82,12 +82,13 @@ class ProfessionalNewsletterGenerator:
             spotlight=spotlight,
             risk_companies=risk_companies,
             ai_insights=ai_insights,
-            sector_news=sector_news,  # NEW
+            sector_news=sector_news,
             portfolio_count=portfolio_count,
             eligible_count=eligible_count,
             review_count=review_count,
             date_display=date_display,
-            timestamp=timestamp
+            timestamp=timestamp,
+            frequency=data.get('frequency', 'Weekly')
         )
         
         # Generate plain text
@@ -110,153 +111,58 @@ class ProfessionalNewsletterGenerator:
         }
     
     def _generate_html(self, **kwargs) -> str:
-        """Generate professional HTML email with 3 sections: Portfolio, Sector News, Company News."""
+        """Generate professional HTML email - clean, compact format."""
         companies = kwargs['companies']
         spotlight = kwargs['spotlight']
         risk_companies = kwargs['risk_companies']
         ai_insights = kwargs['ai_insights']
-        sector_news = kwargs.get('sector_news', [])  # NEW
+        sector_news = kwargs.get('sector_news', [])
         portfolio_count = kwargs['portfolio_count']
         eligible_count = kwargs['eligible_count']
         review_count = kwargs['review_count']
         date_display = kwargs['date_display']
         timestamp = kwargs['timestamp']
+        frequency = kwargs.get('frequency', 'Weekly')
         
-        # =====================================================================
-        # SECTION 1: PORTFOLIO INTRO - Company cards with scores
-        # =====================================================================
-        portfolio_cards = ""
-        for c in companies[:8]:
-            status = c.get('eis_status', 'Unknown')
-            score = c.get('eis_score', 0)
-            
-            if 'Eligible' in status and 'Ineligible' not in status:
-                status_color = self.ELIGIBLE_COLOR
-                badge_bg = "#dcfce7"
-            elif 'Review' in status:
-                status_color = self.REVIEW_COLOR
-                badge_bg = "#fef3c7"
+        # Calculate ineligible count
+        ineligible_count = portfolio_count - eligible_count - review_count
+        if ineligible_count < 0:
+            ineligible_count = 0
+        
+        # Calculate risk flags
+        risk_flag_count = len(risk_companies)
+        
+        # Next scheduled run based on frequency
+        from datetime import datetime, timedelta
+        next_run_date = datetime.now()
+        if frequency.lower() == 'weekly':
+            days_ahead = 7 - next_run_date.weekday()
+            next_run_date = next_run_date + timedelta(days=days_ahead)
+            next_run_text = next_run_date.strftime("Monday %d %b %Y, 08:00")
+        elif frequency.lower() == 'monthly':
+            if next_run_date.month == 12:
+                next_run_date = next_run_date.replace(year=next_run_date.year+1, month=1, day=1)
             else:
-                status_color = self.RISK_COLOR
-                badge_bg = "#fee2e2"
-            
-            # Sector badge color
-            sector = c.get('sector', 'N/A')
-            sector_colors = {
-                'Technology': ('#8b5cf6', '#f3e8ff'),
-                'Healthcare': ('#10b981', '#d1fae5'),
-                'Fintech': ('#3b82f6', '#dbeafe'),
-                'Clean Energy': ('#22c55e', '#dcfce7'),
-                'Financial Services': ('#6366f1', '#e0e7ff'),
-            }
-            sector_text, sector_bg = sector_colors.get(sector, ('#64748b', '#f1f5f9'))
-            
-            portfolio_cards += f"""
-            <table cellpadding="0" cellspacing="0" border="0" width="100%" 
-                   style="background: white; border: 1px solid {self.BORDER_COLOR}; border-radius: 8px; margin-bottom: 12px;">
-                <tr>
-                    <td style="padding: 16px;">
-                        <table cellpadding="0" cellspacing="0" border="0" width="100%">
-                            <tr>
-                                <td style="font-weight: 600; color: {self.TEXT_PRIMARY}; font-size: 15px;">
-                                    {c.get('company_name', 'Unknown')}
-                                </td>
-                                <td style="text-align: right;">
-                                    <span style="background: {badge_bg}; color: {status_color}; padding: 4px 10px; 
-                                                 border-radius: 12px; font-size: 11px; font-weight: 600;">
-                                        {status}
-                                    </span>
-                                </td>
-                            </tr>
-                        </table>
-                        <table cellpadding="0" cellspacing="0" border="0" style="margin-top: 10px;">
-                            <tr>
-                                <td style="padding-right: 10px;">
-                                    <span style="background: {self.HEADER_BG}; color: white; padding: 6px 12px; 
-                                                 border-radius: 6px; font-weight: 700; font-size: 14px; display: inline-block;">
-                                        {score}/100
-                                    </span>
-                                </td>
-                                <td style="padding-right: 10px;">
-                                    <span style="background: {sector_bg}; color: {sector_text}; padding: 4px 10px; 
-                                                 border-radius: 12px; font-size: 11px; font-weight: 500; display: inline-block;">
-                                        {sector}
-                                    </span>
-                                </td>
-                                <td>
-                                    <span style="color: {self.TEXT_SECONDARY}; font-size: 12px;">
-                                        #{c.get('company_number', 'N/A')}
-                                    </span>
-                                </td>
-                            </tr>
-                        </table>
-                    </td>
-                </tr>
-            </table>
-            """
-        
-        if not portfolio_cards:
-            portfolio_cards = f"""
-            <div style="text-align: center; padding: 30px; color: {self.TEXT_SECONDARY};">
-                <p>No companies in your portfolio yet.</p>
-                <p style="font-size: 13px;">Add companies via the EIS Investment Scanner to start tracking.</p>
-            </div>
-            """
-        
-        # =====================================================================
-        # SECTION 2: TOP SECTOR NEWS - EIS-eligible sector news from Tavily
-        # =====================================================================
-        sector_news_html = ""
-        if sector_news:
-            for news in sector_news[:4]:
-                sector = news.get('sector', 'General')
-                sector_text, sector_bg = {
-                    'Technology': ('#8b5cf6', '#f3e8ff'),
-                    'Healthcare': ('#10b981', '#d1fae5'),
-                    'Fintech': ('#3b82f6', '#dbeafe'),
-                    'Clean Energy': ('#22c55e', '#dcfce7'),
-                }.get(sector, ('#64748b', '#f1f5f9'))
-                
-                sector_news_html += f"""
-                <div style="background: {self.SECTION_BG}; border-left: 4px solid {sector_text}; 
-                            padding: 16px; margin-bottom: 12px; border-radius: 0 8px 8px 0;">
-                    <div style="margin-bottom: 8px;">
-                        <span style="background: {sector_bg}; color: {sector_text}; padding: 3px 8px; 
-                                     border-radius: 10px; font-size: 10px; font-weight: 600; text-transform: uppercase;">
-                            {sector}
-                        </span>
-                        <span style="color: {self.TEXT_SECONDARY}; font-size: 11px; margin-left: 8px;">
-                            {news.get('source', 'Unknown')}
-                        </span>
-                    </div>
-                    <h4 style="margin: 0 0 6px 0; color: {self.TEXT_PRIMARY}; font-size: 14px; font-weight: 600; line-height: 1.4;">
-                        {news.get('title', 'No title')}
-                    </h4>
-                    <p style="margin: 0; color: {self.TEXT_SECONDARY}; font-size: 13px; line-height: 1.5;">
-                        {news.get('content', '')[:150]}...
-                    </p>
-                </div>
-                """
+                next_run_date = next_run_date.replace(month=next_run_date.month+1, day=1)
+            next_run_text = next_run_date.strftime("1st %b %Y, 08:00")
+        elif frequency.lower() == 'yearly':
+            next_run_date = next_run_date.replace(year=next_run_date.year+1, month=1, day=1)
+            next_run_text = next_run_date.strftime("1st Jan %Y, 08:00")
         else:
-            sector_news_html = f"""
-            <div style="background: {self.SECTION_BG}; padding: 20px; border-radius: 8px; text-align: center;">
-                <p style="margin: 0; color: {self.TEXT_SECONDARY}; font-size: 13px;">
-                    Sector news not available. Tavily API may be rate-limited.
-                </p>
-            </div>
-            """
+            next_run_text = "On-demand (manual trigger)"
         
         # =====================================================================
-        # SECTION 3: COMPANY-SPECIFIC NEWS - AI summaries for each company
+        # TOP CHANGES - Top 3 companies with recommendations
         # =====================================================================
-        company_news_html = ""
-        for c in spotlight[:3]:  # Top 3 companies by score
-            news = c.get('news_summary', c.get('narrative', 'No recent updates available.'))
-            sources = c.get('news_sources', [])
-            sources_text = f"<span style='color: {self.TEXT_SECONDARY}; font-size: 11px;'>Sources: {', '.join(sources[:2])}</span>" if sources else ""
-            
-            score = c.get('eis_score', 0)
+        top_changes_html = ""
+        for i, c in enumerate(spotlight[:3], 1):
             status = c.get('eis_status', 'Unknown')
+            score = c.get('eis_score', 0)
+            company_number = c.get('company_number', 'N/A')
+            company_name = c.get('company_name', 'Unknown')
+            sector = c.get('sector', 'N/A')
+            
+            # Determine status color
             if 'Eligible' in status and 'Ineligible' not in status:
                 status_color = self.ELIGIBLE_COLOR
             elif 'Review' in status:
@@ -264,151 +170,252 @@ class ProfessionalNewsletterGenerator:
             else:
                 status_color = self.RISK_COLOR
             
-            company_news_html += f"""
-            <div style="background: white; border: 1px solid {self.BORDER_COLOR}; border-radius: 8px; 
-                        padding: 20px; margin-bottom: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                <div style="border-bottom: 1px solid {self.BORDER_COLOR}; padding-bottom: 12px; margin-bottom: 12px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <h3 style="margin: 0; color: {self.TEXT_PRIMARY}; font-size: 16px; font-weight: 600;">
-                            {c.get('company_name', 'Unknown')}
-                        </h3>
-                        <span style="background: {self.HEADER_BG}; color: white; padding: 4px 10px; 
-                                     border-radius: 4px; font-weight: 700; font-size: 13px;">
-                            {score}/100
-                        </span>
-                    </div>
-                    <div style="margin-top: 6px;">
-                        <span style="color: {status_color}; font-weight: 500; font-size: 13px;">{status}</span>
-                        <span style="color: {self.TEXT_SECONDARY}; font-size: 12px; margin-left: 12px;">
-                            {c.get('sector', 'N/A')}
-                        </span>
-                    </div>
+            # Generate recommendation
+            if 'Eligible' in status and 'Ineligible' not in status:
+                recommendation = "Consider HMRC Advance Assurance check"
+            elif 'Review' in status:
+                recommendation = "Confirm investment/EIS status and review changes"
+            else:
+                recommendation = "Remove from EIS candidate list"
+            
+            # Get risk signals
+            risk_flags = c.get('risk_flags', [])
+            signals_text = ""
+            if risk_flags:
+                for flag in risk_flags[:2]:
+                    signals_text += f'<div style="color: {self.TEXT_SECONDARY}; font-size: 13px; margin: 3px 0 3px 15px;">• {flag}</div>'
+            else:
+                signals_text = f'<div style="color: {self.TEXT_SECONDARY}; font-size: 13px; margin: 3px 0 3px 15px;">• No adverse filings detected</div>'
+            
+            top_changes_html += f'''
+            <div style="margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid {self.BORDER_COLOR};">
+                <div style="font-weight: 600; color: {self.TEXT_PRIMARY}; font-size: 14px; margin-bottom: 6px;">
+                    {i}) {company_name} ({company_number}) — 
+                    <span style="color: {status_color};">{status}</span>
+                    <span style="color: {self.HEADER_BG}; font-weight: 700;">(Score: {score}/100)</span>
                 </div>
-                <div style="color: {self.TEXT_PRIMARY}; font-size: 14px; line-height: 1.7;">
-                    {news}
-                </div>
-                <div style="margin-top: 10px;">
-                    {sources_text}
+                {signals_text}
+                <div style="color: {self.TEXT_SECONDARY}; font-size: 13px; margin: 6px 0 0 15px; font-style: italic;">
+                    → Recommended action: {recommendation}
                 </div>
             </div>
-            """
+            '''
         
-        if not company_news_html:
-            company_news_html = f"""
-            <div style="text-align: center; padding: 30px; color: {self.TEXT_SECONDARY};">
-                <p>Add companies to your portfolio to receive AI-powered news summaries.</p>
-            </div>
-            """
+        if not top_changes_html:
+            top_changes_html = f'<p style="color: {self.TEXT_SECONDARY}; font-size: 13px;">No companies to highlight this period.</p>'
         
         # =====================================================================
-        # BUILD COMPLETE EMAIL - Using TABLE layout for email compatibility
+        # WATCHLIST - Companies needing review
         # =====================================================================
-        return f"""<!DOCTYPE html>
+        review_companies = [c for c in companies if 'Review' in c.get('eis_status', '')]
+        watchlist_html = ""
+        if review_companies:
+            watchlist_html = f'<p style="color: {self.TEXT_PRIMARY}; font-size: 13px; margin-bottom: 10px;">{len(review_companies)} companies need manual verification due to missing/ambiguous signals:</p>'
+            watchlist_html += '<ul style="margin: 0; padding-left: 20px;">'
+            for reason in ['Sector/SIC mismatch', 'Age outside standard EIS window', 'Unclear share allotment history', 'Director changes detected', 'Missing filing history']:
+                if any(reason.lower() in str(c.get('risk_flags', [])).lower() for c in review_companies):
+                    watchlist_html += f'<li style="color: {self.TEXT_SECONDARY}; font-size: 13px; margin: 4px 0;">{reason}</li>'
+            watchlist_html += '</ul>'
+        else:
+            watchlist_html = f'<p style="color: {self.TEXT_SECONDARY}; font-size: 13px;">No companies currently flagged for review.</p>'
+        
+        # =====================================================================
+        # PORTFOLIO TABLE - Compact company list
+        # =====================================================================
+        portfolio_rows = ""
+        for c in companies[:10]:
+            status = c.get('eis_status', 'Unknown')
+            score = c.get('eis_score', 0)
+            
+            if 'Eligible' in status and 'Ineligible' not in status:
+                status_color = self.ELIGIBLE_COLOR
+            elif 'Review' in status:
+                status_color = self.REVIEW_COLOR
+            else:
+                status_color = self.RISK_COLOR
+            
+            portfolio_rows += f'''
+            <tr>
+                <td style="padding: 8px 10px; border-bottom: 1px solid {self.BORDER_COLOR}; font-size: 13px; color: {self.TEXT_PRIMARY};">
+                    {c.get('company_name', 'Unknown')[:30]}
+                </td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid {self.BORDER_COLOR}; font-size: 13px; color: {self.HEADER_BG}; font-weight: 600; text-align: center;">
+                    {score}/100
+                </td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid {self.BORDER_COLOR}; font-size: 13px; color: {status_color}; text-align: center;">
+                    {status}
+                </td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid {self.BORDER_COLOR}; font-size: 12px; color: {self.TEXT_SECONDARY};">
+                    {c.get('sector', 'N/A')}
+                </td>
+            </tr>
+            '''
+        
+        # =====================================================================
+        # BUILD COMPLETE EMAIL - Clean, minimal design
+        # =====================================================================
+        return f'''<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EIS Portfolio Intelligence</title>
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; 
-             background-color: #f1f5f9; margin: 0; padding: 20px; color: {self.TEXT_PRIMARY};">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; 
+             background-color: #f8fafc; margin: 0; padding: 20px; color: {self.TEXT_PRIMARY}; line-height: 1.5;">
     
-    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width: 600px; margin: 0 auto;">
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width: 640px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
         <tr>
             <td>
                 <!-- Header -->
                 <table cellpadding="0" cellspacing="0" border="0" width="100%" 
-                       style="background: linear-gradient(135deg, {self.HEADER_BG} 0%, #4f46e5 100%); 
-                              border-radius: 12px 12px 0 0;">
+                       style="background: {self.HEADER_BG}; border-radius: 8px 8px 0 0;">
                     <tr>
-                        <td style="padding: 40px 30px; text-align: center;">
-                            <h1 style="color: white; margin: 0; font-size: 26px; font-weight: 700;">
-                                EIS Intelligence Newsletter
+                        <td style="padding: 24px 30px;">
+                            <h1 style="color: white; margin: 0; font-size: 20px; font-weight: 600;">
+                                EIS Portfolio Intelligence
                             </h1>
-                            <p style="color: rgba(255,255,255,0.85); margin: 12px 0 0 0; font-size: 15px;">
-                                Your Weekly Investment Intelligence Briefing
-                            </p>
-                            <p style="color: rgba(255,255,255,0.6); margin: 8px 0 0 0; font-size: 13px;">
-                                {date_display}
+                            <p style="color: rgba(255,255,255,0.8); margin: 6px 0 0 0; font-size: 13px;">
+                                {frequency} Snapshot — Week of {date_display}
                             </p>
                         </td>
                     </tr>
                 </table>
                 
-                <!-- Stats Bar -->
-                <table cellpadding="0" cellspacing="0" border="0" width="100%" 
-                       style="background: white; border-bottom: 2px solid {self.BORDER_COLOR};">
+                <!-- Intro -->
+                <table cellpadding="0" cellspacing="0" border="0" width="100%">
                     <tr>
-                        <td width="33%" style="padding: 25px 15px; text-align: center; border-right: 1px solid {self.BORDER_COLOR};">
-                            <div style="font-size: 32px; font-weight: 800; color: {self.HEADER_BG}; line-height: 1;">{portfolio_count}</div>
-                            <div style="font-size: 11px; color: {self.TEXT_SECONDARY}; text-transform: uppercase; letter-spacing: 1px; margin-top: 6px;">COMPANIES</div>
-                        </td>
-                        <td width="34%" style="padding: 25px 15px; text-align: center; border-right: 1px solid {self.BORDER_COLOR};">
-                            <div style="font-size: 32px; font-weight: 800; color: {self.ELIGIBLE_COLOR}; line-height: 1;">{eligible_count}</div>
-                            <div style="font-size: 11px; color: {self.TEXT_SECONDARY}; text-transform: uppercase; letter-spacing: 1px; margin-top: 6px;">ELIGIBLE</div>
-                        </td>
-                        <td width="33%" style="padding: 25px 15px; text-align: center;">
-                            <div style="font-size: 32px; font-weight: 800; color: {self.REVIEW_COLOR}; line-height: 1;">{review_count}</div>
-                            <div style="font-size: 11px; color: {self.TEXT_SECONDARY}; text-transform: uppercase; letter-spacing: 1px; margin-top: 6px;">REVIEW</div>
+                        <td style="padding: 24px 30px 16px 30px;">
+                            <p style="margin: 0; color: {self.TEXT_PRIMARY}; font-size: 14px;">
+                                Hi team,
+                            </p>
+                            <p style="margin: 12px 0 0 0; color: {self.TEXT_SECONDARY}; font-size: 14px;">
+                                Here is this period's automated EIS monitoring update based on Companies House + enrichment signals.
+                            </p>
                         </td>
                     </tr>
                 </table>
                 
-                <!-- SECTION 1: Your Portfolio -->
-                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background: white;">
+                <!-- PORTFOLIO SUMMARY -->
+                <table cellpadding="0" cellspacing="0" border="0" width="100%">
                     <tr>
-                        <td style="padding: 30px;">
-                            <h2 style="color: {self.HEADER_BG}; margin: 0 0 20px 0; font-size: 20px; font-weight: 700; border-bottom: 2px solid {self.HEADER_BG}; padding-bottom: 10px;">
-                                Your EIS Portfolio
+                        <td style="padding: 0 30px 20px 30px;">
+                            <h2 style="color: {self.HEADER_BG}; margin: 0 0 12px 0; font-size: 15px; font-weight: 600; 
+                                       text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid {self.HEADER_BG}; padding-bottom: 8px;">
+                                Portfolio Summary
                             </h2>
-                            {portfolio_cards}
+                            <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                                <tr>
+                                    <td style="padding: 4px 0; font-size: 13px; color: {self.TEXT_SECONDARY};">• Companies reviewed:</td>
+                                    <td style="padding: 4px 0; font-size: 13px; color: {self.TEXT_PRIMARY}; font-weight: 600;">{portfolio_count}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 4px 0; font-size: 13px; color: {self.TEXT_SECONDARY};">• Likely eligible (heuristic):</td>
+                                    <td style="padding: 4px 0; font-size: 13px; color: {self.ELIGIBLE_COLOR}; font-weight: 600;">{eligible_count}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 4px 0; font-size: 13px; color: {self.TEXT_SECONDARY};">• Review required:</td>
+                                    <td style="padding: 4px 0; font-size: 13px; color: {self.REVIEW_COLOR}; font-weight: 600;">{review_count}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 4px 0; font-size: 13px; color: {self.TEXT_SECONDARY};">• Likely ineligible:</td>
+                                    <td style="padding: 4px 0; font-size: 13px; color: {self.RISK_COLOR}; font-weight: 600;">{ineligible_count}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 4px 0; font-size: 13px; color: {self.TEXT_SECONDARY};">• Risk flags raised:</td>
+                                    <td style="padding: 4px 0; font-size: 13px; color: {self.TEXT_PRIMARY}; font-weight: 600;">{risk_flag_count}</td>
+                                </tr>
+                            </table>
                         </td>
                     </tr>
                 </table>
                 
-                <!-- SECTION 2: Top Sector News -->
-                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background: #f8fafc;">
+                <!-- TOP CHANGES -->
+                <table cellpadding="0" cellspacing="0" border="0" width="100%">
                     <tr>
-                        <td style="padding: 30px;">
-                            <h2 style="color: {self.HEADER_BG}; margin: 0 0 8px 0; font-size: 20px; font-weight: 700;">
-                                UK EIS Sector Intelligence
+                        <td style="padding: 0 30px 20px 30px;">
+                            <h2 style="color: {self.HEADER_BG}; margin: 0 0 12px 0; font-size: 15px; font-weight: 600; 
+                                       text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid {self.HEADER_BG}; padding-bottom: 8px;">
+                                Top Changes (This Period)
                             </h2>
-                            <p style="color: {self.TEXT_SECONDARY}; font-size: 13px; margin: 0 0 20px 0;">
-                                Latest funding news from EIS-eligible sectors
-                            </p>
-                            {sector_news_html}
+                            {top_changes_html}
                         </td>
                     </tr>
                 </table>
                 
-                <!-- SECTION 3: Portfolio Company News -->
-                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background: white;">
+                <!-- WATCHLIST -->
+                <table cellpadding="0" cellspacing="0" border="0" width="100%">
                     <tr>
-                        <td style="padding: 30px;">
-                            <h2 style="color: {self.HEADER_BG}; margin: 0 0 8px 0; font-size: 20px; font-weight: 700;">
-                                AI News Summaries
+                        <td style="padding: 0 30px 20px 30px;">
+                            <h2 style="color: {self.HEADER_BG}; margin: 0 0 12px 0; font-size: 15px; font-weight: 600; 
+                                       text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid {self.HEADER_BG}; padding-bottom: 8px;">
+                                Watchlist (Review Required)
                             </h2>
-                            <p style="color: {self.TEXT_SECONDARY}; font-size: 13px; margin: 0 0 20px 0;">
-                                AI-generated news for your top portfolio companies
+                            {watchlist_html}
+                        </td>
+                    </tr>
+                </table>
+                
+                <!-- PORTFOLIO TABLE -->
+                <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                    <tr>
+                        <td style="padding: 0 30px 20px 30px;">
+                            <h2 style="color: {self.HEADER_BG}; margin: 0 0 12px 0; font-size: 15px; font-weight: 600; 
+                                       text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid {self.HEADER_BG}; padding-bottom: 8px;">
+                                Full Portfolio
+                            </h2>
+                            <table cellpadding="0" cellspacing="0" border="0" width="100%" style="border: 1px solid {self.BORDER_COLOR}; border-radius: 6px;">
+                                <tr style="background: {self.SECTION_BG};">
+                                    <th style="padding: 10px; text-align: left; font-size: 11px; color: {self.TEXT_SECONDARY}; text-transform: uppercase; font-weight: 600;">Company</th>
+                                    <th style="padding: 10px; text-align: center; font-size: 11px; color: {self.TEXT_SECONDARY}; text-transform: uppercase; font-weight: 600;">Score</th>
+                                    <th style="padding: 10px; text-align: center; font-size: 11px; color: {self.TEXT_SECONDARY}; text-transform: uppercase; font-weight: 600;">Status</th>
+                                    <th style="padding: 10px; text-align: left; font-size: 11px; color: {self.TEXT_SECONDARY}; text-transform: uppercase; font-weight: 600;">Sector</th>
+                                </tr>
+                                {portfolio_rows}
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+                
+                <!-- DATA SOURCES -->
+                <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                    <tr>
+                        <td style="padding: 0 30px 20px 30px;">
+                            <h2 style="color: {self.HEADER_BG}; margin: 0 0 12px 0; font-size: 15px; font-weight: 600; 
+                                       text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid {self.HEADER_BG}; padding-bottom: 8px;">
+                                Data Sources Used
+                            </h2>
+                            <p style="margin: 0; color: {self.TEXT_SECONDARY}; font-size: 13px;">
+                                • <strong>Companies House:</strong> profile, officers, PSCs, charges, filing history<br>
+                                • <strong>AI Enrichment:</strong> Tavily search, HuggingFace analysis<br>
+                                • <strong>Note:</strong> EIS "Likely Eligible" is an indicative score — not an official HMRC confirmation.
                             </p>
-                            {company_news_html}
+                        </td>
+                    </tr>
+                </table>
+                
+                <!-- NEXT RUN -->
+                <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                    <tr>
+                        <td style="padding: 0 30px 24px 30px;">
+                            <p style="margin: 0; color: {self.TEXT_SECONDARY}; font-size: 13px; font-style: italic;">
+                                Next scheduled run: {next_run_text}
+                            </p>
                         </td>
                     </tr>
                 </table>
                 
                 <!-- Footer -->
                 <table cellpadding="0" cellspacing="0" border="0" width="100%" 
-                       style="background: {self.HEADER_BG}; border-radius: 0 0 12px 12px;">
+                       style="background: {self.SECTION_BG}; border-radius: 0 0 8px 8px; border-top: 1px solid {self.BORDER_COLOR};">
                     <tr>
-                        <td style="padding: 25px 30px;">
-                            <p style="margin: 0 0 8px 0; font-size: 12px; color: rgba(255,255,255,0.7);">
-                                <strong style="color: white;">Data Sources:</strong> Companies House, HMRC EIS Guidance, Tavily AI, HuggingFace
+                        <td style="padding: 20px 30px;">
+                            <p style="margin: 0 0 6px 0; color: {self.TEXT_PRIMARY}; font-size: 13px;">
+                                Regards,<br>
+                                <strong>Sapphire Intelligence</strong> (Automated)
                             </p>
-                            <p style="margin: 0 0 8px 0; font-size: 12px; color: rgba(255,255,255,0.7);">
-                                <strong style="color: white;">Generated:</strong> {timestamp}
-                            </p>
-                            <p style="margin: 0; font-size: 11px; color: rgba(255,255,255,0.5);">
-                                This newsletter provides indicative EIS assessments only. Consult HMRC for official eligibility.
+                            <p style="margin: 12px 0 0 0; font-size: 11px; color: {self.TEXT_SECONDARY};">
+                                Generated: {timestamp}
                             </p>
                         </td>
                     </tr>
@@ -418,7 +425,7 @@ class ProfessionalNewsletterGenerator:
         </tr>
     </table>
 </body>
-</html>"""
+</html>'''
     
     def _generate_plain_text(self, **kwargs) -> str:
         """Generate plain text version for email clients that don't support HTML."""
