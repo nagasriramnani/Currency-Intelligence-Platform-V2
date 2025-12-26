@@ -865,10 +865,12 @@ function CompanyDetails({
                                     </>
                                 )}
                             </Button>
-                            {/* Eligibility Warning - Show when age is 0 or score < 50 */}
+                            {/* Eligibility Warning - Show when Company Age factor score is 0 or EIS score < 50 */}
                             {(eis_assessment.score < 50 ||
-                                (co.date_of_creation &&
-                                    Math.floor((Date.now() - new Date(co.date_of_creation).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) === 0)) && (
+                                eis_assessment.factors?.some((f: any) =>
+                                    (f.name?.toLowerCase().includes('age') || f.factor?.toLowerCase().includes('age')) &&
+                                    (f.score <= 0 || f.value <= 0)
+                                )) && (
                                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/30">
                                         <AlertTriangle className="h-4 w-4 text-red-400" />
                                         <span className="text-xs font-medium text-red-400">Likely Not Eligible</span>
