@@ -5,16 +5,11 @@
 
 ## System Overview
 
-```mermaid
-flowchart LR
-    A[👤 User] --> B[🖥️ Frontend]
-    B --> C[⚙️ Backend]
-    C --> D[🌐 APIs]
-    
-    style A fill:#6366f1,color:#fff
-    style B fill:#3b82f6,color:#fff
-    style C fill:#22c55e,color:#fff
-    style D fill:#f59e0b,color:#fff
+```
+┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
+│   USER   │────▶│ FRONTEND │────▶│ BACKEND  │────▶│   APIs   │
+│          │     │ Next.js  │     │ FastAPI  │     │ External │
+└──────────┘     └──────────┘     └──────────┘     └──────────┘
 ```
 
 | Layer | Technology |
@@ -29,21 +24,29 @@ flowchart LR
 
 **Purpose:** Search UK companies and calculate EIS eligibility score (0-100)
 
-```mermaid
-flowchart TD
-    A[🔍 Search Company] --> B[Companies House API]
-    B --> C[Get Full Profile]
-    C --> D[Calculate EIS Score]
-    D --> E{Score < 50 or<br/>Any Factor = 0?}
-    E -->|Yes| F[❌ Not Eligible]
-    E -->|No| G[✅ Likely Eligible]
-    
-    style A fill:#3b82f6,color:#fff
-    style B fill:#f59e0b,color:#fff
-    style C fill:#22c55e,color:#fff
-    style D fill:#6366f1,color:#fff
-    style F fill:#ef4444,color:#fff
-    style G fill:#22c55e,color:#fff
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        EIS PAGE FLOW                             │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   🔍 Search ──▶ Companies House ──▶ Get Profile                 │
+│                                          │                       │
+│                                          ▼                       │
+│                               ┌──────────────────┐               │
+│                               │ Calculate Score  │               │
+│                               │    (0-100)       │               │
+│                               └────────┬─────────┘               │
+│                                        │                         │
+│                    ┌───────────────────┼───────────────────┐     │
+│                    ▼                                       ▼     │
+│         ┌─────────────────┐                   ┌─────────────────┐│
+│         │ Score < 50 OR   │                   │  Otherwise      ││
+│         │ Any Factor = 0  │                   │                 ││
+│         ├─────────────────┤                   ├─────────────────┤│
+│         │ ❌ NOT ELIGIBLE │                   │ ✅ ELIGIBLE     ││
+│         └─────────────────┘                   └─────────────────┘│
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 **Scoring Factors:**
@@ -56,6 +59,7 @@ flowchart TD
 | Insolvency | 15 | No history |
 | Excluded Trades | 15 | Not banned |
 | R&D | 15 | Knowledge intensive |
+| **TOTAL** | **100** | |
 
 ---
 
@@ -63,24 +67,34 @@ flowchart TD
 
 **Purpose:** Deep company research with 16 AI queries, PDF & email export
 
-```mermaid
-flowchart TD
-    A[📝 Enter Company Name] --> B[16 Tavily Queries]
-    B --> C[Company Info]
-    B --> D[Industry Info]
-    B --> E[Financial Info]
-    B --> F[News Info]
-    C & D & E & F --> G[📊 Research Report]
-    G --> H[📋 Copy]
-    G --> I[📄 PDF]
-    G --> J[📧 Email]
-    
-    style A fill:#3b82f6,color:#fff
-    style B fill:#f59e0b,color:#fff
-    style G fill:#22c55e,color:#fff
-    style H fill:#6366f1,color:#fff
-    style I fill:#6366f1,color:#fff
-    style J fill:#6366f1,color:#fff
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    RESEARCH AGENT FLOW                           │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   📝 Enter Company Name                                          │
+│            │                                                     │
+│            ▼                                                     │
+│   ┌─────────────────────────────────────────────┐               │
+│   │           16 TAVILY QUERIES                 │               │
+│   ├───────────┬───────────┬───────────┬─────────┤               │
+│   │  Company  │ Industry  │ Financial │  News   │               │
+│   │  (4)      │   (4)     │    (4)    │  (4)    │               │
+│   └───────────┴───────────┴───────────┴─────────┘               │
+│                         │                                        │
+│                         ▼                                        │
+│              ┌──────────────────┐                                │
+│              │ 📊 RESEARCH      │                                │
+│              │    REPORT        │                                │
+│              └────────┬─────────┘                                │
+│                       │                                          │
+│         ┌─────────────┼─────────────┐                            │
+│         ▼             ▼             ▼                            │
+│    ┌────────┐   ┌────────┐   ┌────────┐                         │
+│    │📋 Copy │   │📄 PDF  │   │📧 Email│                         │
+│    └────────┘   └────────┘   └────────┘                         │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -89,20 +103,34 @@ flowchart TD
 
 **Purpose:** Send professional email with portfolio updates and AI news
 
-```mermaid
-flowchart TD
-    A[📧 Subscribe] --> B[Load Portfolio]
-    B --> C[Fetch Company News]
-    C --> D[AI Summarize]
-    D --> E[Generate HTML Email]
-    E --> F[Gmail SMTP]
-    F --> G[📬 Inbox]
-    
-    style A fill:#3b82f6,color:#fff
-    style C fill:#f59e0b,color:#fff
-    style D fill:#ec4899,color:#fff
-    style E fill:#22c55e,color:#fff
-    style G fill:#6366f1,color:#fff
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    NEWSLETTER FLOW                               │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   📧 Subscribe                                                   │
+│        │                                                         │
+│        ▼                                                         │
+│   Load Portfolio Companies                                       │
+│        │                                                         │
+│        ▼                                                         │
+│   ┌─────────────────┐    ┌─────────────────┐                    │
+│   │ Tavily: Fetch   │───▶│ HuggingFace:    │                    │
+│   │ Company News    │    │ AI Summarize    │                    │
+│   └─────────────────┘    └────────┬────────┘                    │
+│                                   │                              │
+│                                   ▼                              │
+│                     ┌───────────────────────┐                    │
+│                     │ Generate HTML Email   │                    │
+│                     │ (7 Sections)          │                    │
+│                     └───────────┬───────────┘                    │
+│                                 │                                │
+│                                 ▼                                │
+│                     ┌───────────────────────┐                    │
+│                     │ Gmail SMTP ──▶ Inbox  │                    │
+│                     └───────────────────────┘                    │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 **Email Sections:**
@@ -118,16 +146,20 @@ flowchart TD
 
 **Purpose:** Real-time company news with AI summary
 
-```mermaid
-flowchart LR
-    A[🏢 Company] --> B[Tavily Search]
-    B --> C[HuggingFace AI]
-    C --> D[📰 News Summary]
-    
-    style A fill:#3b82f6,color:#fff
-    style B fill:#f59e0b,color:#fff
-    style C fill:#ec4899,color:#fff
-    style D fill:#22c55e,color:#fff
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    AI NEWSROOM FLOW                              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   🏢 Select Company                                              │
+│         │                                                        │
+│         ▼                                                        │
+│   ┌───────────────┐     ┌───────────────┐     ┌───────────────┐ │
+│   │ Tavily Search │────▶│ HuggingFace   │────▶│ 📰 News       │ │
+│   │ Company News  │     │ AI Summary    │     │ Summary       │ │
+│   └───────────────┘     └───────────────┘     └───────────────┘ │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -136,20 +168,27 @@ flowchart LR
 
 **Purpose:** Sector-wide UK startup investment news
 
-```mermaid
-flowchart TD
-    A[📰 Daily News] --> B[Tavily API]
-    B --> C[💻 Technology]
-    B --> D[🏥 Healthcare]
-    B --> E[💳 Fintech]
-    B --> F[🌱 Clean Energy]
-    
-    style A fill:#3b82f6,color:#fff
-    style B fill:#f59e0b,color:#fff
-    style C fill:#22c55e,color:#fff
-    style D fill:#22c55e,color:#fff
-    style E fill:#22c55e,color:#fff
-    style F fill:#22c55e,color:#fff
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    AI DAILY NEWS FLOW                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   📰 Click Daily News                                            │
+│           │                                                      │
+│           ▼                                                      │
+│   ┌───────────────────────────────────────────────────┐         │
+│   │               TAVILY API                           │         │
+│   │   (4 Parallel Sector Queries)                      │         │
+│   └───────────────────────────────────────────────────┘         │
+│           │                                                      │
+│           ├────────────┬────────────┬────────────┐              │
+│           ▼            ▼            ▼            ▼              │
+│     ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐        │
+│     │💻 Tech   │ │🏥 Health │ │💳 Fintech│ │🌱 Clean  │        │
+│     │          │ │          │ │          │ │  Energy  │        │
+│     └──────────┘ └──────────┘ └──────────┘ └──────────┘        │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -170,14 +209,14 @@ flowchart TD
 
 ## Environment Setup
 
-```env
-COMPANIES_HOUSE_API_KEY=your_key
-TAVILY_API_KEY=tvly-xxxxx
-HF_API_KEY=hf_xxxxx
-GMAIL_ADDRESS=email@gmail.com
-GMAIL_APP_PASSWORD=app_password
+```
+COMPANIES_HOUSE_API_KEY = your_key
+TAVILY_API_KEY          = tvly-xxxxx
+HF_API_KEY              = hf_xxxxx
+GMAIL_ADDRESS           = email@gmail.com
+GMAIL_APP_PASSWORD      = app_password
 ```
 
 ---
 
-*Version 2.2.0 | December 2024*
+*Version 2.2.0 | December 2024 | Sapphire Intelligence*
