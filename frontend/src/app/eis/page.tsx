@@ -816,7 +816,7 @@ function CompanyDetails({
                         <div className="flex items-start gap-4">
                             <ScoreGauge
                                 score={eis_assessment.score}
-                                maxScore={eis_assessment.max_score}
+                                maxScore={100}
                                 size="lg"
                                 label="EIS Score"
                             />
@@ -845,25 +845,36 @@ function CompanyDetails({
                                 </div>
                             </div>
                         </div>
-                        <Button
-                            variant={isInPortfolio(co.company_number) ? "default" : "outline"}
-                            onClick={() => addToPortfolio(co.company_number, co.company_name)}
-                            className={isInPortfolio(co.company_number)
-                                ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                                : ""}
-                        >
-                            {isInPortfolio(co.company_number) ? (
-                                <>
-                                    <Check className="h-4 w-4 mr-2" />
-                                    In Portfolio
-                                </>
-                            ) : (
-                                <>
-                                    <FolderPlus className="h-4 w-4 mr-2" />
-                                    Add to Portfolio
-                                </>
-                            )}
-                        </Button>
+                        <div className="flex flex-col items-end gap-2">
+                            <Button
+                                variant={isInPortfolio(co.company_number) ? "default" : "outline"}
+                                onClick={() => addToPortfolio(co.company_number, co.company_name)}
+                                className={isInPortfolio(co.company_number)
+                                    ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                    : ""}
+                            >
+                                {isInPortfolio(co.company_number) ? (
+                                    <>
+                                        <Check className="h-4 w-4 mr-2" />
+                                        In Portfolio
+                                    </>
+                                ) : (
+                                    <>
+                                        <FolderPlus className="h-4 w-4 mr-2" />
+                                        Add to Portfolio
+                                    </>
+                                )}
+                            </Button>
+                            {/* Eligibility Warning - Show when age is 0 or score < 50 */}
+                            {(eis_assessment.score < 50 ||
+                                (co.date_of_creation &&
+                                    Math.floor((Date.now() - new Date(co.date_of_creation).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) === 0)) && (
+                                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/30">
+                                        <AlertTriangle className="h-4 w-4 text-red-400" />
+                                        <span className="text-xs font-medium text-red-400">Likely Not Eligible</span>
+                                    </div>
+                                )}
+                        </div>
                     </div>
                 </CardContent>
             </Card>

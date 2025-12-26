@@ -6,6 +6,6 @@
     "nakhilesh822001@gmail.com",
     "nakhilesh832001@gmail.com"
   ],
-  "updated": "2025-12-25T19:15:05.196017",
+  "updated": "2025-12-26T13:34:41.320130",
   "notes": "Add subscribers using: python mailer.py --add-subscriber email@example.com"
 }
