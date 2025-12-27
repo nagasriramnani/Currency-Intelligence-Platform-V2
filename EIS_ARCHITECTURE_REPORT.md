@@ -26,67 +26,49 @@ The EIS Investment Scanner is a full-stack application that screens UK companies
 ### System Block Diagram
 
 ```mermaid
-graph TB
-    subgraph Frontend["🖥️ Frontend (Next.js 14)"]
-        UI[EIS Dashboard UI]
-        Search[Company Search]
-        Portfolio[Portfolio Manager]
-        Details[Company Details Panel]
-        Stats[Stats Cards Grid]
-        Gates[Eligibility Gates]
-        Breakdown[Score Breakdown]
+flowchart LR
+    subgraph User["� User"]
+        Search["Search Company"]
     end
 
-    subgraph Backend["⚙️ Backend (FastAPI)"]
-        API[REST API Server]
-        EISEngine[EIS Heuristics Engine]
-        TavilyResearch[Tavily Financial Research]
-        ScoreCalc[Score Calculator]
+    subgraph Frontend["🖥️ Frontend"]
+        Dashboard["EIS Dashboard"]
+        Details["Company Details"]
+        Portfolio["Portfolio"]
     end
 
-    subgraph External["🌐 External APIs"]
-        CH[Companies House API]
-        Tavily[Tavily Search API]
-        HF[HuggingFace API]
+    subgraph Backend["⚙️ Backend"]
+        API["FastAPI Server"]
+        Scorer["EIS Scorer"]
     end
 
-    subgraph DataFlow["📊 Data Components"]
-        Profile[Company Profile]
-        Officers[Officers/Directors]
-        PSCs[Persons with Control]
-        Filings[Filing History]
-        Charges[Charges/Mortgages]
-        Accounts[Financial Accounts]
+    subgraph APIs["🌐 External APIs"]
+        CH["Companies House"]
+        Tavily["Tavily"]
     end
 
-    UI --> Search
-    Search -->|Company Name/Number| API
-    API -->|GET /api/eis/search| CH
-    API -->|"GET /api/eis/company/id/full-profile"| CH
-    
-    CH --> Profile
-    CH --> Officers
-    CH --> PSCs
-    CH --> Filings
-    CH --> Charges
-    CH --> Accounts
-    
-    Profile --> EISEngine
-    Officers --> EISEngine
-    PSCs --> EISEngine
-    Filings --> EISEngine
-    
-    EISEngine --> ScoreCalc
-    ScoreCalc -->|EIS Score 0-100| Details
-    
-    Accounts -->|If unavailable| TavilyResearch
-    TavilyResearch --> Tavily
-    Tavily -->|Revenue Data| Details
-    
-    Details --> Stats
-    Details --> Gates
-    Details --> Breakdown
+    Search --> Dashboard
+    Dashboard --> API
+    API --> CH
+    CH --> Scorer
+    Scorer --> Details
+    API --> Tavily
+    Tavily --> Details
     Details --> Portfolio
+```
+
+### Data Flow (Step by Step)
+
+```mermaid
+flowchart TD
+    A["1️⃣ User Searches Company"] --> B["2️⃣ API calls Companies House"]
+    B --> C["3️⃣ Fetch Profile + Officers + Filings"]
+    C --> D["4️⃣ EIS Heuristics Engine Scores"]
+    D --> E{"5️⃣ Financial Data Available?"}
+    E -->|Yes| F["6️⃣ Show Score + Revenue"]
+    E -->|No| G["6️⃣ Tavily Fetches Revenue"]
+    G --> F
+    F --> H["7️⃣ User Adds to Portfolio"]
 ```
 
 ### Key Components
