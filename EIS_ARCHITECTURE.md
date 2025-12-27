@@ -1,515 +1,604 @@
-# EIS Investment Scanner - Architecture Documentation
+# EIS Investment Scanner — Architecture Report
 
-## Complete System Architecture with Mermaid Diagrams
+## System Overview
+
+The EIS Investment Scanner is a comprehensive platform for screening UK companies for Enterprise Investment Scheme (EIS) eligibility. This document details the architecture and data flow for each major component.
 
 ---
 
-## 1. EIS Investment Scanner - Complete Page Workflow
+## 1. Complete EIS Page Architecture
 
-This diagram shows how the entire EIS Investment Scanner page works, from search to portfolio management.
+### How It Works
+
+The EIS page is a full-stack application connecting a Next.js frontend to a FastAPI backend, which integrates with multiple external APIs.
 
 ```mermaid
 flowchart TB
-    subgraph Frontend["🖥️ Frontend (Next.js 14)"]
-        UI[EIS Page<br/>page.tsx]
-        Search[Search Input]
-        Results[Search Results Grid]
-        Details[Company Details Panel]
-        Portfolio[Portfolio Tab]
-        Stats[Stats Grid<br/>Directors/PSCs/Age/Revenue]
-        Gates[Eligibility Gates Display]
-        Breakdown[Score Breakdown]
+    subgraph Frontend["🖥️ Next.js Frontend"]
+        SearchBar[Search Input]
+        PortfolioTab[Portfolio Tab]
+        SearchTab[Search Results Tab]
+        CompanyDetails[Company Details Panel]
+        StatsGrid[Stats Grid: Directors, PSCs, Share Allotments, Age, Revenue]
+        EligibilityGates[Eligibility Gates Display]
+        ScoreBreakdown[Score Breakdown 0-100]
+        ActionButtons[Add to Portfolio / Subscribe / Export]
     end
 
-    subgraph Backend["⚙️ Backend (FastAPI)"]
-        SearchAPI["/api/eis/search"]
+    subgraph Backend["⚙️ FastAPI Backend"]
+        SearchAPI["/api/eis/search/{query}"]
         ProfileAPI["/api/eis/company/{id}/full-profile"]
-        EISEngine[EIS Heuristics Engine<br/>eis_heuristics.py]
-        TavilyFinance[Tavily Financial Research]
+        NewsAPI["/api/eis/company/{id}/news"]
+        EISEngine[EIS Heuristics Engine]
+        TavilyFinancial[Tavily Financial Research]
     end
 
     subgraph External["🌐 External APIs"]
-        CH[Companies House API]
-        Tavily[Tavily API]
+        CompaniesHouse["Companies House API"]
+        TavilyAPI["Tavily API"]
+        HuggingFace["HuggingFace API"]
     end
 
-    subgraph Components["🧩 UI Components"]
-        ScoreGauge[Score Gauge<br/>/100 scale]
-        Badge[Eligibility Badge<br/>Green/Red]
-        StatsCard[Stats Cards x5]
+    subgraph Storage["💾 Local Storage"]
+        LocalPortfolio[Browser LocalStorage]
+        ScanHistory[scan_history.json]
     end
 
-    %% User Flow
-    User([👤 User]) --> Search
-    Search -->|"Enter company name"| SearchAPI
-    SearchAPI -->|"Search query"| CH
-    CH -->|"Company list"| Results
-    Results -->|"Click company"| ProfileAPI
+    SearchBar --> SearchAPI
+    SearchAPI --> CompaniesHouse
+    CompaniesHouse --> SearchTab
     
-    %% Profile Loading
-    ProfileAPI --> CH
-    CH -->|"Full profile data"| EISEngine
-    EISEngine -->|"Calculate score"| ProfileAPI
-    ProfileAPI -->|"Check accounts"| TavilyFinance
-    TavilyFinance -->|"If no data"| Tavily
-    Tavily -->|"Revenue/Funding"| ProfileAPI
+    SearchTab -->|Select Company| ProfileAPI
+    ProfileAPI --> CompaniesHouse
+    ProfileAPI --> EISEngine
+    EISEngine --> ScoreBreakdown
     
-    %% Display
-    ProfileAPI --> Details
-    Details --> Stats
-    Details --> Gates
-    Details --> Breakdown
-    Details --> ScoreGauge
-    Details --> Badge
+    ProfileAPI -->|No Accounts Data| TavilyFinancial
+    TavilyFinancial --> TavilyAPI
+    TavilyAPI --> StatsGrid
     
-    %% Eligibility Logic
-    EISEngine -->|"factors[]"| Badge
-    Badge -->|"Any score=0?"| BadgeLogic{Zero Factor?}
-    BadgeLogic -->|"Yes"| RedBadge[🔴 Likely Not Eligible]
-    BadgeLogic -->|"No"| GreenBadge[🟢 Likely Eligible]
-    
-    %% Portfolio
-    Details -->|"Add to Portfolio"| Portfolio
-    Portfolio -->|"LocalStorage"| Browser[(Browser Storage)]
-
-    style Frontend fill:#1e293b,stroke:#4f46e5,color:#fff
-    style Backend fill:#1e293b,stroke:#10b981,color:#fff
-    style External fill:#1e293b,stroke:#f59e0b,color:#fff
+    CompanyDetails --> EligibilityGates
+    ActionButtons -->|Save| LocalPortfolio
+    PortfolioTab --> LocalPortfolio
 ```
 
-### Key Technologies & Plugins
+### Plugins & Technologies
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
-| **Frontend Framework** | Next.js 14 | React SSR, App Router |
-| **UI Library** | Tailwind CSS | Responsive styling |
+| **Frontend Framework** | Next.js 14 + TypeScript | Server-side rendering, routing |
+| **Styling** | Tailwind CSS | Utility-first styling |
 | **Animations** | Framer Motion | Smooth transitions |
-| **Icons** | Lucide React | Icon library |
-| **Charts** | Recharts | Data visualization |
-| **State** | React useState | Local state management |
-| **Backend** | FastAPI | Python REST API |
-| **EIS Engine** | Custom Python | Heuristic scoring |
+| **Icons** | Lucide React | Modern icon library |
+| **Charts** | Recharts | Score gauge visualization |
+| **State** | React useState + LocalStorage | Portfolio persistence |
+
+### Key Features Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Backend
+    participant CompaniesHouse
+    participant Tavily
+
+    User->>Frontend: Enter company name
+    Frontend->>Backend: GET /api/eis/search/{query}
+    Backend->>CompaniesHouse: Search companies
+    CompaniesHouse-->>Backend: Company list
+    Backend-->>Frontend: Search results
+
+    User->>Frontend: Click company
+    Frontend->>Backend: GET /api/eis/company/{id}/full-profile
+    Backend->>CompaniesHouse: Get profile, officers, PSCs, filings
+    CompaniesHouse-->>Backend: Full company data
+    Backend->>Backend: Calculate EIS Score (0-100)
+    
+    alt No Financial Data
+        Backend->>Tavily: Search revenue/funding
+        Tavily-->>Backend: Financial info
+    end
+    
+    Backend-->>Frontend: Full profile + EIS assessment + financials
+    Frontend->>Frontend: Display with eligibility badge
+    
+    Note over Frontend: If ANY factor score = 0<br/>Show "Likely Not Eligible" (red)
+```
 
 ---
 
-## 2. Company Research Agent Workflow
+## 2. Company Research Agent Architecture
 
-This diagram shows how the AI-powered Research Agent generates company reports using Tavily.
+### How It Works
+
+The Research Agent performs deep company research using Tavily AI search across 4 categories with 16 parallel queries.
 
 ```mermaid
 flowchart TB
+    subgraph Input["📝 User Input"]
+        CompanyName[Company Name]
+        Industry[Industry/Sector]
+    end
+
     subgraph Frontend["🖥️ Research Page"]
-        Form[Company Input Form]
-        Examples[Example Companies<br/>Spotify/Revolut/Stripe]
-        Progress[Research Progress<br/>16 queries]
-        Report[Structured Report<br/>4 Sections]
-        Actions[Action Buttons<br/>Copy/PDF/Email]
+        ResearchForm[Research Form]
+        ProgressIndicator[Progress Indicator]
+        ReportDisplay[Structured Report Display]
+        ActionBar[Copy / PDF / Email Buttons]
     end
 
-    subgraph Backend["⚙️ Backend Services"]
-        ResearchAPI["/api/research/company"]
-        Researcher[CompanyResearcher<br/>company_researcher.py]
-        PDFGen[PDF Generator<br/>WeasyPrint]
-        EmailService[Email Service<br/>Gmail SMTP]
+    subgraph Backend["⚙️ FastAPI Backend"]
+        ResearchEndpoint["/api/research/company"]
+        PDFEndpoint["/api/research/pdf"]
+        EmailEndpoint["/api/research/email"]
+        CompanyResearcher[CompanyResearcher Service]
     end
 
-    subgraph Tavily["🔍 Tavily AI"]
-        TavilyAPI[Tavily Search API]
-        Q1[Company Queries x4]
-        Q2[Industry Queries x4]
-        Q3[Financial Queries x4]
-        Q4[News Queries x4]
+    subgraph TavilyQueries["🔍 16 Parallel Tavily Queries"]
+        subgraph Category1["Company Overview (4)"]
+            Q1[Funding & Investors]
+            Q2[Valuation & Growth]
+            Q3[Leadership Team]
+            Q4[Headquarters & Employees]
+        end
+        subgraph Category2["Industry Overview (4)"]
+            Q5[Market Size]
+            Q6[Trends & Disruption]
+            Q7[Competitive Landscape]
+            Q8[Regulatory Environment]
+        end
+        subgraph Category3["Financial Overview (4)"]
+            Q9[Revenue Model]
+            Q10[Growth Metrics]
+            Q11[Profitability]
+            Q12[Funding Rounds]
+        end
+        subgraph Category4["Recent News (4)"]
+            Q13[Latest News]
+            Q14[Press Releases]
+            Q15[Product Launches]
+            Q16[Partnerships]
+        end
     end
 
-    subgraph Output["📄 Output"]
-        ReportData[Structured Report JSON]
-        PDF[Professional PDF]
-        Email[Email with Attachment]
+    subgraph Output["📊 Report Sections"]
+        Section1[Company Overview]
+        Section2[Industry Analysis]
+        Section3[Financial Profile]
+        Section4[Recent Developments]
     end
 
-    %% Flow
-    User([👤 User]) --> Form
-    Form -->|"Company + Industry"| ResearchAPI
-    Examples -->|"Quick Fill"| Form
-    
-    ResearchAPI --> Researcher
-    Researcher -->|"16 Parallel Queries"| TavilyAPI
-    TavilyAPI --> Q1
-    TavilyAPI --> Q2
-    TavilyAPI --> Q3
-    TavilyAPI --> Q4
-    
-    Q1 -->|"Results"| Researcher
-    Q2 -->|"Results"| Researcher
-    Q3 -->|"Results"| Researcher
-    Q4 -->|"Results"| Researcher
-    
-    Researcher -->|"Aggregate"| ReportData
-    ReportData --> Progress
-    Progress --> Report
-    
-    %% Actions
-    Report --> Actions
-    Actions -->|"Generate PDF"| PDFGen
-    PDFGen --> PDF
-    Actions -->|"Send Email"| EmailService
-    EmailService --> Email
+    subgraph Delivery["📤 Delivery Options"]
+        CopyClipboard[Copy to Clipboard]
+        PDFDownload[Download PDF]
+        EmailSend[Email Report]
+    end
 
-    style Frontend fill:#1e293b,stroke:#4f46e5,color:#fff
-    style Backend fill:#1e293b,stroke:#10b981,color:#fff
-    style Tavily fill:#1e293b,stroke:#f59e0b,color:#fff
+    CompanyName --> ResearchForm
+    Industry --> ResearchForm
+    ResearchForm --> ResearchEndpoint
+    ResearchEndpoint --> CompanyResearcher
+    
+    CompanyResearcher --> Q1 & Q2 & Q3 & Q4
+    CompanyResearcher --> Q5 & Q6 & Q7 & Q8
+    CompanyResearcher --> Q9 & Q10 & Q11 & Q12
+    CompanyResearcher --> Q13 & Q14 & Q15 & Q16
+    
+    Q1 & Q2 & Q3 & Q4 --> Section1
+    Q5 & Q6 & Q7 & Q8 --> Section2
+    Q9 & Q10 & Q11 & Q12 --> Section3
+    Q13 & Q14 & Q15 & Q16 --> Section4
+    
+    Section1 & Section2 & Section3 & Section4 --> ReportDisplay
+    
+    ReportDisplay --> ActionBar
+    ActionBar --> CopyClipboard
+    ActionBar --> PDFEndpoint --> PDFDownload
+    ActionBar --> EmailEndpoint --> EmailSend
 ```
 
-### Research Query Categories
+### Research Agent Data Flow
 
-| Category | Queries | Example |
-|----------|---------|---------|
-| **Company** | Funding, Valuation, Team, HQ | "Spotify funding rounds 2024" |
-| **Industry** | Market size, Trends, Competition | "Music streaming market size" |
-| **Financial** | Revenue, Growth, Profitability | "Spotify revenue 2024" |
-| **News** | Announcements, Press, Updates | "Spotify latest news" |
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Backend
+    participant Tavily
+    participant WeasyPrint
+    participant Gmail
+
+    User->>Frontend: Enter company + industry
+    Frontend->>Backend: POST /api/research/company
+    
+    par Parallel Queries
+        Backend->>Tavily: Company funding query
+        Backend->>Tavily: Industry trends query
+        Backend->>Tavily: Financial metrics query
+        Backend->>Tavily: Recent news query
+    end
+    
+    Tavily-->>Backend: All results
+    Backend->>Backend: Aggregate into sections
+    Backend-->>Frontend: Structured report
+    
+    alt User clicks PDF
+        Frontend->>Backend: POST /api/research/pdf
+        Backend->>WeasyPrint: Generate PDF
+        WeasyPrint-->>Backend: PDF bytes
+        Backend-->>Frontend: PDF download
+    end
+    
+    alt User clicks Email
+        Frontend->>Backend: POST /api/research/email
+        Backend->>WeasyPrint: Generate PDF
+        Backend->>Gmail: Send with attachment
+        Gmail-->>Backend: Sent confirmation
+        Backend-->>Frontend: Success
+    end
+```
 
 ---
 
-## 3. Newsletter Subscribe Workflow
+## 3. Subscribe (Newsletter) Architecture
 
-This diagram shows the newsletter subscription and email sending process.
+### How It Works
+
+The Subscribe feature generates professional HTML email newsletters with portfolio intelligence, AI company news, and sector insights.
 
 ```mermaid
 flowchart TB
-    subgraph Frontend["🖥️ EIS Page"]
-        Subscribe[Subscribe Button]
-        Modal[Subscribe Modal]
-        FreqSelect[Frequency Selector<br/>Weekly/Monthly/Yearly/Now]
+    subgraph Trigger["🔔 Trigger Options"]
+        ManualNow[Send Now Button]
+        ScheduledWeekly[Weekly Schedule]
+        ScheduledMonthly[Monthly Schedule]
+    end
+
+    subgraph Frontend["🖥️ Subscribe Modal"]
         EmailInput[Email Address Input]
-        SendBtn[Send Newsletter]
+        FrequencySelect[Frequency: Now/Weekly/Monthly/Yearly]
+        SubmitButton[Subscribe Button]
     end
 
-    subgraph Backend["⚙️ Backend"]
-        EmailAPI["/api/eis/automation/send-email"]
-        Writer[EIS Writer<br/>writer.py]
-        Mailer[Newsletter Generator<br/>mailer.py]
-        ResearchAgent[Research Agent<br/>Tavily News]
-        EditorAgent[Editor Agent<br/>HuggingFace]
+    subgraph Backend["⚙️ Newsletter Pipeline"]
+        SendEmailAPI["/api/eis/automation/send-email"]
+        PortfolioLoader[Load Portfolio Companies]
+        CompanyEnricher[Enrich with Companies House]
+        NewsGenerator[Generate AI News per Company]
+        SectorNewsFetcher[Fetch Sector News]
+        HTMLGenerator[ProfessionalNewsletterGenerator]
     end
 
-    subgraph Processing["🔄 Data Processing"]
-        Portfolio[Portfolio Companies]
-        ScanHistory[Scan History]
-        NewsLookup[News Lookup per Company]
-        FinancialLookup[Financial Data Lookup]
+    subgraph DataSources["📊 Data Sources"]
+        CompaniesHouse["Companies House API"]
+        TavilyAPI["Tavily API"]
+        HuggingFaceAPI["HuggingFace API"]
+        ScanHistory[scan_history.json]
     end
 
-    subgraph Email["📧 Email Generation"]
-        HTML[HTML Email Template]
-        Section1[Portfolio Summary]
-        Section2[Top Changes]
-        Section3[AI Company Intelligence]
-        Section4[Watchlist]
-        Section5[Full Portfolio Table]
-        Gmail[Gmail SMTP]
+    subgraph Newsletter["✉️ Newsletter Sections"]
+        Header[Header: EIS Portfolio Intelligence]
+        Summary[Portfolio Summary Stats]
+        TopChanges[Top Changes - Top 3 Companies]
+        AIIntelligence[AI Company Intelligence]
+        Watchlist[Watchlist - Review Required]
+        FullPortfolio[Full Portfolio Table]
+        DataSourcesSection[Data Sources Used]
+        NextRun[Next Scheduled Run]
+        Footer[Sapphire Intelligence Footer]
     end
 
-    %% Flow
-    User([👤 User]) --> Subscribe
-    Subscribe --> Modal
-    Modal --> FreqSelect
-    Modal --> EmailInput
-    EmailInput --> SendBtn
-    
-    SendBtn -->|"POST request"| EmailAPI
-    EmailAPI --> Portfolio
-    EmailAPI --> ScanHistory
-    
-    Portfolio -->|"Each company"| ResearchAgent
-    ResearchAgent -->|"Tavily search"| NewsLookup
-    NewsLookup --> EditorAgent
-    EditorAgent -->|"Summarize"| NewsLookup
-    
-    Portfolio --> FinancialLookup
-    FinancialLookup -->|"If no CH data"| ResearchAgent
-    
-    NewsLookup --> Mailer
-    FinancialLookup --> Mailer
-    
-    Mailer --> HTML
-    HTML --> Section1
-    HTML --> Section2
-    HTML --> Section3
-    HTML --> Section4
-    HTML --> Section5
-    
-    HTML --> Gmail
-    Gmail -->|"Send"| Inbox([📬 User Inbox])
+    subgraph Delivery["📤 Email Delivery"]
+        GmailSMTP[Gmail SMTP]
+        RecipientInbox[Recipient Inbox]
+    end
 
-    style Frontend fill:#1e293b,stroke:#4f46e5,color:#fff
-    style Backend fill:#1e293b,stroke:#10b981,color:#fff
-    style Processing fill:#1e293b,stroke:#8b5cf6,color:#fff
-    style Email fill:#1e293b,stroke:#f59e0b,color:#fff
+    ManualNow --> SubmitButton
+    ScheduledWeekly --> SendEmailAPI
+    ScheduledMonthly --> SendEmailAPI
+    
+    SubmitButton --> SendEmailAPI
+    SendEmailAPI --> PortfolioLoader
+    PortfolioLoader --> CompanyEnricher
+    CompanyEnricher --> CompaniesHouse
+    
+    CompanyEnricher --> NewsGenerator
+    NewsGenerator --> TavilyAPI
+    TavilyAPI --> HuggingFaceAPI
+    
+    SendEmailAPI --> SectorNewsFetcher
+    SectorNewsFetcher --> TavilyAPI
+    
+    NewsGenerator --> HTMLGenerator
+    SectorNewsFetcher --> HTMLGenerator
+    
+    HTMLGenerator --> Header
+    HTMLGenerator --> Summary
+    HTMLGenerator --> TopChanges
+    HTMLGenerator --> AIIntelligence
+    HTMLGenerator --> Watchlist
+    HTMLGenerator --> FullPortfolio
+    HTMLGenerator --> DataSourcesSection
+    HTMLGenerator --> NextRun
+    HTMLGenerator --> Footer
+    
+    Footer --> GmailSMTP
+    GmailSMTP --> RecipientInbox
 ```
 
-### Newsletter Email Sections
+### Newsletter Content Generation
 
-| Section | Content | Data Source |
-|---------|---------|-------------|
-| **Portfolio Summary** | Stats: reviewed, eligible, review, ineligible | Calculated from portfolio |
-| **Top Changes** | Top 3 companies with recommendations | Portfolio + EIS scoring |
-| **AI Company Intelligence** | Tavily news per company | Tavily API |
-| **Watchlist** | Companies needing review | Risk flags analysis |
-| **Full Portfolio** | Compact table with all companies | Portfolio data |
-| **Next Scheduled Run** | Based on frequency selection | User selection |
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Backend
+    participant CompaniesHouse
+    participant Tavily
+    participant HuggingFace
+    participant Gmail
+
+    User->>Frontend: Click Subscribe > Send Now
+    Frontend->>Backend: POST /api/eis/automation/send-email
+    
+    Backend->>Backend: Load portfolio companies
+    
+    loop For each company (max 5)
+        Backend->>CompaniesHouse: Get company profile
+        CompaniesHouse-->>Backend: Profile data
+        Backend->>Tavily: Search company news
+        Tavily-->>Backend: News results
+        Backend->>HuggingFace: Summarize news
+        HuggingFace-->>Backend: AI summary
+    end
+    
+    par Sector News
+        Backend->>Tavily: UK Technology startup news
+        Backend->>Tavily: UK Healthcare biotech news
+        Backend->>Tavily: UK Fintech news
+    end
+    
+    Backend->>Backend: Generate HTML newsletter
+    Note over Backend: 7 sections: Summary, Top Changes,<br/>AI Intelligence, Watchlist, Portfolio,<br/>Data Sources, Next Run
+    
+    Backend->>Gmail: Send HTML email
+    Gmail-->>Backend: Sent
+    Backend-->>Frontend: Success response
+```
 
 ---
 
-## 4. AI Newsroom Workflow
+## 4. AI Newsroom Architecture
 
-This diagram shows how the AI Newsroom generates news summaries for companies.
+### How It Works
+
+The AI Newsroom fetches real-time news for a selected company using Tavily and summarizes it with HuggingFace.
 
 ```mermaid
 flowchart TB
-    subgraph Frontend["🖥️ EIS Page"]
-        NewsBtn[AI Newsroom Button]
-        NewsModal[Newsroom Modal]
-        CompanyList[Company Selection]
-        NewsDisplay[News Cards Display]
+    subgraph Trigger["🔔 Trigger"]
+        NewsroomButton[AI Newsroom Button]
+        CompanySelect[Selected Company in Details]
     end
 
-    subgraph Backend["⚙️ Backend"]
+    subgraph Frontend["🖥️ AI Newsroom Modal"]
+        NewsModal[News Modal Window]
+        LoadingSpinner[Loading State]
+        NewsCards[News Article Cards]
+        AISummary[AI-Generated Summary]
+        SourceLinks[Source Links]
+    end
+
+    subgraph Backend["⚙️ News Pipeline"]
         NewsAPI["/api/eis/company/{id}/news"]
-        ResearchAgent[Research Agent<br/>research_agent.py]
-        EditorAgent[Editor Agent<br/>editor_agent.py]
+        ResearchAgent[ResearchAgent - Tavily]
+        EditorAgent[EditorAgent - HuggingFace]
     end
 
-    subgraph TavilySearch["🔍 Tavily Search"]
-        Query1["Company + sector news"]
-        Query2["Company + funding news"]
-        Query3["Company + product news"]
-        Results[Search Results<br/>max 5 per query]
+    subgraph Processing["🔄 AI Processing"]
+        TavilySearch[Tavily News Search]
+        Relevance[Filter Relevant Results]
+        Summarize[Summarize with Mistral 7B]
+        FormatOutput[Format for Display]
     end
 
-    subgraph HuggingFace["🤖 HuggingFace AI"]
-        Mistral[Mistral 7B Model]
-        Summarize[Summarize Results]
-        Relevance[Check EIS Relevance]
-    end
-
-    subgraph Output["📰 News Output"]
-        Summary[AI-Generated Summary]
-        Sources[Source Links]
-        Score[EIS Score Context]
-    end
-
-    %% Flow
-    User([👤 User]) --> NewsBtn
-    NewsBtn --> NewsModal
-    NewsModal --> CompanyList
-    CompanyList -->|"Select company"| NewsAPI
+    NewsroomButton --> CompanySelect
+    CompanySelect --> NewsAPI
     
     NewsAPI --> ResearchAgent
-    ResearchAgent -->|"Build queries"| Query1
-    ResearchAgent -->|"Build queries"| Query2
-    ResearchAgent -->|"Build queries"| Query3
+    ResearchAgent --> TavilySearch
+    TavilySearch --> Relevance
+    Relevance --> EditorAgent
+    EditorAgent --> Summarize
+    Summarize --> FormatOutput
     
-    Query1 --> TavilyAPI[(Tavily API)]
-    Query2 --> TavilyAPI
-    Query3 --> TavilyAPI
-    TavilyAPI --> Results
+    FormatOutput --> AISummary
+    FormatOutput --> NewsCards
+    FormatOutput --> SourceLinks
     
-    Results --> EditorAgent
-    EditorAgent --> Mistral
-    Mistral --> Summarize
-    Mistral --> Relevance
-    
-    Summarize --> Summary
-    Relevance -->|"is_relevant: true/false"| Summary
-    Results -->|"URLs"| Sources
-    
-    Summary --> NewsDisplay
-    Sources --> NewsDisplay
-    Score --> NewsDisplay
-
-    style Frontend fill:#1e293b,stroke:#4f46e5,color:#fff
-    style Backend fill:#1e293b,stroke:#10b981,color:#fff
-    style TavilySearch fill:#1e293b,stroke:#f59e0b,color:#fff
-    style HuggingFace fill:#1e293b,stroke:#ec4899,color:#fff
+    AISummary --> NewsModal
+    NewsCards --> NewsModal
+    SourceLinks --> NewsModal
 ```
 
-### AI Newsroom Features
+### AI Newsroom Data Flow
 
-| Feature | Description |
-|---------|-------------|
-| **Multi-Query Search** | 3 different query types per company |
-| **AI Summarization** | Mistral 7B via HuggingFace |
-| **Relevance Scoring** | Filters irrelevant results |
-| **Source Attribution** | Links to original articles |
-| **EIS Context** | Includes score and status |
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Backend
+    participant Tavily
+    participant HuggingFace
+
+    User->>Frontend: Click AI Newsroom button
+    Frontend->>Backend: GET /api/eis/company/{id}/news
+    
+    Backend->>Tavily: Search "{company_name} news funding UK"
+    Tavily-->>Backend: 5-10 news results
+    
+    Backend->>Backend: Filter by relevance score
+    
+    Backend->>HuggingFace: Summarize for EIS context
+    Note over HuggingFace: Mistral 7B Instruct<br/>Prompt: Summarize for investor<br/>Include EIS relevance
+    HuggingFace-->>Backend: AI summary
+    
+    Backend-->>Frontend: News + Summary + Sources
+    Frontend->>Frontend: Display in modal
+```
 
 ---
 
-## 5. AI Daily News Workflow
+## 5. AI Daily News Architecture
 
-This diagram shows the sector-wide daily news aggregation system.
+### How It Works
+
+The AI Daily News feature provides sector-wide investment news across Technology, Healthcare, Fintech, and Clean Energy sectors.
 
 ```mermaid
 flowchart TB
-    subgraph Frontend["🖥️ EIS Header"]
-        DailyBtn[AI Daily News Button]
-        DailyModal[Daily News Modal]
-        SectorTabs[Sector Tabs<br/>Tech/Healthcare/Fintech/CleanEnergy]
-        NewsFeed[News Feed Cards]
+    subgraph Trigger["🔔 Trigger"]
+        DailyNewsButton[AI Daily News Button in Header]
     end
 
-    subgraph Backend["⚙️ Backend"]
-        DailyAPI["/api/eis/daily-news"]
-        SectorQueries[Sector Query Builder]
-        Aggregator[News Aggregator]
+    subgraph Frontend["🖥️ Daily News Page"]
+        NewsPage["/daily-news"]
+        SectorTabs[Sector Tabs: Tech / Healthcare / Fintech / CleanTech]
+        NewsGrid[News Article Grid]
+        AIInsights[AI Market Insights]
+        LastUpdated[Last Updated Timestamp]
     end
 
-    subgraph TavilySearch["🔍 Tavily Sector Search"]
-        TechQ["UK technology startup funding 2024"]
-        HealthQ["UK healthcare biotech funding 2024"]
-        FintechQ["UK fintech payments investment 2024"]
-        CleanQ["UK cleantech green energy funding 2024"]
+    subgraph Backend["⚙️ Daily News Pipeline"]
+        DailyNewsAPI["/api/eis/daily-news"]
+        SectorQueries[Sector-Specific Queries]
+        ResultAggregator[Aggregate Results]
+        InsightsGenerator[Generate AI Insights]
     end
 
-    subgraph Processing["🔄 Processing"]
-        Filter[Filter & Dedupe]
-        Format[Format Results]
-        Cache[Cache Results<br/>15 min TTL]
+    subgraph TavilyQueries["🔍 Sector Queries"]
+        TechQuery["UK technology startup funding 2024 2025"]
+        HealthQuery["UK healthcare biotech medtech funding 2024 2025"]
+        FintechQuery["UK fintech digital banking payments 2024 2025"]
+        CleanQuery["UK cleantech green energy funding 2024 2025"]
     end
 
-    subgraph Output["📰 Daily News Output"]
-        TechNews[Technology News]
-        HealthNews[Healthcare News]
-        FintechNews[Fintech News]
-        CleanNews[Clean Energy News]
+    subgraph Output["📊 News Display"]
+        TechNews[Technology News Cards]
+        HealthNews[Healthcare News Cards]
+        FintechNews[Fintech News Cards]
+        CleanNews[Clean Energy News Cards]
     end
 
-    %% Flow
-    User([👤 User]) --> DailyBtn
-    DailyBtn --> DailyModal
-    DailyModal --> SectorTabs
+    DailyNewsButton --> DailyNewsAPI
     
-    SectorTabs -->|"Load sector"| DailyAPI
-    DailyAPI --> SectorQueries
+    DailyNewsAPI --> SectorQueries
+    SectorQueries --> TechQuery
+    SectorQueries --> HealthQuery
+    SectorQueries --> FintechQuery
+    SectorQueries --> CleanQuery
     
-    SectorQueries --> TechQ
-    SectorQueries --> HealthQ
-    SectorQueries --> FintechQ
-    SectorQueries --> CleanQ
+    TechQuery --> ResultAggregator
+    HealthQuery --> ResultAggregator
+    FintechQuery --> ResultAggregator
+    CleanQuery --> ResultAggregator
     
-    TechQ --> TavilyAPI[(Tavily API)]
-    HealthQ --> TavilyAPI
-    FintechQ --> TavilyAPI
-    CleanQ --> TavilyAPI
+    ResultAggregator --> InsightsGenerator
+    InsightsGenerator --> AIInsights
     
-    TavilyAPI --> Aggregator
-    Aggregator --> Filter
-    Filter --> Format
-    Format --> Cache
+    ResultAggregator --> TechNews
+    ResultAggregator --> HealthNews
+    ResultAggregator --> FintechNews
+    ResultAggregator --> CleanNews
     
-    Cache --> TechNews
-    Cache --> HealthNews
-    Cache --> FintechNews
-    Cache --> CleanNews
+    TechNews --> SectorTabs
+    HealthNews --> SectorTabs
+    FintechNews --> SectorTabs
+    CleanNews --> SectorTabs
     
-    TechNews --> NewsFeed
-    HealthNews --> NewsFeed
-    FintechNews --> NewsFeed
-    CleanNews --> NewsFeed
-
-    style Frontend fill:#1e293b,stroke:#4f46e5,color:#fff
-    style Backend fill:#1e293b,stroke:#10b981,color:#fff
-    style TavilySearch fill:#1e293b,stroke:#f59e0b,color:#fff
-    style Processing fill:#1e293b,stroke:#8b5cf6,color:#fff
+    SectorTabs --> NewsGrid
+    AIInsights --> NewsPage
 ```
 
-### Sector News Categories
+### Daily News Sequence
 
-| Sector | Focus Areas | UK Keywords |
-|--------|-------------|-------------|
-| **Technology** | AI, SaaS, Deep Tech | "UK technology startup funding" |
-| **Healthcare** | Biotech, Medtech, Digital Health | "UK healthcare biotech investment" |
-| **Fintech** | Payments, Banking, InsurTech | "UK fintech digital banking" |
-| **Clean Energy** | Renewables, Battery, CleanTech | "UK cleantech green energy" |
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Backend
+    participant Tavily
+
+    User->>Frontend: Click AI Daily News button
+    Frontend->>Backend: GET /api/eis/daily-news
+    
+    par Parallel Sector Queries
+        Backend->>Tavily: Technology sector query
+        Backend->>Tavily: Healthcare sector query
+        Backend->>Tavily: Fintech sector query
+        Backend->>Tavily: Clean Energy sector query
+    end
+    
+    Tavily-->>Backend: All sector results
+    
+    Backend->>Backend: Aggregate by sector
+    Backend->>Backend: Generate AI insights
+    
+    Backend-->>Frontend: Sectored news + insights
+    Frontend->>Frontend: Display in tabs
+    
+    User->>Frontend: Click sector tab
+    Frontend->>Frontend: Filter to selected sector
+```
 
 ---
 
-## Complete System Integration
+## Technology Stack Summary
 
 ```mermaid
-graph LR
-    subgraph User["👤 User Interface"]
-        EIS[EIS Scanner]
-        Research[Research Agent]
-        News[AI Newsroom]
-        Daily[Daily News]
-        Subscribe[Newsletter]
-    end
-
-    subgraph APIs["🔌 API Layer"]
-        FastAPI[FastAPI Server<br/>server.py]
-    end
-
-    subgraph Services["⚙️ Services"]
-        Heuristics[EIS Heuristics]
-        ResearchSvc[Research Agent]
-        EditorSvc[Editor Agent]
-        MailerSvc[Mailer]
-        PDFSvc[PDF Generator]
-    end
-
-    subgraph External["🌐 External"]
-        CH[Companies House]
-        Tavily[Tavily AI]
-        HF[HuggingFace]
-        Gmail[Gmail SMTP]
-    end
-
-    EIS --> FastAPI
-    Research --> FastAPI
-    News --> FastAPI
-    Daily --> FastAPI
-    Subscribe --> FastAPI
-
-    FastAPI --> Heuristics
-    FastAPI --> ResearchSvc
-    FastAPI --> EditorSvc
-    FastAPI --> MailerSvc
-    FastAPI --> PDFSvc
-
-    Heuristics --> CH
-    ResearchSvc --> Tavily
-    EditorSvc --> HF
-    MailerSvc --> Gmail
-    PDFSvc --> MailerSvc
-
-    style User fill:#4f46e5,stroke:#fff,color:#fff
-    style APIs fill:#10b981,stroke:#fff,color:#fff
-    style Services fill:#8b5cf6,stroke:#fff,color:#fff
-    style External fill:#f59e0b,stroke:#fff,color:#fff
+mindmap
+  root((EIS Scanner))
+    Frontend
+      Next.js 14
+      TypeScript
+      Tailwind CSS
+      Framer Motion
+      Lucide Icons
+      Recharts
+    Backend
+      FastAPI
+      Python 3.11
+      Pandas
+      WeasyPrint
+    APIs
+      Companies House
+      Tavily AI
+      HuggingFace
+      Gmail SMTP
+    AI Models
+      Mistral 7B Instruct
+      Research Agent
+      Editor Agent
+    Storage
+      LocalStorage
+      scan_history.json
+      trained_models/
 ```
 
 ---
 
 ## Environment Variables Required
 
-```env
-# Companies House API
-COMPANIES_HOUSE_API_KEY=xxxxxxxx
-
-# Tavily AI Search
-TAVILY_API_KEY=tvly-xxxxxxxx
-
-# HuggingFace AI
-HF_API_KEY=hf_xxxxxxxx
-
-# Gmail SMTP
-GMAIL_ADDRESS=your@gmail.com
-GMAIL_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
-```
+| Variable | Service | Purpose |
+|----------|---------|---------|
+| `COMPANIES_HOUSE_API_KEY` | Companies House | UK company data |
+| `TAVILY_API_KEY` | Tavily | AI news search |
+| `HF_API_KEY` | HuggingFace | LLM summarization |
+| `GMAIL_ADDRESS` | Gmail | Newsletter sending |
+| `GMAIL_APP_PASSWORD` | Gmail | SMTP authentication |
 
 ---
 
-*Report Generated: December 26, 2024*
-*Platform: Sapphire Intelligence EIS Scanner v2.2.0*
+*Report Generated: December 26, 2024*  
+*Platform Version: 2.2.0*
