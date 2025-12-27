@@ -19,7 +19,17 @@
 
 ### Overview
 
-The EIS Investment Scanner page is the main interface for screening UK companies for Enterprise Investment Scheme eligibility. It combines real-time Companies House data with AI-powered analysis.
+The **EIS Investment Scanner** is the core feature of the Sapphire Intelligence Platform. It allows investors and analysts to screen UK companies for **Enterprise Investment Scheme (EIS) eligibility** — a UK tax relief program that provides significant tax benefits for investing in qualifying small, high-risk companies.
+
+### What It Does
+
+When a user searches for a company:
+
+1. **Search Phase**: The system queries the UK Companies House API to find matching companies by name or registration number
+2. **Data Collection**: For a selected company, it fetches comprehensive data including company profile, directors, shareholders (PSCs), charges, and filing history
+3. **EIS Scoring**: A heuristic engine analyzes the data against HMRC EIS criteria and calculates a 0-100 eligibility score
+4. **Revenue Lookup**: If financial data is missing from Companies House, the system uses Tavily AI to search for revenue/funding information
+5. **Display**: Results are displayed with visual indicators showing eligibility gates, score breakdown, and risk factors
 
 ### Architecture Diagram
 
@@ -97,28 +107,74 @@ flowchart TB
     style External fill:#18181b,stroke:#f59e0b,color:#fff
 ```
 
+### How Each Component Works
+
+#### 1. Search Bar
+- **Technology**: React with debounced input (300ms delay)
+- **Behavior**: As user types, the frontend waits 300ms after last keystroke, then calls `/api/eis/search?q=company_name`
+- **Results**: Returns up to 30 matching companies with name, number, address, and status
+
+#### 2. Company Profile API
+- **Endpoint**: `GET /api/eis/company/{company_number}/full-profile`
+- **Data Sources**: Makes 5 parallel calls to Companies House:
+  - Company profile (name, status, incorporation date, SIC codes)
+  - Officers (directors, secretaries, resigned officers)
+  - PSCs (persons with significant control - shareholders >25%)
+  - Charges (mortgages, loans, security interests)
+  - Filing history (annual accounts, confirmation statements)
+
+#### 3. EIS Heuristics Engine
+The scoring engine evaluates 6 key factors based on HMRC EIS rules:
+
+| Factor | Max Points | Logic |
+|--------|------------|-------|
+| **Company Age** | 20 | ≤7 years old = full points, >7 years = 0 points |
+| **Company Status** | 15 | "Active" = full points, Dissolved/Liquidated = 0 |
+| **SIC Codes** | 20 | Checks against excluded trade list (property, legal, financial services) |
+| **Insolvency** | 15 | No insolvency history = full points |
+| **Excluded Trades** | 15 | Not in excluded activities list |
+| **R&D/Knowledge Intensive** | 15 | Bonus for tech/research SIC codes |
+
+#### 4. Smart Eligibility Detection
+```
+IF any_factor_score == 0:
+    status = "Likely Not Eligible" (RED badge)
+ELIF total_score < 50:
+    status = "Likely Not Eligible" (RED badge)
+ELSE:
+    status = "Likely Eligible" (GREEN badge)
+```
+
+#### 5. Revenue Lookup (Tavily Fallback)
+When Companies House has no accounts data:
+1. Constructs query: `"{company_name} UK company revenue funding valuation 2024"`
+2. Calls Tavily AI search API
+3. Parses response for financial figures using regex patterns
+4. Extracts amounts like "£1.5M", "£200K", "$50 billion"
+5. Displays in Stats Grid
+
 ### Key Components
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
-| **Search Bar** | React + Debounce | Real-time company search |
-| **Company Profile** | Companies House API | Full company data |
-| **EIS Engine** | Python Heuristics | 0-100 eligibility scoring |
-| **Stats Grid** | React Cards | Directors, PSCs, Age, Revenue |
-| **Eligibility Gates** | Visual Indicators | Pass/Fail for key criteria |
-| **Score Breakdown** | Progress Bars | Factor-by-factor scoring |
+| **Search Bar** | React + Debounce | Real-time company search with 300ms delay |
+| **Company Profile** | Companies House API | Fetches 5 data categories in parallel |
+| **EIS Engine** | Python Heuristics | Calculates 0-100 score from 6 factors |
+| **Stats Grid** | React Cards (5 columns) | Directors, PSCs, Share Allotments, Age, Revenue |
+| **Eligibility Gates** | Visual Indicators | Pass/Fail icons for Status, SIC, Independence gates |
+| **Score Breakdown** | Progress Bars | Shows each factor's contribution |
 
 ### Plugins & Libraries Used
 
 | Library | Version | Purpose |
 |---------|---------|---------|
-| `next` | 14.x | React framework |
-| `framer-motion` | 10.x | Animations |
-| `lucide-react` | latest | Icons |
-| `tailwindcss` | 3.x | Styling |
-| `fastapi` | 0.100+ | Python API |
-| `tavily-python` | 0.3+ | News search |
-| `huggingface-hub` | 0.19+ | AI summarization |
+| `next` | 14.x | React framework with App Router |
+| `framer-motion` | 10.x | Smooth animations and transitions |
+| `lucide-react` | latest | Icon library (Users, Shield, Clock, Banknote, etc.) |
+| `tailwindcss` | 3.x | Utility-first CSS styling |
+| `fastapi` | 0.100+ | Python async API framework |
+| `tavily-python` | 0.3+ | AI-powered news and data search |
+| `huggingface-hub` | 0.19+ | LLM inference for summarization |
 
 ### Eligibility Scoring Logic
 
@@ -162,7 +218,25 @@ flowchart LR
 
 ### Overview
 
-The Research Agent performs deep-dive company research using Tavily AI search, generating comprehensive reports with PDF export and email delivery.
+The **Company Research Agent** is a deep-dive research tool that generates comprehensive company reports using AI. Unlike the EIS Scanner which focuses on eligibility, this tool provides detailed business intelligence including funding history, market analysis, financials, and recent news.
+
+### What It Does
+
+1. **Input**: User enters a company name and optional industry
+2. **Research**: System fires 16 parallel Tavily queries across 4 categories
+3. **Aggregation**: Results are deduplicated and structured into sections
+4. **Output**: Report is displayed with options to copy, download PDF, or email
+
+### Why 16 Queries?
+
+Each category uses 4 different query variations to maximize coverage:
+
+| Category | Query Examples |
+|----------|----------------|
+| **Company Overview** | "Spotify funding history", "Spotify headquarters team", "Spotify valuation 2024", "Spotify investors backers" |
+| **Industry Analysis** | "Music streaming market size", "Audio streaming competitors", "Podcast industry trends", "Digital music market 2024" |
+| **Financial Data** | "Spotify revenue 2024", "Spotify profitability", "Spotify growth rate", "Spotify financial performance" |
+| **Recent News** | "Spotify latest news", "Spotify announcements 2024", "Spotify press release", "Spotify updates December 2024" |
 
 ### Architecture Diagram
 
@@ -230,14 +304,34 @@ flowchart TB
     style Output fill:#18181b,stroke:#f59e0b,color:#fff
 ```
 
-### Research Query Categories
+### How Each Component Works
 
-| Category | Queries | Example |
-|----------|---------|---------|
-| **Company Overview** | 4 | "Spotify funding history valuation headquarters" |
-| **Industry Analysis** | 4 | "Music streaming market size trends competitors" |
-| **Financial Data** | 4 | "Spotify revenue growth profitability 2024" |
-| **Recent News** | 4 | "Spotify latest news announcements 2024" |
+#### 1. Company Input Form
+- **Fields**: Company Name (required), Industry (optional - helps focus queries)
+- **Validation**: Minimum 2 characters for company name
+- **Example Companies**: Pre-filled buttons for Spotify, Revolut, Stripe, Notion
+
+#### 2. CompanyResearcher Class
+Located in `backend/services/company_researcher.py`:
+```python
+class CompanyResearcher:
+    def research(self, company_name: str, industry: str = None):
+        # Generates 16 queries across 4 categories
+        # Fires all queries in parallel using asyncio
+        # Aggregates and deduplicates results
+        # Returns structured report
+```
+
+#### 3. PDF Generation
+- **Library**: WeasyPrint (HTML to PDF converter)
+- **Template**: Professional styling with company branding
+- **Sections**: Overview, Industry, Financial, News, Metadata
+- **Output**: A4 PDF downloadable in browser
+
+#### 4. Email Delivery
+- **SMTP**: Gmail with App Password authentication
+- **Attachment**: PDF report as attachment
+- **Body**: Summary text with key findings
 
 ### Report Structure
 
@@ -257,13 +351,41 @@ flowchart LR
     style Report fill:#1e293b,stroke:#3b82f6,color:#fff
 ```
 
+### API Endpoints
+
+| Endpoint | Method | Request Body | Response |
+|----------|--------|--------------|----------|
+| `/api/research/company` | POST | `{company_name, industry}` | `{report, sources, query_count}` |
+| `/api/research/pdf` | POST | `{report}` | Binary PDF file |
+| `/api/research/email` | POST | `{report, recipient_email}` | `{success, message}` |
+
 ---
 
 ## 3. Subscribe & Newsletter System
 
 ### Overview
 
-The Subscribe system allows users to receive periodic EIS portfolio updates via email with AI-generated company intelligence.
+The **Subscribe System** allows users to receive automated email updates about their EIS portfolio. It generates professional HTML newsletters with AI-powered company intelligence, combining data from Companies House and Tavily news search.
+
+### What It Does
+
+1. **User clicks Subscribe**: Opens modal to select frequency and enter email
+2. **Data Collection**: Gathers all portfolio companies and their latest data
+3. **AI Enhancement**: Fetches news for each company using Tavily + HuggingFace
+4. **Email Generation**: Creates HTML email with 7 sections
+5. **Delivery**: Sends via Gmail SMTP
+
+### Newsletter Sections Explained
+
+| Section | Content | Data Source |
+|---------|---------|-------------|
+| **Portfolio Summary** | Total companies, eligible count, review needed, risk flags | Aggregated from portfolio |
+| **Top Changes** | Top 3 companies with score, revenue, status, recommendations | Companies House + Tavily |
+| **AI Company Intelligence** | News summaries for each company with sources | Tavily + HuggingFace |
+| **Watchlist** | Companies needing manual review | EIS scoring flags |
+| **Full Portfolio Table** | Compact table of all companies | Portfolio data |
+| **Data Sources** | Credits for Companies House, Tavily, HuggingFace | Static |
+| **Next Scheduled Run** | When next email will be sent | Based on frequency |
 
 ### Architecture Diagram
 
@@ -348,6 +470,28 @@ flowchart TB
     style EmailGen fill:#18181b,stroke:#f59e0b,color:#fff
 ```
 
+### How Each Component Works
+
+#### 1. ProfessionalNewsletterGenerator
+Located in `backend/automation/mailer.py`:
+- **`_generate_html()`**: Builds the complete HTML email using table-based layout (for email client compatibility)
+- **`_generate_plain_text()`**: Creates fallback plain text version
+- **`send_newsletter()`**: Handles SMTP connection and sends multipart email
+
+#### 2. Zero-Score Eligibility Check
+Before displaying each company, the system checks:
+```python
+has_zero_factor = any(f.get('score', 1) <= 0 for f in factors)
+if has_zero_factor or total_score < 50:
+    status = "Likely Not Eligible"  # Shows in RED
+```
+
+#### 3. Revenue Display in Email
+Each company card shows:
+```
+💰 Revenue: £45.6M | 🏢 Sector: Technology | 📊 Status: Likely Eligible
+```
+
 ### Newsletter Content Flow
 
 ```mermaid
@@ -391,12 +535,12 @@ flowchart LR
 
 ### Frequency Options
 
-| Frequency | Next Run Calculation |
-|-----------|---------------------|
-| **Weekly** | Next Monday 08:00 |
-| **Monthly** | 1st of next month 08:00 |
-| **Yearly** | January 1st 08:00 |
-| **Now** | Immediate send |
+| Frequency | Next Run Calculation | Use Case |
+|-----------|---------------------|----------|
+| **Weekly** | Next Monday 08:00 | Regular monitoring |
+| **Monthly** | 1st of next month 08:00 | Monthly review |
+| **Yearly** | January 1st 08:00 | Annual summary |
+| **Now** | Immediate send | On-demand report |
 
 ---
 
@@ -404,7 +548,28 @@ flowchart LR
 
 ### Overview
 
-The AI Newsroom provides real-time news for individual companies using Tavily search with HuggingFace AI summarization.
+The **AI Newsroom** is a company-specific news feature that provides real-time news for any company in the portfolio. It uses Tavily to find recent news articles and HuggingFace's Mistral 7B model to summarize and filter for relevance.
+
+### What It Does
+
+1. **User clicks AI Newsroom button** on a company card
+2. **Search**: Constructs query using company name + SIC codes for context
+3. **Fetch**: Tavily returns top 5 most relevant news articles
+4. **Summarize**: Each article is summarized by Mistral 7B
+5. **Filter**: Only news marked as "relevant" to the company is shown
+6. **Display**: News panel shows headlines, AI summaries, and source links
+
+### Why HuggingFace Summarization?
+
+Raw Tavily results often include:
+- Irrelevant articles that happened to mention the company
+- Very long article content (1000+ words)
+- Duplicate information across sources
+
+The HuggingFace summarizer:
+- Condenses each article to 2-3 sentences
+- Checks if content is actually about the company (relevance score)
+- Filters out noise and duplicates
 
 ### Architecture Diagram
 
@@ -469,6 +634,35 @@ flowchart TB
     style Output fill:#18181b,stroke:#f59e0b,color:#fff
 ```
 
+### How Each Component Works
+
+#### 1. ResearchAgent Class
+Located in `backend/services/research_agent.py`:
+```python
+class ResearchAgent:
+    def search(self, company_name: str, sic_codes: list, max_results: int = 5):
+        # Constructs optimized search query
+        # Calls Tavily API
+        # Returns raw results with title, content, url
+```
+
+#### 2. EditorAgent Class
+Located in `backend/services/editor_agent.py`:
+```python
+class EditorAgent:
+    def summarize(self, company_name, raw_results, eis_score, sector):
+        # Calls Mistral 7B via HuggingFace API
+        # Generates 2-3 sentence summary
+        # Checks relevance (is this really about this company?)
+        # Returns {summary, is_relevant, sources}
+```
+
+#### 3. Query Construction
+For a company "Green Tech Solutions Ltd" with SIC code 62090:
+```
+Query: "Green Tech Solutions Ltd UK technology software news 2024"
+```
+
 ### News Processing Pipeline
 
 ```mermaid
@@ -501,7 +695,25 @@ sequenceDiagram
 
 ### Overview
 
-AI Daily News provides sector-level market intelligence with the latest funding, investment, and startup news across EIS-relevant sectors.
+**AI Daily News** provides sector-level market intelligence rather than company-specific news. It shows the latest funding rounds, investment trends, and startup news across four EIS-relevant sectors.
+
+### What It Does
+
+1. **User opens AI Daily News** from the header button
+2. **Parallel Search**: 4 sector-specific queries fire simultaneously
+3. **Aggregate**: Results are combined and deduplicated
+4. **Sort**: Articles sorted by date (most recent first)
+5. **Display**: Tabbed interface by sector with news cards
+
+### Why Sector-Level News?
+
+EIS investors often want to:
+- Track market trends in specific sectors
+- Identify new investment opportunities
+- Monitor competitor funding rounds
+- Stay updated on regulatory changes
+
+The daily news provides this macro-level view across Technology, Healthcare, Fintech, and Clean Energy.
 
 ### Architecture Diagram
 
@@ -579,12 +791,41 @@ flowchart TB
 
 ### Sector Query Configuration
 
-| Sector | Search Query | Focus |
-|--------|--------------|-------|
-| **Technology** | UK technology startup funding investment Series A 2024 | Software, AI, SaaS |
-| **Healthcare** | UK healthcare biotech medtech startup funding | Diagnostics, Therapeutics |
-| **Fintech** | UK fintech digital banking payments startup investment | Payments, InsurTech |
-| **Clean Energy** | UK cleantech green energy clean technology funding | Renewables, Battery |
+| Sector | Search Query | Target Topics |
+|--------|--------------|---------------|
+| **Technology** | UK technology startup funding investment Series A 2024 | AI, SaaS, Software, Cloud |
+| **Healthcare** | UK healthcare biotech medtech startup funding | Diagnostics, Therapeutics, Digital Health |
+| **Fintech** | UK fintech digital banking payments startup investment | Payments, InsurTech, Crypto, Lending |
+| **Clean Energy** | UK cleantech green energy clean technology funding | Solar, Wind, Battery, EV, Hydrogen |
+
+### How Each Component Works
+
+#### 1. Parallel Sector Search
+All 4 sector queries fire simultaneously using `asyncio.gather()`:
+```python
+async def get_daily_news():
+    results = await asyncio.gather(
+        search_sector("Technology", tech_query),
+        search_sector("Healthcare", health_query),
+        search_sector("Fintech", fintech_query),
+        search_sector("Clean Energy", clean_query)
+    )
+    return aggregate_results(results)
+```
+
+#### 2. Deduplication
+Many funding stories appear in multiple outlets. The system:
+- Normalizes headlines (lowercase, remove punctuation)
+- Computes similarity scores
+- Keeps only unique stories
+
+#### 3. News Card Display
+Each card shows:
+- **Title**: Clickable headline
+- **Summary**: First 200 characters of content
+- **Source**: Website badge (TechCrunch, Financial Times, etc.)
+- **Sector Tag**: Color-coded sector indicator
+- **Date**: Relative time (2 hours ago, Yesterday, etc.)
 
 ### Data Flow
 
@@ -619,6 +860,8 @@ sequenceDiagram
 ---
 
 ## Complete System Architecture
+
+This diagram shows how all components connect in the Sapphire Intelligence Platform:
 
 ```mermaid
 flowchart TB
@@ -678,22 +921,34 @@ flowchart TB
 ## Environment Variables Required
 
 ```env
-# Companies House API
+# Companies House API (Required for EIS Scanner)
 COMPANIES_HOUSE_API_KEY=your_api_key
 
-# Tavily AI Search
+# Tavily AI Search (Required for all news features)
 TAVILY_API_KEY=tvly-xxxxxxxxxxxx
 
-# HuggingFace (Mistral 7B)
+# HuggingFace (Required for AI summarization)
 HF_API_KEY=hf_xxxxxxxxxxxx
 
-# Gmail SMTP
+# Gmail SMTP (Required for newsletters)
 GMAIL_ADDRESS=your_email@gmail.com
 GMAIL_APP_PASSWORD=your_app_password
 
-# Slack (Optional)
+# Slack (Optional - for alerts)
 SLACK_WEBHOOK_URL=https://hooks.slack.com/...
 ```
+
+---
+
+## Quick Reference
+
+| Feature | Frontend Route | Backend Endpoint | External APIs |
+|---------|----------------|------------------|---------------|
+| EIS Scanner | `/eis` | `/api/eis/*` | Companies House |
+| Research Agent | `/research` | `/api/research/*` | Tavily |
+| AI Newsroom | Modal on `/eis` | `/api/eis/company/{id}/news` | Tavily + HuggingFace |
+| AI Daily News | `/daily-news` | `/api/eis/daily-news` | Tavily |
+| Newsletter | Modal on `/eis` | `/api/eis/automation/send-email` | All + Gmail |
 
 ---
 
