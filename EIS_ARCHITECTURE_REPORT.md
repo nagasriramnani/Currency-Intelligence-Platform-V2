@@ -62,7 +62,7 @@ graph TB
     UI --> Search
     Search -->|Company Name/Number| API
     API -->|GET /api/eis/search| CH
-    API -->|GET /api/eis/company/{id}/full-profile| CH
+    API -->|"GET /api/eis/company/id/full-profile"| CH
     
     CH --> Profile
     CH --> Officers
@@ -116,7 +116,7 @@ graph TB
 
 ```mermaid
 pie title EIS Score Distribution (100 Points)
-    "Company Age (< 7 years)" : 20
+    "Company Age under 7 years" : 20
     "Active Status" : 15
     "Qualifying SIC Codes" : 20
     "No Insolvency" : 15
@@ -423,7 +423,7 @@ graph LR
 
 | Step | Endpoint | Data |
 |------|----------|------|
-| 1 | `/api/eis/company/{id}/news` | Company Number |
+| 1 | `/api/eis/company/id/news` | Company Number |
 | 2 | Internal | Tavily Search Query |
 | 3 | Internal | HuggingFace Summarization |
 | 4 | Response | News + AI Summary |
