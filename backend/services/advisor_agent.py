@@ -170,8 +170,10 @@ class EISAdvisorAgent:
             number = company.get("company_number", "")
             
             if query_lower in name or query_lower == number:
-                score = company.get("eis_score", "N/A")
-                status = company.get("eis_status", "Unknown")
+                # Handle both flat and nested data structures
+                eis_assessment = company.get("eis_assessment", {})
+                score = company.get("eis_score") or eis_assessment.get("score", "N/A")
+                status = company.get("eis_status") or eis_assessment.get("status", "Unknown")
                 matches.append(f"- {company.get('company_name')} ({number}): Score {score}/100, {status}")
         
         if matches:
@@ -306,8 +308,10 @@ class EISAdvisorAgent:
         for c in portfolio[:10]:  # Limit to 10 for context size
             name = c.get("company_name", "Unknown")
             number = c.get("company_number", "N/A")
-            score = c.get("eis_score", "N/A")
-            status = c.get("eis_status", "Unknown")
+            # Handle both flat and nested data structures
+            eis_assessment = c.get("eis_assessment", {})
+            score = c.get("eis_score") or eis_assessment.get("score", "N/A")
+            status = c.get("eis_status") or eis_assessment.get("status", "Unknown")
             context_parts.append(f"- {name} ({number}): {score}/100, {status}")
         
         return "\n".join(context_parts)
