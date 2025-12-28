@@ -514,7 +514,7 @@ export default function EISDashboard() {
 
             {/* Sub-Header */}
             <header className="relative border-b border-slate-800/50 backdrop-blur-xl bg-slate-900/30">
-                <div className="max-w-7xl mx-auto px-6 py-6">
+                <div className="max-w-[1800px] mx-auto px-6 py-6">
                     <div className="flex items-center justify-between">
                         <FadeIn>
                             <div className="flex items-center gap-4">
@@ -535,29 +535,45 @@ export default function EISDashboard() {
                         <FadeIn delay={0.1}>
                             <div className="flex items-center gap-3">
                                 {/* Portfolio Slot Selector */}
-                                <div className="relative z-[100]">
+                                <div className="relative z-[200]">
                                     <button
                                         onClick={() => setShowSlotDropdown(!showSlotDropdown)}
-                                        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/80 border border-slate-700/50 hover:border-slate-600 transition-colors text-sm text-slate-300"
+                                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800 border border-slate-600 hover:border-indigo-500/50 transition-colors text-sm text-slate-200"
                                     >
-                                        <FolderOpen className="h-4 w-4 text-slate-400" />
-                                        <span>{getSlotName(selectedSlot)}</span>
-                                        <ChevronDown className="h-4 w-4 text-slate-400" />
+                                        <FolderOpen className="h-4 w-4 text-indigo-400" />
+                                        <span className="font-medium">{getSlotName(selectedSlot)}</span>
+                                        <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${showSlotDropdown ? 'rotate-180' : ''}`} />
                                     </button>
 
                                     {showSlotDropdown && (
-                                        <div className="absolute top-full mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl z-[100]">
-                                            {['1', '2', '3', '4', '5'].map(slot => (
-                                                <button
-                                                    key={slot}
-                                                    onClick={() => loadPortfolioFromSlot(slot)}
-                                                    className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-700/50 transition-colors ${selectedSlot === slot ? 'text-indigo-400 bg-indigo-500/10' : 'text-slate-300'
-                                                        }`}
-                                                >
-                                                    {getSlotName(slot)}
-                                                </button>
-                                            ))}
-                                        </div>
+                                        <>
+                                            {/* Backdrop to close dropdown */}
+                                            <div
+                                                className="fixed inset-0 z-[150]"
+                                                onClick={() => setShowSlotDropdown(false)}
+                                            />
+                                            {/* Dropdown Menu */}
+                                            <div className="absolute top-full left-0 mt-2 w-52 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl z-[200] overflow-hidden">
+                                                <div className="bg-gradient-to-b from-slate-700/50 to-transparent px-3 py-2 border-b border-slate-700">
+                                                    <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Select Portfolio</span>
+                                                </div>
+                                                {['1', '2', '3', '4', '5'].map(slot => (
+                                                    <button
+                                                        key={slot}
+                                                        onClick={() => loadPortfolioFromSlot(slot)}
+                                                        className={`w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center justify-between ${selectedSlot === slot
+                                                                ? 'bg-indigo-500/20 text-indigo-300 border-l-2 border-indigo-500'
+                                                                : 'text-slate-300 hover:bg-slate-700/50'
+                                                            }`}
+                                                    >
+                                                        <span>{getSlotName(slot)}</span>
+                                                        {selectedSlot === slot && (
+                                                            <Check className="h-4 w-4 text-indigo-400" />
+                                                        )}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </>
                                     )}
                                 </div>
 
