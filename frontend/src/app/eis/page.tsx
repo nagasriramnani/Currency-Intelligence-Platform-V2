@@ -535,7 +535,7 @@ export default function EISDashboard() {
                         <FadeIn delay={0.1}>
                             <div className="flex items-center gap-3">
                                 {/* Portfolio Slot Selector */}
-                                <div className="relative">
+                                <div className="relative z-[100]">
                                     <button
                                         onClick={() => setShowSlotDropdown(!showSlotDropdown)}
                                         className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/80 border border-slate-700/50 hover:border-slate-600 transition-colors text-sm text-slate-300"
@@ -546,7 +546,7 @@ export default function EISDashboard() {
                                     </button>
 
                                     {showSlotDropdown && (
-                                        <div className="absolute top-full mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50">
+                                        <div className="absolute top-full mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl z-[100]">
                                             {['1', '2', '3', '4', '5'].map(slot => (
                                                 <button
                                                     key={slot}
@@ -649,8 +649,8 @@ export default function EISDashboard() {
                 </div>
             </header>
 
-            <main className="relative max-w-7xl mx-auto px-6 py-8">
-                <div className="flex gap-8">
+            <main className="relative max-w-[1800px] mx-auto px-6 py-8">
+                <div className="flex gap-6">
                     {/* Left Panel - Portfolio / Search Results - EXPANDED */}
                     <div className="w-[450px] flex-shrink-0">
                         <div className="sticky top-8">
@@ -1025,8 +1025,8 @@ function CompanyDetails({
                 </CardContent>
             </Card>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-5 gap-4">
+            {/* Stats Grid - Responsive with wrapping */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 <StatsCard
                     title="Directors"
                     value={officers.director_count || 0}
@@ -1042,16 +1042,16 @@ function CompanyDetails({
                     delay={0.2}
                 />
                 <StatsCard
-                    title="Share Allotments"
+                    title="Allotments"
                     value={filings.analysis?.share_allotment_count || 0}
                     icon={TrendingUp}
                     variant="success"
                     delay={0.3}
                 />
                 <StatsCard
-                    title="Age (Years)"
+                    title="Age"
                     value={co.date_of_creation
-                        ? Math.floor((Date.now() - new Date(co.date_of_creation).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+                        ? `${Math.floor((Date.now() - new Date(co.date_of_creation).getTime()) / (365.25 * 24 * 60 * 60 * 1000))}y`
                         : '-'
                     }
                     icon={Clock}
