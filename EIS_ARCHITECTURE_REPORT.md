@@ -15,6 +15,8 @@
 3. [Newsletter Subscribe System](#3-newsletter-subscribe-system)
 4. [AI Newsroom](#4-ai-newsroom)
 5. [AI Daily News](#5-ai-daily-news)
+6. [Portfolio Persistence System](#6-portfolio-persistence-system)
+7. [EIS Conversational Advisor (Ollama)](#7-eis-conversational-advisor-ollama)
 
 ---
 
@@ -553,6 +555,172 @@ graph TB
 
 ---
 
+## 6. Portfolio Persistence System
+
+### Overview
+The Portfolio Persistence system allows users to save and load company portfolios across browser sessions using localStorage. It supports 5 independent save slots.
+
+### Architecture
+
+```mermaid
+flowchart LR
+    subgraph Frontend["🖥️ Frontend"]
+        UI["Portfolio UI"]
+        LocalStorage["localStorage"]
+    end
+    
+    UI -->|Save| LocalStorage
+    LocalStorage -->|Load| UI
+    
+    subgraph Slots["📁 5 Save Slots"]
+        S1["Portfolio 1"]
+        S2["Portfolio 2"]
+        S3["Portfolio 3"]
+        S4["Portfolio 4"]
+        S5["Portfolio 5"]
+    end
+    
+    LocalStorage --> Slots
+```
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **5 Save Slots** | Portfolio 1-5, each independent |
+| **Auto-Load** | Last selected slot loads on page refresh |
+| **Dropdown Selector** | Visual dropdown with company counts |
+| **Save Button** | One-click save to current slot |
+| **No Backend** | Pure frontend, uses `localStorage` |
+
+### Data Structure
+
+```json
+{
+  "eis_portfolios": {
+    "1": [
+      {
+        "company_number": "12345678",
+        "company_name": "Example Ltd",
+        "eis_assessment": { "score": 85, "status": "Likely Eligible" },
+        "sic_codes": ["62020"]
+      }
+    ],
+    "2": [],
+    "3": [],
+    "4": [],
+    "5": []
+  },
+  "eis_selected_slot": "1"
+}
+```
+
+---
+
+## 7. EIS Conversational Advisor (Ollama)
+
+### Overview
+The EIS Advisor is a multi-tool AI assistant powered by Ollama (local LLM). It can answer EIS eligibility questions, analyze companies, fetch news, and handle general knowledge questions.
+
+### Architecture
+
+```mermaid
+flowchart TD
+    subgraph User["👤 User"]
+        Chat["Chat Interface"]
+    end
+    
+    subgraph Frontend["🖥️ /advisor Page"]
+        Messages["Message History"]
+        Input["Question Input"]
+    end
+    
+    subgraph Backend["⚙️ FastAPI"]
+        Endpoint["/api/eis/advisor/chat"]
+        Agent["EISAdvisorAgent"]
+    end
+    
+    subgraph Ollama["🦙 Ollama"]
+        Model["llama3.2"]
+    end
+    
+    subgraph Tools["🔧 Tools"]
+        T1["Portfolio Search"]
+        T2["Companies House"]
+        T3["EIS Scorer"]
+        T4["Tavily News"]
+        T5["Tavily Financials"]
+        T6["Sector News"]
+    end
+    
+    Chat --> Input
+    Input --> Endpoint
+    Endpoint --> Agent
+    Agent --> Tools
+    Agent --> Model
+    Model --> Messages
+```
+
+### Available Tools
+
+| Tool | Purpose | Data Source |
+|------|---------|-------------|
+| `tool_search_portfolio` | Search saved companies | localStorage |
+| `tool_lookup_company` | Get company details | Companies House API |
+| `tool_calculate_eis` | Calculate EIS score | eis_heuristics.py |
+| `tool_search_news` | Company news | Tavily API |
+| `tool_get_financials` | Revenue/funding | Tavily API |
+| `tool_sector_news` | Sector trends | Tavily API |
+
+### Example Conversations
+
+```
+👤 User: "What makes a company EIS eligible?"
+
+🤖 Advisor: "For EIS eligibility, companies must:
+   - Be under 7 years old (or 10 for Knowledge Intensive)
+   - Have under £15M gross assets
+   - Have fewer than 250 employees
+   - Not be in excluded sectors (property, legal, etc.)
+   - Be an active UK company"
+
+---
+
+👤 User: "Analyze Revolut for EIS"
+
+🤖 Advisor: "REVOLUT GROUP HOLDINGS LTD (12743369):
+   📊 EIS Score: 45/100 (Not Eligible)
+   
+   ❌ Failed: Company Age (0/20) - Founded 2015
+   ❌ Failed: Gross Assets exceed £15M
+   ✅ Passed: Active UK company
+   ✅ Passed: Technology sector eligible
+   
+   💰 Revenue: £1.8B (2023)"
+```
+
+### Setup Requirements
+
+```bash
+# Install Ollama
+# Download from: https://ollama.com
+
+# Pull the model
+ollama pull llama3.2
+
+# Verify
+ollama list
+```
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/eis/advisor/chat` | POST | Send message to advisor |
+| `/api/eis/advisor/status` | GET | Check Ollama availability |
+
+---
+
 ## Environment Configuration
 
 ```env
@@ -568,6 +736,9 @@ HF_API_KEY=hf_xxxxxxxxxx
 # Gmail SMTP
 GMAIL_ADDRESS=your@gmail.com
 GMAIL_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
+
+# Ollama (optional, defaults to localhost)
+OLLAMA_URL=http://localhost:11434
 ```
 
 ---
@@ -578,5 +749,5 @@ GMAIL_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
 
 ---
 
-*Report Generated: December 27, 2024*  
-*Version: 2.2.0*
+*Report Generated: December 28, 2025*  
+*Version: 2.3.0*

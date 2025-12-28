@@ -535,9 +535,8 @@ export default function EISDashboard() {
                         <FadeIn delay={0.1}>
                             <div className="flex items-center gap-3">
                                 {/* Portfolio Slot Selector */}
-                                <div className="relative">
+                                <div className="relative z-[200]">
                                     <button
-                                        id="portfolio-dropdown-trigger"
                                         onClick={() => setShowSlotDropdown(!showSlotDropdown)}
                                         className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800 border border-slate-600 hover:border-indigo-500/50 transition-colors text-sm text-slate-200"
                                     >
@@ -548,19 +547,13 @@ export default function EISDashboard() {
 
                                     {showSlotDropdown && (
                                         <>
-                                            {/* Full-screen backdrop to close dropdown */}
+                                            {/* Backdrop to close dropdown */}
                                             <div
-                                                className="fixed inset-0 z-[9998]"
+                                                className="fixed inset-0 z-[150]"
                                                 onClick={() => setShowSlotDropdown(false)}
                                             />
-                                            {/* Dropdown Menu - Fixed position, appears on top of everything */}
-                                            <div
-                                                className="fixed w-52 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl z-[9999] overflow-hidden"
-                                                style={{
-                                                    top: (document.getElementById('portfolio-dropdown-trigger')?.getBoundingClientRect().bottom ?? 0) + 8,
-                                                    left: document.getElementById('portfolio-dropdown-trigger')?.getBoundingClientRect().left ?? 0
-                                                }}
-                                            >
+                                            {/* Dropdown Menu */}
+                                            <div className="absolute top-full left-0 mt-2 w-52 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl z-[200] overflow-hidden">
                                                 <div className="bg-gradient-to-b from-slate-700/50 to-transparent px-3 py-2 border-b border-slate-700">
                                                     <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Select Portfolio</span>
                                                 </div>
