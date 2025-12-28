@@ -545,45 +545,44 @@ export default function EISDashboard() {
                                         <span className="font-medium">{getSlotName(selectedSlot)}</span>
                                         <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${showSlotDropdown ? 'rotate-180' : ''}`} />
                                     </button>
-                                </div>
 
-                                {/* Portfolio Dropdown - Fixed Position Portal */}
-                                {showSlotDropdown && (
-                                    <>
-                                        {/* Full-screen backdrop */}
-                                        <div
-                                            className="fixed inset-0 z-[9998]"
-                                            onClick={() => setShowSlotDropdown(false)}
-                                        />
-                                        {/* Dropdown Menu - Fixed Position */}
-                                        <div
-                                            className="fixed z-[9999] w-52 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl overflow-hidden"
-                                            style={{
-                                                top: (document.getElementById('portfolio-dropdown-trigger')?.getBoundingClientRect().bottom || 100) + 8,
-                                                left: document.getElementById('portfolio-dropdown-trigger')?.getBoundingClientRect().left || 100
-                                            }}
-                                        >
-                                            <div className="bg-gradient-to-b from-slate-700/50 to-transparent px-3 py-2 border-b border-slate-700">
-                                                <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Select Portfolio</span>
-                                            </div>
-                                            {['1', '2', '3', '4', '5'].map(slot => (
-                                                <button
-                                                    key={slot}
-                                                    onClick={() => loadPortfolioFromSlot(slot)}
-                                                    className={`w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center justify-between ${selectedSlot === slot
+                                    {showSlotDropdown && (
+                                        <>
+                                            {/* Full-screen backdrop to close dropdown */}
+                                            <div
+                                                className="fixed inset-0 z-[9998]"
+                                                onClick={() => setShowSlotDropdown(false)}
+                                            />
+                                            {/* Dropdown Menu - Fixed position, appears on top of everything */}
+                                            <div
+                                                className="fixed w-52 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl z-[9999] overflow-hidden"
+                                                style={{
+                                                    top: (document.getElementById('portfolio-dropdown-trigger')?.getBoundingClientRect().bottom ?? 0) + 8,
+                                                    left: document.getElementById('portfolio-dropdown-trigger')?.getBoundingClientRect().left ?? 0
+                                                }}
+                                            >
+                                                <div className="bg-gradient-to-b from-slate-700/50 to-transparent px-3 py-2 border-b border-slate-700">
+                                                    <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Select Portfolio</span>
+                                                </div>
+                                                {['1', '2', '3', '4', '5'].map(slot => (
+                                                    <button
+                                                        key={slot}
+                                                        onClick={() => loadPortfolioFromSlot(slot)}
+                                                        className={`w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center justify-between ${selectedSlot === slot
                                                             ? 'bg-indigo-500/20 text-indigo-300 border-l-2 border-indigo-500'
                                                             : 'text-slate-300 hover:bg-slate-700/50'
-                                                        }`}
-                                                >
-                                                    <span>{getSlotName(slot)}</span>
-                                                    {selectedSlot === slot && (
-                                                        <Check className="h-4 w-4 text-indigo-400" />
-                                                    )}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </>
-                                )}
+                                                            }`}
+                                                    >
+                                                        <span>{getSlotName(slot)}</span>
+                                                        {selectedSlot === slot && (
+                                                            <Check className="h-4 w-4 text-indigo-400" />
+                                                        )}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
 
                                 {/* Save Portfolio Button */}
                                 <Button
