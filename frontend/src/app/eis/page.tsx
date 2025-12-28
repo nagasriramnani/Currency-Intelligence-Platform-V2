@@ -63,8 +63,13 @@ import {
     Check,
     FolderPlus,
     DollarSign,
-    Banknote
+    Banknote,
+    Save,
+    FolderOpen,
+    Bot,
+    ChevronDown
 } from 'lucide-react';
+import Link from 'next/link';
 
 // === TYPES ===
 interface CompanyProfile {
@@ -158,6 +163,11 @@ export default function EISDashboard() {
     // User's manually added portfolio companies
     const [myPortfolio, setMyPortfolio] = useState<Set<string>>(new Set());
 
+    // Portfolio save slots (1-5)
+    const [savedPortfolios, setSavedPortfolios] = useState<{ [key: string]: any[] }>({});
+    const [selectedSlot, setSelectedSlot] = useState<string>('1');
+    const [showSlotDropdown, setShowSlotDropdown] = useState(false);
+
     // Add company to portfolio
     const addToPortfolio = (companyNumber: string, companyName: string) => {
         if (myPortfolio.has(companyNumber)) {
@@ -196,24 +206,90 @@ export default function EISDashboard() {
         return myPortfolio.has(companyNumber) || portfolioCompanies.some(c => c.company_number === companyNumber);
     };
 
-    // Load portfolio on mount - NO automatic loading of scan history
-    // Users must manually add companies to portfolio
+    // Load portfolio from localStorage on mount
     useEffect(() => {
-        // Start with empty portfolio - no demo companies
+        try {
+            // Load saved portfolios
+            const saved = localStorage.getItem('eis_portfolios');
+            if (saved) {
+                const portfolios = JSON.parse(saved);
+                setSavedPortfolios(portfolios);
+
+                // Load last selected slot
+                const lastSlot = localStorage.getItem('eis_selected_slot') || '1';
+                setSelectedSlot(lastSlot);
+
+                // Load portfolio from last slot
+                const slotData = portfolios[lastSlot] || [];
+                if (slotData.length > 0) {
+                    setPortfolioCompanies(slotData);
+                    setMyPortfolio(new Set(slotData.map((c: any) => c.company_number)));
+
+                    // Calculate stats
+                    const eligible = slotData.filter((c: any) => c.eis_assessment?.status?.includes('Eligible')).length;
+                    const review = slotData.filter((c: any) => c.eis_assessment?.status?.includes('Review')).length;
+                    const avgScore = slotData.length > 0
+                        ? slotData.reduce((sum: number, c: any) => sum + (c.eis_assessment?.score || 0), 0) / slotData.length
+                        : 0;
+
+                    setPortfolioStats({
+                        likelyEligible: eligible,
+                        reviewRequired: review,
+                        avgScore: Math.round(avgScore),
+                        total: slotData.length
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load portfolio from localStorage:', error);
+        }
         setPortfolioLoading(false);
-        setPortfolioCompanies([]);
-        setPortfolioStats({
-            likelyEligible: 0,
-            reviewRequired: 0,
-            avgScore: 0,
-            total: 0
-        });
     }, []);
 
-    const loadPortfolio = async () => {
-        // This function is now only called when user adds companies
-        // Not automatically loading scan results as portfolio
-        setPortfolioLoading(false);
+    // Save portfolio to slot
+    const savePortfolio = (slot: string) => {
+        const portfolioData = portfolioCompanies.map(c => ({
+            company_number: c.company_number,
+            company_name: c.company_name,
+            eis_assessment: c.eis_assessment,
+            sic_codes: c.sic_codes || []
+        }));
+
+        const updated = { ...savedPortfolios, [slot]: portfolioData };
+        setSavedPortfolios(updated);
+        localStorage.setItem('eis_portfolios', JSON.stringify(updated));
+        localStorage.setItem('eis_selected_slot', slot);
+        setSelectedSlot(slot);
+    };
+
+    // Load portfolio from slot
+    const loadPortfolioFromSlot = (slot: string) => {
+        const slotData = savedPortfolios[slot] || [];
+        setPortfolioCompanies(slotData);
+        setMyPortfolio(new Set(slotData.map((c: any) => c.company_number)));
+        setSelectedSlot(slot);
+        localStorage.setItem('eis_selected_slot', slot);
+        setShowSlotDropdown(false);
+
+        // Recalculate stats
+        const eligible = slotData.filter((c: any) => c.eis_assessment?.status?.includes('Eligible')).length;
+        const review = slotData.filter((c: any) => c.eis_assessment?.status?.includes('Review')).length;
+        const avgScore = slotData.length > 0
+            ? slotData.reduce((sum: number, c: any) => sum + (c.eis_assessment?.score || 0), 0) / slotData.length
+            : 0;
+
+        setPortfolioStats({
+            likelyEligible: eligible,
+            reviewRequired: review,
+            avgScore: Math.round(avgScore),
+            total: slotData.length
+        });
+    };
+
+    // Get slot display name
+    const getSlotName = (slot: string) => {
+        const count = (savedPortfolios[slot] || []).length;
+        return `Portfolio ${slot} (${count})`;
     };
 
     // Search companies
@@ -458,6 +534,45 @@ export default function EISDashboard() {
 
                         <FadeIn delay={0.1}>
                             <div className="flex items-center gap-3">
+                                {/* Portfolio Slot Selector */}
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setShowSlotDropdown(!showSlotDropdown)}
+                                        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/80 border border-slate-700/50 hover:border-slate-600 transition-colors text-sm text-slate-300"
+                                    >
+                                        <FolderOpen className="h-4 w-4 text-slate-400" />
+                                        <span>{getSlotName(selectedSlot)}</span>
+                                        <ChevronDown className="h-4 w-4 text-slate-400" />
+                                    </button>
+
+                                    {showSlotDropdown && (
+                                        <div className="absolute top-full mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50">
+                                            {['1', '2', '3', '4', '5'].map(slot => (
+                                                <button
+                                                    key={slot}
+                                                    onClick={() => loadPortfolioFromSlot(slot)}
+                                                    className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-700/50 transition-colors ${selectedSlot === slot ? 'text-indigo-400 bg-indigo-500/10' : 'text-slate-300'
+                                                        }`}
+                                                >
+                                                    {getSlotName(slot)}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Save Portfolio Button */}
+                                <Button
+                                    variant="outline"
+                                    onClick={() => savePortfolio(selectedSlot)}
+                                    title={`Save to ${getSlotName(selectedSlot)}`}
+                                >
+                                    <Save className="h-4 w-4 mr-2" />
+                                    Save
+                                </Button>
+
+                                <div className="h-6 w-px bg-slate-700" />
+
                                 <Button
                                     variant="outline"
                                     onClick={exportPortfolioReport}
@@ -480,6 +595,16 @@ export default function EISDashboard() {
                                     <Sparkles className="h-4 w-4 mr-2" />
                                     AI Newsroom
                                 </Button>
+
+                                <div className="h-6 w-px bg-slate-700" />
+
+                                {/* EIS Advisor Button */}
+                                <Link href="/advisor">
+                                    <Button variant="glow" className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500">
+                                        <Bot className="h-4 w-4 mr-2" />
+                                        EIS Advisor
+                                    </Button>
+                                </Link>
                             </div>
                         </FadeIn>
                     </div>

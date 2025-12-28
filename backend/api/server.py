@@ -3568,6 +3568,97 @@ async def email_research_report(request: EmailReportRequest):
         }
 
 
+# =============================================================================
+# EIS ADVISOR - Conversational AI powered by Ollama
+# =============================================================================
+
+class AdvisorChatRequest(BaseModel):
+    """Request model for advisor chat"""
+    question: str = Field(..., description="User's question")
+    portfolio: List[Dict[str, Any]] = Field(default=[], description="User's portfolio companies")
+    clear_history: bool = Field(default=False, description="Clear conversation history")
+
+class AdvisorChatResponse(BaseModel):
+    """Response model for advisor chat"""
+    success: bool
+    response: str
+    available: bool = True
+
+@app.post("/api/eis/advisor/chat", response_model=AdvisorChatResponse)
+async def eis_advisor_chat(request: AdvisorChatRequest):
+    """
+    Chat with the EIS Advisor - A multi-tool AI assistant powered by Ollama.
+    
+    The advisor can:
+    - Answer EIS eligibility questions
+    - Analyze companies in your portfolio
+    - Search for company news and financial data
+    - Get sector news (AI Daily News)
+    - Answer general questions (geography, math, etc.)
+    
+    Args:
+        question: The user's question
+        portfolio: List of portfolio companies with their data
+        clear_history: If true, clears conversation history first
+    
+    Returns:
+        AI-generated response from the advisor
+    """
+    try:
+        from services.advisor_agent import get_advisor
+        
+        advisor = get_advisor()
+        
+        if not advisor.available:
+            return AdvisorChatResponse(
+                success=False,
+                response="⚠️ EIS Advisor is not available. Please ensure Ollama is running with llama3.2 model.\n\nTo install:\n1. Download Ollama from https://ollama.com\n2. Run: ollama pull llama3.2",
+                available=False
+            )
+        
+        # Clear history if requested
+        if request.clear_history:
+            advisor.clear_history()
+        
+        # Get response from advisor
+        response = await advisor.chat(request.question, request.portfolio)
+        
+        return AdvisorChatResponse(
+            success=True,
+            response=response,
+            available=True
+        )
+        
+    except Exception as e:
+        logger.error(f"EIS Advisor error: {e}")
+        return AdvisorChatResponse(
+            success=False,
+            response=f"⚠️ Error: {str(e)}",
+            available=False
+        )
+
+@app.get("/api/eis/advisor/status")
+async def eis_advisor_status():
+    """
+    Check if the EIS Advisor (Ollama) is available.
+    """
+    try:
+        from services.advisor_agent import get_advisor
+        advisor = get_advisor()
+        
+        return {
+            "available": advisor.available,
+            "model": advisor.model,
+            "ollama_url": advisor.ollama_url,
+            "message": "Ollama is running" if advisor.available else "Ollama not available. Run: ollama pull llama3.2"
+        }
+    except Exception as e:
+        return {
+            "available": False,
+            "error": str(e)
+        }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
