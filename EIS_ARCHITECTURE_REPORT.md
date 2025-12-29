@@ -2,8 +2,8 @@
 
 ## Complete System Architecture & Component Documentation
 
-**Version:** 2.2.0  
-**Last Updated:** December 27, 2025 
+**Version:** 2.4.0  
+**Last Updated:** December 29, 2025 
 **Author:** Sapphire Intelligence Team
 
 ---
@@ -719,6 +719,18 @@ ollama list
 | `/api/eis/advisor/chat` | POST | Send message to advisor |
 | `/api/eis/advisor/status` | GET | Check Ollama availability |
 
+### Important Notes
+
+> [!NOTE]
+> **Portfolio Data Structure**: The advisor handles both flat and nested data formats:
+> ```json
+> // Nested format (from localStorage)
+> { "eis_assessment": { "score": 85, "status": "Likely Eligible" } }
+> 
+> // Flat format (legacy)
+> { "eis_score": 85, "eis_status": "Likely Eligible" }
+> ```
+
 ---
 
 ## Environment Configuration
@@ -749,5 +761,5 @@ OLLAMA_URL=http://localhost:11434
 
 ---
 
-*Report Generated: December 28, 2025*  
-*Version: 2.3.0*
+*Report Generated: December 29, 2025*  
+*Version: 2.4.0*
