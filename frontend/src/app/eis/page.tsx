@@ -740,7 +740,7 @@ export default function EISDashboard() {
                                                     transition={{ delay: index * 0.03 }}
                                                     onClick={() => loadCompanyDetails(company.company_number)}
                                                     className={cn(
-                                                        "p-4 rounded-xl border cursor-pointer transition-all duration-200",
+                                                        "group p-4 rounded-xl border cursor-pointer transition-all duration-200",
                                                         "hover:bg-slate-800/50",
                                                         selectedCompany?.company.company_number === company.company_number
                                                             ? "border-indigo-500 bg-indigo-500/10"
@@ -756,13 +756,24 @@ export default function EISDashboard() {
                                                                 #{company.company_number}
                                                             </p>
                                                         </div>
-                                                        <div className="flex flex-col items-end gap-1">
+                                                        <div className="flex items-center gap-2">
                                                             <Badge
                                                                 variant={company.eis_assessment?.status?.includes('Eligible') ? 'success' : 'warning'}
                                                                 size="sm"
                                                             >
                                                                 {company.eis_assessment?.score || 0}/100
                                                             </Badge>
+                                                            {/* Remove button */}
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    addToPortfolio(company.company_number, company.company_name);
+                                                                }}
+                                                                className="p-1.5 rounded-lg bg-slate-800/50 hover:bg-red-500/20 border border-transparent hover:border-red-500/30 transition-all opacity-0 group-hover:opacity-100"
+                                                                title="Remove from portfolio"
+                                                            >
+                                                                <X className="h-3.5 w-3.5 text-slate-400 hover:text-red-400" />
+                                                            </button>
                                                         </div>
                                                     </div>
                                                 </motion.div>
@@ -1059,14 +1070,16 @@ function CompanyDetails({
                             <Button
                                 variant={isInPortfolio(co.company_number) ? "default" : "outline"}
                                 onClick={() => addToPortfolio(co.company_number, co.company_name)}
-                                className={isInPortfolio(co.company_number)
-                                    ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                                    : ""}
+                                className={`group transition-all ${isInPortfolio(co.company_number)
+                                    ? "bg-emerald-600 hover:bg-red-600 text-white"
+                                    : ""}`}
                             >
                                 {isInPortfolio(co.company_number) ? (
                                     <>
-                                        <Check className="h-4 w-4 mr-2" />
-                                        In Portfolio
+                                        <Check className="h-4 w-4 mr-2 group-hover:hidden" />
+                                        <X className="h-4 w-4 mr-2 hidden group-hover:block" />
+                                        <span className="group-hover:hidden">In Portfolio</span>
+                                        <span className="hidden group-hover:block">Remove</span>
                                     </>
                                 ) : (
                                     <>
