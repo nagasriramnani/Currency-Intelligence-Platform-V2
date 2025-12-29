@@ -172,13 +172,37 @@ export default function EISDashboard() {
     const [selectedSlot, setSelectedSlot] = useState<string>('1');
     const [showSlotDropdown, setShowSlotDropdown] = useState(false);
 
-    // Add company to portfolio
+    // Add/Remove company from portfolio (toggle)
     const addToPortfolio = (companyNumber: string, companyName: string) => {
-        if (myPortfolio.has(companyNumber)) {
+        const isCurrentlyInPortfolio = myPortfolio.has(companyNumber) ||
+            portfolioCompanies.some(c => c.company_number === companyNumber);
+
+        if (isCurrentlyInPortfolio) {
             // Remove from portfolio
             const newPortfolio = new Set(myPortfolio);
             newPortfolio.delete(companyNumber);
             setMyPortfolio(newPortfolio);
+
+            // Also remove from portfolioCompanies array
+            const companyToRemove = portfolioCompanies.find(c => c.company_number === companyNumber);
+            setPortfolioCompanies(prev => prev.filter(c => c.company_number !== companyNumber));
+
+            // Update stats on removal
+            if (companyToRemove) {
+                setPortfolioStats(prev => ({
+                    ...prev,
+                    total: Math.max(0, prev.total - 1),
+                    likelyEligible: companyToRemove.eis_assessment?.status?.includes('Eligible')
+                        ? Math.max(0, prev.likelyEligible - 1)
+                        : prev.likelyEligible,
+                    reviewRequired: companyToRemove.eis_assessment?.status?.includes('Review')
+                        ? Math.max(0, prev.reviewRequired - 1)
+                        : prev.reviewRequired,
+                    avgScore: prev.total > 1
+                        ? Math.round((prev.avgScore * prev.total - (companyToRemove.eis_assessment?.score || 0)) / (prev.total - 1))
+                        : 0
+                }));
+            }
         } else {
             // Add to portfolio
             setMyPortfolio(prev => new Set([...prev, companyNumber]));
