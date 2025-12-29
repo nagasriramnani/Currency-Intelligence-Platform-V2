@@ -115,6 +115,10 @@ interface CompanyProfile {
         factors: any[];
         flags: string[];
         recommendations: string[];
+        // Age warning fields for 7-year rule
+        age_warning?: 'kic_required' | 'condition_check_required' | 'age_limit_exceeded' | null;
+        age_exceeded?: boolean;
+        company_age_years?: number | null;
     };
     accounts?: {
         gross_assets?: number;
@@ -957,6 +961,39 @@ function CompanyDetails({
             transition={{ duration: 0.4 }}
             className="space-y-6"
         >
+            {/* Age Warning Banner - Prominent display for >7 year companies */}
+            {eis_assessment.age_warning && (
+                <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`p-4 rounded-xl border ${eis_assessment.age_exceeded
+                        ? 'bg-red-500/10 border-red-500/30'
+                        : 'bg-amber-500/10 border-amber-500/30'
+                        }`}
+                >
+                    <div className="flex items-start gap-3">
+                        <AlertTriangle className={`h-5 w-5 mt-0.5 flex-shrink-0 ${eis_assessment.age_exceeded ? 'text-red-400' : 'text-amber-400'
+                            }`} />
+                        <div>
+                            <h3 className={`font-semibold ${eis_assessment.age_exceeded ? 'text-red-400' : 'text-amber-400'
+                                }`}>
+                                {eis_assessment.age_warning === 'kic_required' && 'Age Warning: KIC Verification Required'}
+                                {eis_assessment.age_warning === 'condition_check_required' && 'Age Warning: Exceeds 7-Year Limit'}
+                                {eis_assessment.age_warning === 'age_limit_exceeded' && 'Age Limit Exceeded: >10 Years Old'}
+                            </h3>
+                            <p className="text-sm text-slate-400 mt-1">
+                                {eis_assessment.age_warning === 'kic_required' &&
+                                    `Company is ${eis_assessment.company_age_years || '>7'} years old. May qualify under Knowledge-Intensive Company (KIC) exception (10-year limit). Verify KIC status.`}
+                                {eis_assessment.age_warning === 'condition_check_required' &&
+                                    `Company is ${eis_assessment.company_age_years || '>7'} years old. Standard EIS requires <7 years. Check for Condition A (prior EIS/SEIS funding) or Condition C (new business activity >50% turnover).`}
+                                {eis_assessment.age_warning === 'age_limit_exceeded' &&
+                                    `Company is ${eis_assessment.company_age_years || '>10'} years old - exceeds even KIC 10-year limit. Only Condition A (follow-on funding) or Condition C (new market) may apply.`}
+                            </p>
+                        </div>
+                    </div>
+                </motion.div>
+            )}
+
             {/* Company Header */}
             <Card variant="gradient">
                 <CardContent>
@@ -975,30 +1012,43 @@ function CompanyDetails({
                                 <p className="text-slate-400 mt-1">
                                     #{co.company_number} • {co.jurisdiction}
                                 </p>
-                                <div className="flex items-center gap-3 mt-3">
+                                <div className="flex items-center gap-3 mt-3 flex-wrap">
                                     {/* Check if ANY factor score is 0 or EIS score < 50 - show Not Eligible */}
                                     {(() => {
                                         const hasZeroFactor = eis_assessment.factors?.some((f: any) =>
                                             (f.score <= 0 || f.value <= 0)
                                         );
-                                        const isNotEligible = eis_assessment.score < 50 || hasZeroFactor;
+                                        const hasAgeWarning = eis_assessment.age_warning || eis_assessment.age_exceeded;
+                                        const isNotEligible = eis_assessment.score < 50 || hasZeroFactor || eis_assessment.age_exceeded;
 
                                         return (
                                             <Badge
                                                 variant={
                                                     isNotEligible
                                                         ? 'danger'
-                                                        : eis_assessment.status === 'Likely Eligible'
-                                                            ? 'success'
-                                                            : eis_assessment.status === 'Gated Out'
-                                                                ? 'danger'
-                                                                : 'warning'
+                                                        : hasAgeWarning
+                                                            ? 'warning'
+                                                            : eis_assessment.status === 'Likely Eligible'
+                                                                ? 'success'
+                                                                : eis_assessment.status === 'Gated Out'
+                                                                    ? 'danger'
+                                                                    : 'warning'
                                                 }
                                             >
-                                                {isNotEligible ? 'Likely Not Eligible' : eis_assessment.status}
+                                                {isNotEligible ? 'Likely Not Eligible' : hasAgeWarning ? 'Requires Verification' : eis_assessment.status}
                                             </Badge>
                                         );
                                     })()}
+
+                                    {/* Age Warning Badge */}
+                                    {eis_assessment.age_warning && (
+                                        <Badge variant="warning" className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+                                            {eis_assessment.age_warning === 'kic_required' && '⚠️ KIC Verification Required'}
+                                            {eis_assessment.age_warning === 'condition_check_required' && '🚨 Age >7 Years - Condition A/C Check'}
+                                            {eis_assessment.age_warning === 'age_limit_exceeded' && '🚨 Age Limit Exceeded (>10 Years)'}
+                                        </Badge>
+                                    )}
+
                                     <Badge variant="outline">
                                         {co.company_status}
                                     </Badge>

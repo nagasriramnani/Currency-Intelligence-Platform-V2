@@ -250,10 +250,35 @@ def calculate_eis_likelihood(full_profile: Dict[str, Any]) -> Dict[str, Any]:
     # FACTOR 1: Company Age (max 20 points)
     # EIS: Company must be <7 years old at first share issue
     # SEIS: Company must be <2 years old
+    # KIC: Knowledge-Intensive Companies can be up to 10 years
+    # 
+    # EXCEPTIONS (why we don't hard-gate >7 years):
+    # - Condition A: Follow-on funding (prior EIS/SEIS within 7 years)
+    # - Condition C: New business activity (>50% new market)
     # =========================================================================
     age = get_company_age_years(company.get("date_of_creation"))
+    sic_codes = company.get("sic_codes", [])
     
-    if age <= 2:
+    # Check if company could be Knowledge-Intensive (KIC)
+    is_potential_kic = any(is_kic_sic(code) for code in sic_codes) if sic_codes else False
+    
+    # Track age warning for frontend display
+    age_warning = None
+    age_exceeded = False
+    
+    if age is None:
+        # Unknown age - give partial points
+        score += 10
+        factors.append({
+            "factor": "Company Age",
+            "value": "Unknown",
+            "points": 10,
+            "max_points": 20,
+            "rationale": "Company age unknown - unable to verify 7-year requirement",
+            "impact": "neutral"
+        })
+        flags.append("⚠️ Company age unknown - verify incorporation date")
+    elif age <= 2:
         score += 20
         factors.append({
             "factor": "Company Age",
@@ -274,26 +299,46 @@ def calculate_eis_likelihood(full_profile: Dict[str, Any]) -> Dict[str, Any]:
             "impact": "positive"
         })
     elif age <= 10:
-        score += 5
-        factors.append({
-            "factor": "Company Age",
-            "value": f"{age} years",
-            "points": 5,
-            "max_points": 20,
-            "rationale": "Over 7 years - may still qualify with knowledge-intensive exception",
-            "impact": "neutral"
-        })
-        flags.append("Company over 7 years old - requires knowledge-intensive status for EIS")
+        # Over 7 years - check KIC exception
+        if is_potential_kic:
+            score += 10
+            factors.append({
+                "factor": "Company Age",
+                "value": f"{age} years",
+                "points": 10,
+                "max_points": 20,
+                "rationale": f"Over 7 years but under 10 - may qualify as Knowledge-Intensive Company (KIC)",
+                "impact": "neutral"
+            })
+            flags.append(f"⚠️ Age Warning ({age} Years): Requires KIC status verification for EIS eligibility")
+            age_warning = "kic_required"
+        else:
+            # Not KIC - requires Condition A or C check
+            score += 0
+            factors.append({
+                "factor": "Company Age",
+                "value": f"{age} years",
+                "points": 0,
+                "max_points": 20,
+                "rationale": f"Over 7 years ({age}y) - exceeds standard EIS limit. Requires Condition A (prior EIS) or Condition C (new market)",
+                "impact": "negative"
+            })
+            flags.append(f"🚨 Age Warning ({age} Years): Exceeds 7-year limit. Check for Condition A (follow-on funding) or Condition C (new business activity)")
+            age_warning = "condition_check_required"
+            age_exceeded = True
     else:
+        # Over 10 years - even KIC won't help
         factors.append({
             "factor": "Company Age",
             "value": f"{age} years",
             "points": 0,
             "max_points": 20,
-            "rationale": "Over 10 years - unlikely to qualify for EIS",
+            "rationale": f"Over 10 years ({age}y) - exceeds even Knowledge-Intensive Company limit. Only Condition A/C may apply.",
             "impact": "negative"
         })
-        flags.append("Company over 10 years old - EIS eligibility unlikely")
+        flags.append(f"🚨 Age Limit Exceeded ({age} Years): Company is over 10 years old. Standard EIS not applicable. Check for Condition A (prior EIS) or Condition C (new business activity)")
+        age_warning = "age_limit_exceeded"
+        age_exceeded = True
     
     # =========================================================================
     # FACTOR 2: Company Status (max 15 points)
@@ -736,6 +781,11 @@ def calculate_eis_likelihood(full_profile: Dict[str, Any]) -> Dict[str, Any]:
         "official_requirements": get_requirement_summary(),
         "hmrc_advance_assurance_url": get_hmrc_advance_assurance_url(),
         "age_eligibility": age_check,
+        
+        # NEW: Age warning for 7-year rule
+        "age_warning": age_warning,  # None, 'kic_required', 'condition_check_required', 'age_limit_exceeded'
+        "age_exceeded": age_exceeded,  # True if >7 years and not KIC eligible
+        "company_age_years": age,
         
         "methodology": "Heuristic-based assessment using Companies House data",
         "disclaimer": "This is an indicative assessment only. Actual EIS eligibility requires HMRC Advance Assurance.",
