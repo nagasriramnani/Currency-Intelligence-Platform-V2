@@ -18,6 +18,7 @@ export function NewsletterModal({ open, onOpenChange, onSubscribe }: NewsletterM
     const [frequency, setFrequency] = useState("weekly")
     const [loading, setLoading] = useState(false)
     const [success, setSuccess] = useState(false)
+    const [error, setError] = useState<string | null>(null)
     const [successMessage, setSuccessMessage] = useState("Subscribed!")
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -25,6 +26,8 @@ export function NewsletterModal({ open, onOpenChange, onSubscribe }: NewsletterM
         if (!email) return
 
         setLoading(true)
+        setError(null)
+
         try {
             await onSubscribe(email, frequency)
 
@@ -32,7 +35,7 @@ export function NewsletterModal({ open, onOpenChange, onSubscribe }: NewsletterM
             if (frequency === 'now') {
                 setSuccessMessage("Sample email sent!")
             } else {
-                setSuccessMessage("Subscribed!")
+                setSuccessMessage(`Subscribed for ${frequency} updates!`)
             }
 
             setSuccess(true)
@@ -41,10 +44,11 @@ export function NewsletterModal({ open, onOpenChange, onSubscribe }: NewsletterM
                 setSuccess(false)
                 setEmail("")
                 setFrequency("weekly")
-            }, 2000)
-        } catch (err) {
+                setError(null)
+            }, 2500)
+        } catch (err: any) {
             console.error(err)
-            alert("Failed to subscribe. Please try again.")
+            setError(err.message || "Failed to subscribe. Please try again.")
         } finally {
             setLoading(false)
         }
@@ -201,6 +205,13 @@ export function NewsletterModal({ open, onOpenChange, onSubscribe }: NewsletterM
                                             >
                                                 {frequency === 'now' ? 'Send Sample Now' : 'Subscribe Now'}
                                             </Button>
+
+                                            {/* Error Display */}
+                                            {error && (
+                                                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30">
+                                                    <p className="text-sm text-red-400 text-center">{error}</p>
+                                                </div>
+                                            )}
 
                                             <p className="text-xs text-center text-slate-500">
                                                 By subscribing, you agree to receive EIS investment updates.

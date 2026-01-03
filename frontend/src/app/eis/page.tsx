@@ -365,56 +365,55 @@ export default function EISDashboard() {
         }
     }, []);
 
-    // Newsletter subscription - REAL API
+    // Newsletter subscription - Using new newsletter API
     const handleSubscribe = async (email: string, frequency: string) => {
-        // First, always subscribe the email
-        const subscribeResponse = await fetch(`${API_BASE}/api/eis/automation/subscribers`, {
+        // Subscribe using the new newsletter endpoint
+        const subscribeResponse = await fetch(`${API_BASE}/api/newsletter/subscribe`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, frequency })
         });
+
         if (!subscribeResponse.ok) {
-            throw new Error('Failed to subscribe');
+            const errorData = await subscribeResponse.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Failed to subscribe');
         }
 
-        // If frequency is 'now', also send an immediate email with portfolio data
+        // If frequency is 'now', also send a test newsletter with portfolio data
         if (frequency === 'now') {
-            console.log('=== SENDING EMAIL NOW ===');
+            console.log('=== SENDING TEST NEWSLETTER NOW ===');
             console.log('Portfolio companies:', portfolioCompanies);
 
-            // Format portfolio companies for the API - match actual data structure
-            const portfolioData = (portfolioCompanies || []).map(c => {
-                console.log('Processing company:', c);
-                // portfolioCompanies stores data directly, not nested under c.company
-                return {
-                    company_number: c?.company_number || '',
-                    company_name: c?.company_name || 'Unknown',
-                    eis_score: c?.eis_assessment?.score || 0,
-                    eis_status: c?.eis_assessment?.status || 'Unknown',
-                    sic_codes: c?.sic_codes || []
-                };
-            });
+            // Format portfolio companies for the new API
+            const portfolioData = (portfolioCompanies || []).map(c => ({
+                company_number: c?.company_number || '',
+                company_name: c?.company_name || 'Unknown',
+                eis_score: c?.eis_assessment?.score || 0,
+                eis_status: c?.eis_assessment?.status || 'Unknown',
+                sector: c?.sic_codes?.[0] ? 'Technology' : 'Diversified'  // Simple sector mapping
+            }));
 
             console.log('Formatted portfolio data:', portfolioData);
 
-            const sendResponse = await fetch(`${API_BASE}/api/eis/automation/send-email`, {
+            // Use the new test endpoint
+            const testResponse = await fetch(`${API_BASE}/api/newsletter/test`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     email,
-                    portfolio_companies: portfolioData
+                    portfolio_companies: portfolioData.length > 0 ? portfolioData : undefined
                 })
             });
 
-            console.log('Send email response status:', sendResponse.status);
+            console.log('Test email response status:', testResponse.status);
 
-            if (!sendResponse.ok) {
-                const errorData = await sendResponse.json().catch(() => ({}));
-                console.error('Send email error:', errorData);
-                throw new Error(errorData.detail || 'Failed to send email');
+            if (!testResponse.ok) {
+                const errorData = await testResponse.json().catch(() => ({}));
+                console.error('Test email error:', errorData);
+                throw new Error(errorData.detail || 'Failed to send test email');
             }
 
-            console.log('Email sent successfully!');
+            console.log('Test newsletter sent successfully!');
         }
     };
 
