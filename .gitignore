@@ -17,6 +17,16 @@ htmlcov/
 dist/
 build/
 
+# Machine Learning Models - DO NOT COMMIT
+*.pkl
+*.pickle
+*.h5
+*.model
+*.onnx
+backend/trained_models/
+trained_models/
+model_registry.json
+
 # Node.js / Next.js
 node_modules/
 .next/
@@ -50,4 +60,7 @@ logs/
 # OS
 Thumbs.db
 
-
+# Temporary files
+*.tmp
+*.temp
+*.bak
