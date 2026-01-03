@@ -3756,9 +3756,8 @@ async def newsletter_subscribe(
         with open(subscribers_file, 'w') as f:
             json.dump(data, f, indent=2)
         
-        # If frequency is 'now', trigger immediate send in background
-        if frequency == "now":
-            background_tasks.add_task(_send_immediate_newsletter, email)
+        # NOTE: For 'now' frequency, the frontend calls /api/newsletter/test
+        # separately with actual portfolio data, so we don't trigger here
         
         return SubscriptionResponse(
             success=True,
