@@ -137,6 +137,18 @@ class EISAdvisorAgent:
         except Exception as e:
             logger.warning(f"Ollama not available: {e}")
             self.available = False
+    
+    @property
+    def tavily_service(self):
+        """Lazy load Tavily Service (centralized with caching)"""
+        if not hasattr(self, '_tavily_service') or self._tavily_service is None:
+            try:
+                from services.tavily_service import get_tavily_service
+                self._tavily_service = get_tavily_service()
+            except Exception as e:
+                logger.warning(f"TavilyService not available: {e}")
+                self._tavily_service = None
+        return self._tavily_service
             
     @property
     def research_agent(self):
@@ -214,93 +226,89 @@ class EISAdvisorAgent:
             return {"error": str(e), "score": 0}
     
     async def tool_search_news(self, company_name: str) -> str:
-        """Get recent news via Tavily (Research Agent)"""
-        if not self.research_agent or not self.research_agent.available:
+        """Get recent news via TavilyService (with caching)"""
+        if not self.tavily_service or not self.tavily_service.available:
+            # Fallback to Research Agent if TavilyService not available
+            if self.research_agent and self.research_agent.available:
+                try:
+                    query = f"{company_name} UK company news 2024 2025"
+                    results = self.research_agent.client.search(
+                        query=query,
+                        search_depth="basic",
+                        max_results=3,
+                        include_answer=True
+                    )
+                    articles = results.get("results", [])[:3]
+                    if articles:
+                        return "Recent News:\n" + "\n".join([
+                            f"- {a.get('title', 'No title')}\n  Source: {a.get('url', '')}"
+                            for a in articles
+                        ])
+                except Exception as e:
+                    logger.error(f"Fallback news search failed: {e}")
             return "News search not available (Tavily not configured)"
         
-        try:
-            query = f"{company_name} UK company news 2024 2025"
-            results = self.research_agent.client.search(
-                query=query,
-                search_depth="basic",
-                max_results=3,
-                include_answer=True
-            )
-            
-            articles = results.get("results", [])[:3]
-            if articles:
-                news_items = []
-                for a in articles:
-                    title = a.get("title", "No title")
-                    url = a.get("url", "")
-                    news_items.append(f"- {title}\n  Source: {url}")
-                return "Recent News:\n" + "\n".join(news_items)
-            
-            return f"No recent news found for {company_name}"
-        except Exception as e:
-            logger.error(f"News search failed: {e}")
-            return f"News search failed: {str(e)}"
+        # Use TavilyService with caching
+        results = self.tavily_service.search_company_news(company_name)
+        return self.tavily_service.format_news_summary(results)
     
     async def tool_get_financials(self, company_name: str) -> str:
-        """Get revenue/funding via Tavily"""
-        if not self.research_agent or not self.research_agent.available:
+        """Get revenue/funding via TavilyService (with caching)"""
+        if not self.tavily_service or not self.tavily_service.available:
+            # Fallback to Research Agent
+            if self.research_agent and self.research_agent.available:
+                try:
+                    query = f"{company_name} UK company revenue funding valuation 2024"
+                    results = self.research_agent.client.search(
+                        query=query,
+                        search_depth="basic",
+                        max_results=3,
+                        include_answer=True
+                    )
+                    answer = results.get("answer", "")
+                    if answer:
+                        return f"Financial Data:\n{answer}"
+                except Exception as e:
+                    logger.error(f"Fallback financial search failed: {e}")
             return "Financial search not available (Tavily not configured)"
         
-        try:
-            query = f"{company_name} UK company revenue funding valuation 2024"
-            results = self.research_agent.client.search(
-                query=query,
-                search_depth="basic",
-                max_results=3,
-                include_answer=True
-            )
-            
-            answer = results.get("answer", "")
-            if answer:
-                return f"Financial Data:\n{answer}"
-            
-            return f"No financial data found for {company_name}"
-        except Exception as e:
-            logger.error(f"Financial search failed: {e}")
-            return f"Financial search failed: {str(e)}"
+        # Use TavilyService with caching
+        results = self.tavily_service.search_financials(company_name)
+        return self.tavily_service.format_financial_summary(results)
     
     async def tool_sector_news(self, sector: str) -> str:
-        """Get sector news (AI Daily News)"""
-        if not self.research_agent or not self.research_agent.available:
+        """Get sector news via TavilyService (with caching)"""
+        if not self.tavily_service or not self.tavily_service.available:
+            # Fallback to Research Agent
+            if self.research_agent and self.research_agent.available:
+                try:
+                    sector_queries = {
+                        "technology": "UK technology startup funding investment news 2024",
+                        "tech": "UK technology startup funding investment news 2024",
+                        "healthcare": "UK healthcare biotech medtech startup investment news 2024",
+                        "fintech": "UK fintech digital banking payments startup news 2024",
+                        "cleantech": "UK cleantech green energy renewable startup investment news 2024",
+                    }
+                    query = sector_queries.get(sector.lower(), f"UK {sector} startup investment news 2024")
+                    results = self.research_agent.client.search(
+                        query=query,
+                        search_depth="basic",
+                        max_results=3,
+                        include_answer=True
+                    )
+                    articles = results.get("results", [])[:3]
+                    if articles:
+                        return f"Latest {sector.title()} News:\n" + "\n".join([
+                            f"- {a.get('title', 'No title')}\n  Source: {a.get('url', '')}"
+                            for a in articles
+                        ])
+                except Exception as e:
+                    logger.error(f"Fallback sector news failed: {e}")
             return "Sector news not available (Tavily not configured)"
         
-        sector_queries = {
-            "technology": "UK technology startup funding investment news 2024",
-            "tech": "UK technology startup funding investment news 2024",
-            "healthcare": "UK healthcare biotech medtech startup investment news 2024",
-            "fintech": "UK fintech digital banking payments startup news 2024",
-            "cleantech": "UK cleantech green energy renewable startup investment news 2024",
-            "clean energy": "UK cleantech green energy renewable startup investment news 2024",
-        }
-        
-        query = sector_queries.get(sector.lower(), f"UK {sector} startup investment news 2024")
-        
-        try:
-            results = self.research_agent.client.search(
-                query=query,
-                search_depth="basic",
-                max_results=3,
-                include_answer=True
-            )
-            
-            articles = results.get("results", [])[:3]
-            if articles:
-                news_items = []
-                for a in articles:
-                    title = a.get("title", "No title")
-                    url = a.get("url", "")
-                    news_items.append(f"- {title}\n  Source: {url}")
-                return f"Latest {sector.title()} News:\n" + "\n".join(news_items)
-            
-            return f"No recent {sector} news found"
-        except Exception as e:
-            logger.error(f"Sector news search failed: {e}")
-            return f"Sector news search failed: {str(e)}"
+        # Use TavilyService with caching
+        results = self.tavily_service.search_sector_news(sector)
+        return self.tavily_service.format_for_llm(results)
     
     # ============ MAIN CHAT ============
     
