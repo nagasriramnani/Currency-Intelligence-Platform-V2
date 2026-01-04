@@ -330,12 +330,35 @@ class EISAdvisorAgent:
         return "\n".join(context_parts)
     
     def _detect_question_type(self, question: str) -> List[str]:
-        """Detect which tools might be needed"""
+        """Detect which tools might be needed and question category"""
         question_lower = question.lower()
         tools = []
         
+        # FIRST: Check if this is a GENERAL EIS knowledge question
+        # These should be answered directly without portfolio analysis
+        general_eis_patterns = [
+            "what is eis", "what are eis", "explain eis", "how does eis work",
+            "what is the eligibility", "eligibility criteria", "eligibility requirements",
+            "how to qualify", "requirements for eis", "eis rules", "eis scheme",
+            "what are the rules", "what are the criteria", "tell me about eis",
+            "enterprise investment scheme", "investor benefits", "tax relief",
+            "what sectors", "excluded sectors", "qualifying sectors",
+            "employee limit", "gross assets", "company age"
+        ]
+        
+        # Check if question contains a specific company name or "my portfolio"
+        has_company_context = any(k in question_lower for k in [
+            "revolut", "bp ", "my portfolio", "my companies", "this company",
+            "company number", "analyze", "check this", "look up", "search for"
+        ])
+        
+        # If it's a general EIS question WITHOUT company context, mark as general
+        if any(pattern in question_lower for pattern in general_eis_patterns) and not has_company_context:
+            tools.append("general_eis")
+            return tools  # Return early - no need for tools, just knowledge
+        
         # Company-specific keywords
-        company_keywords = ["score", "eligibility", "eligible", "analyze", "analysis", "assessment"]
+        company_keywords = ["score", "eligible", "analyze", "analysis", "assessment", "check"]
         if any(k in question_lower for k in company_keywords):
             tools.append("portfolio")
             tools.append("eis")
@@ -348,7 +371,7 @@ class EISAdvisorAgent:
                 tools.append("news")
         
         # Financial keywords
-        if any(k in question_lower for k in ["revenue", "funding", "valuation", "financial", "money"]):
+        if any(k in question_lower for k in ["revenue", "funding", "valuation", "financial", "money", "net worth"]):
             tools.append("financials")
         
         # Portfolio keywords
@@ -365,36 +388,45 @@ class EISAdvisorAgent:
         
         portfolio = portfolio or []
         
-        # Build context
-        context = self._build_context(portfolio)
-        
         # Detect what tools might help
         tools_needed = self._detect_question_type(question)
         
-        # Gather tool results
-        tool_context = []
+        # Check if this is a GENERAL EIS knowledge question
+        is_general_question = "general_eis" in tools_needed
         
-        if "portfolio" in tools_needed:
-            # Extract company name from question if possible
-            result = self.tool_search_portfolio(question, portfolio)
-            tool_context.append(result)
-        
-        if "news" in tools_needed:
-            # Try to extract company name
-            result = await self.tool_search_news(question)
-            tool_context.append(result)
-        
-        if "sector_news" in tools_needed:
-            # Detect sector
-            for sector in ["technology", "tech", "fintech", "healthcare", "cleantech"]:
-                if sector in question.lower():
-                    result = await self.tool_sector_news(sector)
-                    tool_context.append(result)
-                    break
-        
-        if "financials" in tools_needed:
-            result = await self.tool_get_financials(question)
-            tool_context.append(result)
+        # For general questions, provide minimal context (just that user has a portfolio)
+        if is_general_question:
+            context = f"User has {len(portfolio)} companies in their portfolio." if portfolio else "User has no portfolio yet."
+            tool_context = []
+            logger.info(f"General EIS question detected - answering from knowledge base: {question[:50]}...")
+        else:
+            # Build full portfolio context for company-specific questions
+            context = self._build_context(portfolio)
+            
+            # Gather tool results
+            tool_context = []
+            
+            if "portfolio" in tools_needed:
+                # Extract company name from question if possible
+                result = self.tool_search_portfolio(question, portfolio)
+                tool_context.append(result)
+            
+            if "news" in tools_needed:
+                # Try to extract company name
+                result = await self.tool_search_news(question)
+                tool_context.append(result)
+            
+            if "sector_news" in tools_needed:
+                # Detect sector
+                for sector in ["technology", "tech", "fintech", "healthcare", "cleantech"]:
+                    if sector in question.lower():
+                        result = await self.tool_sector_news(sector)
+                        tool_context.append(result)
+                        break
+            
+            if "financials" in tools_needed:
+                result = await self.tool_get_financials(question)
+                tool_context.append(result)
         
         # Build final prompt
         full_context = context
