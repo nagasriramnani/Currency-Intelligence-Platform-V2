@@ -22,84 +22,79 @@ logger = logging.getLogger(__name__)
 
 # EIS Knowledge Base for built-in answers
 EIS_KNOWLEDGE = """
-Enterprise Investment Scheme (EIS) MANDATORY ELIGIBILITY CRITERIA:
+Enterprise Investment Scheme (EIS) Key Rules:
 
-⚠️ CRITICAL RULE: If ANY of these criteria fails, the company is NOT ELIGIBLE (Score = 0)
+COMPANY AGE REQUIREMENT:
+- Companies must be under 7 years old from first commercial sale
+- Knowledge Intensive Companies (KIC) can be up to 10 years old
+- This factor is worth 20 points in the EIS score
 
-MANDATORY GATE 1 - COMPANY STATUS:
-- MUST be 'active' - not dissolved, liquidation, or administration
-- If status is NOT active → IMMEDIATELY NOT ELIGIBLE
+QUALIFYING SECTORS:
+- Technology, Software, SaaS
+- Healthcare, Biotech, Medtech
+- Clean Energy, CleanTech
+- Fintech, Financial Services
+- Manufacturing, Engineering
 
-MANDATORY GATE 2 - EXCLUDED SECTORS (AUTOMATIC DISQUALIFICATION):
-- Banking, insurance, money-lending, financial services (SIC 64xxx, 65xxx, 66xxx)
-- Property development (SIC 41xxx, 68xxx)  
-- Legal and accounting services (SIC 69xxx)
-- Hotels, nursing homes, care homes (SIC 55xxx, 87xxx)
+EXCLUDED SECTORS:
+- Property development
+- Financial services (banking, insurance)
+- Legal and accounting services
+- Hotels and nursing homes
 - Coal and steel production
 - Farming and market gardening
-- Energy generation from renewables with subsidies
-- If company operates in ANY excluded sector → IMMEDIATELY NOT ELIGIBLE
 
-MANDATORY GATE 3 - COMPANY AGE:
-- MUST be under 7 years old from first commercial sale
-- Knowledge Intensive Companies (KIC) can be up to 10 years
-- If age > limit → NOT ELIGIBLE
+COMPANY STATUS:
+- Must be an active UK company
+- Cannot be dissolved, liquidated, or in administration
+- Worth 15 points in EIS score
 
-MANDATORY GATE 4 - EMPLOYEE LIMIT:
-- MUST have fewer than 250 full-time equivalent employees
-- KIC companies: up to 500 employees
-- If employees > limit → NOT ELIGIBLE
+GROSS ASSETS:
+- Must have gross assets under £15 million before investment
+- Under £16 million after investment
 
-MANDATORY GATE 5 - GROSS ASSETS:
-- MUST have gross assets under £15 million BEFORE investment
-- MUST be under £16 million AFTER investment
-- If assets > £15M → NOT ELIGIBLE
+EMPLOYEE LIMIT:
+- Must have fewer than 250 employees (standard EIS)
+- Knowledge Intensive Companies can have up to 500 employees
 
-MANDATORY GATE 6 - INDEPENDENCE:
-- MUST NOT be controlled (>50%) by another company
-- If subsidiary of large company → NOT ELIGIBLE
+INVESTMENT LIMITS:
+- Maximum £5 million per year per company from EIS
+- £12 million lifetime limit per company
 
-EXAMPLES OF INELIGIBLE COMPANIES:
-- Revolut: Banking sector = EXCLUDED, >30,000 employees, >£15M assets
-- BP: >100 years old, >250 employees, >£15M assets
-- HSBC: Banking = EXCLUDED
-- Hilton: Hotels = EXCLUDED
-- Any property developer = EXCLUDED
-
-INVESTOR BENEFITS (only if company is eligible):
+INVESTOR BENEFITS:
 - 30% income tax relief
 - Capital gains tax deferral
 - Loss relief on failed investments
 - No inheritance tax after 2 years
 """
 
-SYSTEM_PROMPT = f"""You are an EIS (Enterprise Investment Scheme) Advisor for UK company eligibility screening.
+SYSTEM_PROMPT = f"""You are an EIS (Enterprise Investment Scheme) Advisor - a helpful AI assistant that specializes in UK company eligibility screening for EIS investments.
 
+You have access to these capabilities:
+1. PORTFOLIO DATA: Information about companies the user has saved
+2. COMPANY LOOKUP: Can search UK Companies House database
+3. EIS SCORING: Can calculate eligibility scores (0-100)
+4. NEWS SEARCH: Can find recent news about companies
+5. FINANCIAL DATA: Can find revenue/funding information
+6. SECTOR NEWS: Can get UK startup/investment sector news
+
+EIS KNOWLEDGE:
 {EIS_KNOWLEDGE}
 
-⚠️ CRITICAL INSTRUCTIONS:
-1. NEVER make up EIS scores - ALWAYS use the actual API calculation results provided in Tool Results
-2. If Tool Results show "Not Eligible" or "failed_gates", the company is NOT ELIGIBLE - do not override this
-3. For large/famous companies (BP, Revolut, HSBC, etc.) - they are almost certainly NOT ELIGIBLE due to size/sector
-4. If a mandatory gate fails, score is 0 and status is "Not Eligible" - no exceptions
+GUIDELINES:
+- For EIS-related questions, provide detailed, accurate information
+- For company analysis, break down the EIS score factors
+- For general questions (like geography, math, general knowledge), answer helpfully - you have general intelligence
+- Always cite sources when providing financial/news data
+- Be conversational but professional
+- If you don't know something, say so clearly
 
-You have access to:
-1. PORTFOLIO DATA: Saved companies with their actual EIS scores
-2. COMPANY LOOKUP: UK Companies House database
-3. EIS SCORING API: Calculates the REAL eligibility (use this result, do not make up scores)
-4. NEWS SEARCH: Recent company news via Tavily
-5. FINANCIAL DATA: Revenue/funding information
-
-RESPONSE FORMAT for EIS eligibility:
-📊 EIS Assessment: [Use ACTUAL score from Tool Results]
-Status: [ELIGIBLE / NOT ELIGIBLE based on Tool Results]
-
-❌ Failed Mandatory Gates: [List from failed_gates in results]
-✅ Passed Criteria: [Only if actually passed]
-
-📌 Recommendation: [Based on actual results]
-
-REMEMBER: Your role is to EXPLAIN the results, not to calculate them yourself.
+When analyzing companies, format your response like:
+📊 EIS Score: XX/100 (Status)
+✅ Passed Factors: ...
+❌ Failed Factors: ...
+💰 Financial Data: ...
+📌 Recommendation: ...
 """
 
 
@@ -137,18 +132,6 @@ class EISAdvisorAgent:
         except Exception as e:
             logger.warning(f"Ollama not available: {e}")
             self.available = False
-    
-    @property
-    def tavily_service(self):
-        """Lazy load Tavily Service (centralized with caching)"""
-        if not hasattr(self, '_tavily_service') or self._tavily_service is None:
-            try:
-                from services.tavily_service import get_tavily_service
-                self._tavily_service = get_tavily_service()
-            except Exception as e:
-                logger.warning(f"TavilyService not available: {e}")
-                self._tavily_service = None
-        return self._tavily_service
             
     @property
     def research_agent(self):
@@ -226,89 +209,93 @@ class EISAdvisorAgent:
             return {"error": str(e), "score": 0}
     
     async def tool_search_news(self, company_name: str) -> str:
-        """Get recent news via TavilyService (with caching)"""
-        if not self.tavily_service or not self.tavily_service.available:
-            # Fallback to Research Agent if TavilyService not available
-            if self.research_agent and self.research_agent.available:
-                try:
-                    query = f"{company_name} UK company news 2024 2025"
-                    results = self.research_agent.client.search(
-                        query=query,
-                        search_depth="basic",
-                        max_results=3,
-                        include_answer=True
-                    )
-                    articles = results.get("results", [])[:3]
-                    if articles:
-                        return "Recent News:\n" + "\n".join([
-                            f"- {a.get('title', 'No title')}\n  Source: {a.get('url', '')}"
-                            for a in articles
-                        ])
-                except Exception as e:
-                    logger.error(f"Fallback news search failed: {e}")
+        """Get recent news via Tavily (Research Agent)"""
+        if not self.research_agent or not self.research_agent.available:
             return "News search not available (Tavily not configured)"
         
-        # Use TavilyService with caching
-        results = self.tavily_service.search_company_news(company_name)
-        return self.tavily_service.format_news_summary(results)
+        try:
+            query = f"{company_name} UK company news 2024 2025"
+            results = self.research_agent.client.search(
+                query=query,
+                search_depth="basic",
+                max_results=3,
+                include_answer=True
+            )
+            
+            articles = results.get("results", [])[:3]
+            if articles:
+                news_items = []
+                for a in articles:
+                    title = a.get("title", "No title")
+                    url = a.get("url", "")
+                    news_items.append(f"- {title}\n  Source: {url}")
+                return "Recent News:\n" + "\n".join(news_items)
+            
+            return f"No recent news found for {company_name}"
+        except Exception as e:
+            logger.error(f"News search failed: {e}")
+            return f"News search failed: {str(e)}"
     
     async def tool_get_financials(self, company_name: str) -> str:
-        """Get revenue/funding via TavilyService (with caching)"""
-        if not self.tavily_service or not self.tavily_service.available:
-            # Fallback to Research Agent
-            if self.research_agent and self.research_agent.available:
-                try:
-                    query = f"{company_name} UK company revenue funding valuation 2024"
-                    results = self.research_agent.client.search(
-                        query=query,
-                        search_depth="basic",
-                        max_results=3,
-                        include_answer=True
-                    )
-                    answer = results.get("answer", "")
-                    if answer:
-                        return f"Financial Data:\n{answer}"
-                except Exception as e:
-                    logger.error(f"Fallback financial search failed: {e}")
+        """Get revenue/funding via Tavily"""
+        if not self.research_agent or not self.research_agent.available:
             return "Financial search not available (Tavily not configured)"
         
-        # Use TavilyService with caching
-        results = self.tavily_service.search_financials(company_name)
-        return self.tavily_service.format_financial_summary(results)
+        try:
+            query = f"{company_name} UK company revenue funding valuation 2024"
+            results = self.research_agent.client.search(
+                query=query,
+                search_depth="basic",
+                max_results=3,
+                include_answer=True
+            )
+            
+            answer = results.get("answer", "")
+            if answer:
+                return f"Financial Data:\n{answer}"
+            
+            return f"No financial data found for {company_name}"
+        except Exception as e:
+            logger.error(f"Financial search failed: {e}")
+            return f"Financial search failed: {str(e)}"
     
     async def tool_sector_news(self, sector: str) -> str:
-        """Get sector news via TavilyService (with caching)"""
-        if not self.tavily_service or not self.tavily_service.available:
-            # Fallback to Research Agent
-            if self.research_agent and self.research_agent.available:
-                try:
-                    sector_queries = {
-                        "technology": "UK technology startup funding investment news 2024",
-                        "tech": "UK technology startup funding investment news 2024",
-                        "healthcare": "UK healthcare biotech medtech startup investment news 2024",
-                        "fintech": "UK fintech digital banking payments startup news 2024",
-                        "cleantech": "UK cleantech green energy renewable startup investment news 2024",
-                    }
-                    query = sector_queries.get(sector.lower(), f"UK {sector} startup investment news 2024")
-                    results = self.research_agent.client.search(
-                        query=query,
-                        search_depth="basic",
-                        max_results=3,
-                        include_answer=True
-                    )
-                    articles = results.get("results", [])[:3]
-                    if articles:
-                        return f"Latest {sector.title()} News:\n" + "\n".join([
-                            f"- {a.get('title', 'No title')}\n  Source: {a.get('url', '')}"
-                            for a in articles
-                        ])
-                except Exception as e:
-                    logger.error(f"Fallback sector news failed: {e}")
+        """Get sector news (AI Daily News)"""
+        if not self.research_agent or not self.research_agent.available:
             return "Sector news not available (Tavily not configured)"
         
-        # Use TavilyService with caching
-        results = self.tavily_service.search_sector_news(sector)
-        return self.tavily_service.format_for_llm(results)
+        sector_queries = {
+            "technology": "UK technology startup funding investment news 2024",
+            "tech": "UK technology startup funding investment news 2024",
+            "healthcare": "UK healthcare biotech medtech startup investment news 2024",
+            "fintech": "UK fintech digital banking payments startup news 2024",
+            "cleantech": "UK cleantech green energy renewable startup investment news 2024",
+            "clean energy": "UK cleantech green energy renewable startup investment news 2024",
+        }
+        
+        query = sector_queries.get(sector.lower(), f"UK {sector} startup investment news 2024")
+        
+        try:
+            results = self.research_agent.client.search(
+                query=query,
+                search_depth="basic",
+                max_results=3,
+                include_answer=True
+            )
+            
+            articles = results.get("results", [])[:3]
+            if articles:
+                news_items = []
+                for a in articles:
+                    title = a.get("title", "No title")
+                    url = a.get("url", "")
+                    news_items.append(f"- {title}\n  Source: {url}")
+                return f"Latest {sector.title()} News:\n" + "\n".join(news_items)
+            
+            return f"No recent {sector} news found"
+        except Exception as e:
+            logger.error(f"Sector news search failed: {e}")
+            return f"Sector news search failed: {str(e)}"
     
     # ============ MAIN CHAT ============
     
@@ -330,35 +317,12 @@ class EISAdvisorAgent:
         return "\n".join(context_parts)
     
     def _detect_question_type(self, question: str) -> List[str]:
-        """Detect which tools might be needed and question category"""
+        """Detect which tools might be needed"""
         question_lower = question.lower()
         tools = []
         
-        # FIRST: Check if this is a GENERAL EIS knowledge question
-        # These should be answered directly without portfolio analysis
-        general_eis_patterns = [
-            "what is eis", "what are eis", "explain eis", "how does eis work",
-            "what is the eligibility", "eligibility criteria", "eligibility requirements",
-            "how to qualify", "requirements for eis", "eis rules", "eis scheme",
-            "what are the rules", "what are the criteria", "tell me about eis",
-            "enterprise investment scheme", "investor benefits", "tax relief",
-            "what sectors", "excluded sectors", "qualifying sectors",
-            "employee limit", "gross assets", "company age"
-        ]
-        
-        # Check if question contains a specific company name or "my portfolio"
-        has_company_context = any(k in question_lower for k in [
-            "revolut", "bp ", "my portfolio", "my companies", "this company",
-            "company number", "analyze", "check this", "look up", "search for"
-        ])
-        
-        # If it's a general EIS question WITHOUT company context, mark as general
-        if any(pattern in question_lower for pattern in general_eis_patterns) and not has_company_context:
-            tools.append("general_eis")
-            return tools  # Return early - no need for tools, just knowledge
-        
         # Company-specific keywords
-        company_keywords = ["score", "eligible", "analyze", "analysis", "assessment", "check"]
+        company_keywords = ["score", "eligibility", "eligible", "analyze", "analysis", "assessment"]
         if any(k in question_lower for k in company_keywords):
             tools.append("portfolio")
             tools.append("eis")
@@ -371,7 +335,7 @@ class EISAdvisorAgent:
                 tools.append("news")
         
         # Financial keywords
-        if any(k in question_lower for k in ["revenue", "funding", "valuation", "financial", "money", "net worth"]):
+        if any(k in question_lower for k in ["revenue", "funding", "valuation", "financial", "money"]):
             tools.append("financials")
         
         # Portfolio keywords
@@ -388,45 +352,36 @@ class EISAdvisorAgent:
         
         portfolio = portfolio or []
         
+        # Build context
+        context = self._build_context(portfolio)
+        
         # Detect what tools might help
         tools_needed = self._detect_question_type(question)
         
-        # Check if this is a GENERAL EIS knowledge question
-        is_general_question = "general_eis" in tools_needed
+        # Gather tool results
+        tool_context = []
         
-        # For general questions, provide minimal context (just that user has a portfolio)
-        if is_general_question:
-            context = f"User has {len(portfolio)} companies in their portfolio." if portfolio else "User has no portfolio yet."
-            tool_context = []
-            logger.info(f"General EIS question detected - answering from knowledge base: {question[:50]}...")
-        else:
-            # Build full portfolio context for company-specific questions
-            context = self._build_context(portfolio)
-            
-            # Gather tool results
-            tool_context = []
-            
-            if "portfolio" in tools_needed:
-                # Extract company name from question if possible
-                result = self.tool_search_portfolio(question, portfolio)
-                tool_context.append(result)
-            
-            if "news" in tools_needed:
-                # Try to extract company name
-                result = await self.tool_search_news(question)
-                tool_context.append(result)
-            
-            if "sector_news" in tools_needed:
-                # Detect sector
-                for sector in ["technology", "tech", "fintech", "healthcare", "cleantech"]:
-                    if sector in question.lower():
-                        result = await self.tool_sector_news(sector)
-                        tool_context.append(result)
-                        break
-            
-            if "financials" in tools_needed:
-                result = await self.tool_get_financials(question)
-                tool_context.append(result)
+        if "portfolio" in tools_needed:
+            # Extract company name from question if possible
+            result = self.tool_search_portfolio(question, portfolio)
+            tool_context.append(result)
+        
+        if "news" in tools_needed:
+            # Try to extract company name
+            result = await self.tool_search_news(question)
+            tool_context.append(result)
+        
+        if "sector_news" in tools_needed:
+            # Detect sector
+            for sector in ["technology", "tech", "fintech", "healthcare", "cleantech"]:
+                if sector in question.lower():
+                    result = await self.tool_sector_news(sector)
+                    tool_context.append(result)
+                    break
+        
+        if "financials" in tools_needed:
+            result = await self.tool_get_financials(question)
+            tool_context.append(result)
         
         # Build final prompt
         full_context = context
