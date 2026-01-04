@@ -119,6 +119,14 @@ interface CompanyProfile {
         age_warning?: 'kic_required' | 'condition_check_required' | 'age_limit_exceeded' | null;
         age_exceeded?: boolean;
         company_age_years?: number | null;
+        // Mandatory gate failures
+        failed_gates?: Array<{
+            gate: string;
+            passed: boolean;
+            value: string;
+            limit: string;
+            reason: string;
+        }>;
     };
     accounts?: {
         gross_assets?: number;
@@ -996,8 +1004,46 @@ function CompanyDetails({
             transition={{ duration: 0.4 }}
             className="space-y-6"
         >
-            {/* Age Warning Banner - Prominent display for >7 year companies */}
-            {eis_assessment.age_warning && (
+            {/* FAILED GATES BANNER - Shows when company is NOT ELIGIBLE */}
+            {eis_assessment.failed_gates && eis_assessment.failed_gates.length > 0 && (
+                <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-5 rounded-xl border bg-red-500/10 border-red-500/30"
+                >
+                    <div className="flex items-start gap-4">
+                        <div className="p-2 rounded-lg bg-red-500/20">
+                            <AlertTriangle className="h-6 w-6 text-red-400" />
+                        </div>
+                        <div className="flex-1">
+                            <h3 className="text-lg font-bold text-red-400 flex items-center gap-2">
+                                ❌ NOT ELIGIBLE FOR EIS
+                            </h3>
+                            <p className="text-sm text-slate-400 mt-1">
+                                Failed {eis_assessment.failed_gates.length} mandatory criteria. EIS investment requires ALL criteria to pass.
+                            </p>
+                            <div className="mt-4 space-y-2">
+                                {eis_assessment.failed_gates.map((gate, idx) => (
+                                    <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-red-500/5 border border-red-500/20">
+                                        <X className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
+                                        <div>
+                                            <p className="text-sm font-medium text-red-300">{gate.gate}</p>
+                                            <p className="text-xs text-slate-400 mt-0.5">
+                                                <span className="text-red-400">{gate.value}</span>
+                                                <span className="mx-2">•</span>
+                                                <span>Required: {gate.limit}</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </motion.div>
+            )}
+
+            {/* Age Warning Banner - Only show if no failed gates but has age warning */}
+            {!eis_assessment.failed_gates?.length && eis_assessment.age_warning && (
                 <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -1053,8 +1099,9 @@ function CompanyDetails({
                                         const hasZeroFactor = eis_assessment.factors?.some((f: any) =>
                                             (f.score <= 0 || f.value <= 0)
                                         );
+                                        const hasFailedGates = eis_assessment.failed_gates && eis_assessment.failed_gates.length > 0;
                                         const hasAgeWarning = eis_assessment.age_warning || eis_assessment.age_exceeded;
-                                        const isNotEligible = eis_assessment.score < 50 || hasZeroFactor || eis_assessment.age_exceeded;
+                                        const isNotEligible = hasFailedGates || eis_assessment.status === 'Not Eligible' || eis_assessment.score === 0;
 
                                         return (
                                             <Badge
@@ -1065,18 +1112,23 @@ function CompanyDetails({
                                                             ? 'warning'
                                                             : eis_assessment.status === 'Likely Eligible'
                                                                 ? 'success'
-                                                                : eis_assessment.status === 'Gated Out'
-                                                                    ? 'danger'
-                                                                    : 'warning'
+                                                                : 'warning'
                                                 }
                                             >
-                                                {isNotEligible ? 'Likely Not Eligible' : hasAgeWarning ? 'Requires Verification' : eis_assessment.status}
+                                                {isNotEligible ? 'Not Eligible' : hasAgeWarning ? 'Requires Verification' : eis_assessment.status}
                                             </Badge>
                                         );
                                     })()}
 
-                                    {/* Age Warning Badge */}
-                                    {eis_assessment.age_warning && (
+                                    {/* Failed Gates Count Badge */}
+                                    {eis_assessment.failed_gates && eis_assessment.failed_gates.length > 0 && (
+                                        <Badge variant="danger" className="bg-red-500/20 text-red-400 border-red-500/30">
+                                            ❌ {eis_assessment.failed_gates.length} criteria failed
+                                        </Badge>
+                                    )}
+
+                                    {/* Age Warning Badge - only show if no failed gates */}
+                                    {!eis_assessment.failed_gates?.length && eis_assessment.age_warning && (
                                         <Badge variant="warning" className="bg-amber-500/20 text-amber-400 border-amber-500/30">
                                             {eis_assessment.age_warning === 'kic_required' && '⚠️ KIC Verification Required'}
                                             {eis_assessment.age_warning === 'condition_check_required' && '🚨 Age >7 Years - Condition A/C Check'}

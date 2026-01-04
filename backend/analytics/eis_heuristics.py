@@ -234,6 +234,139 @@ def calculate_eis_likelihood(full_profile: Dict[str, Any]) -> Dict[str, Any]:
             "disclaimer": "This is an automatic disqualification. Dissolved companies cannot receive EIS investment.",
             "assessed_at": datetime.now().isoformat()
         }
+    # =========================================================================
+    # MANDATORY ELIGIBILITY GATES
+    # If ANY gate fails → Company is NOT ELIGIBLE (score = 0)
+    # These are non-negotiable criteria per EIS regulations
+    # =========================================================================
+    
+    failed_gates = []
+    sic_codes = company.get("sic_codes", [])
+    age = get_company_age_years(company.get("date_of_creation"))
+    
+    # Check if company could be Knowledge-Intensive (KIC)
+    is_potential_kic = any(is_kic_sic(code) for code in sic_codes) if sic_codes else False
+    
+    # GATE 1: Company Status - Must be active
+    if status != "active":
+        failed_gates.append({
+            "gate": "Company Status",
+            "passed": False,
+            "value": status,
+            "limit": "Must be 'active'",
+            "reason": f"Company is '{status}' - must be active to receive EIS investment"
+        })
+    
+    # GATE 2: Excluded Sectors - Check SIC codes
+    sic_analysis = check_sic_exclusions(sic_codes)
+    if sic_analysis["has_exclusions"]:
+        excluded_names = [c['description'] for c in sic_analysis['excluded_codes'][:3]]
+        failed_gates.append({
+            "gate": "Excluded Sector",
+            "passed": False,
+            "value": ", ".join(excluded_names),
+            "limit": "Must not operate in excluded sectors",
+            "reason": f"Excluded activities: {', '.join(excluded_names)}"
+        })
+    
+    # GATE 3: Company Age - Must be <7 years (or <10 for KIC)
+    age_limit = 10 if is_potential_kic else 7
+    if age is not None and age > age_limit:
+        failed_gates.append({
+            "gate": "Company Age",
+            "passed": False,
+            "value": f"{age} years",
+            "limit": f"<{age_limit} years" + (" (KIC)" if is_potential_kic else ""),
+            "reason": f"Company is {age} years old - exceeds {age_limit} year limit"
+        })
+    
+    # GATE 4: Employee Limit - Get from accounts if available
+    employees = None
+    if accounts:
+        employees = accounts.get("employees") or accounts.get("average_employees")
+    employee_limit = 500 if is_potential_kic else 250
+    if employees is not None and employees > employee_limit:
+        failed_gates.append({
+            "gate": "Employee Limit",
+            "passed": False,
+            "value": f"{employees:,} employees",
+            "limit": f"<{employee_limit}",
+            "reason": f"{employees:,} employees exceeds {employee_limit} limit"
+        })
+    
+    # GATE 5: Gross Assets - Must be <£15M before investment
+    gross_assets = None
+    if accounts:
+        gross_assets = accounts.get("gross_assets") or accounts.get("total_assets_less_current_liabilities")
+    if gross_assets is not None and gross_assets > 15_000_000:
+        failed_gates.append({
+            "gate": "Gross Assets",
+            "passed": False,
+            "value": f"£{gross_assets/1_000_000:.1f}M",
+            "limit": "<£15M",
+            "reason": f"Gross assets £{gross_assets/1_000_000:.1f}M exceeds £15M limit"
+        })
+    
+    # GATE 6: Independence - Check if controlled by another company
+    # PSCs with >50% ownership by a company indicate control
+    psc_items = pscs.get("items", []) if pscs else []
+    for psc in psc_items:
+        kind = psc.get("kind", "").lower()
+        if "corporate" in kind or "legal-person" in kind:
+            # This is a corporate PSC - company may be controlled
+            ownership = psc.get("natures_of_control", [])
+            for control in ownership:
+                if "75" in str(control) or "majority" in str(control).lower():
+                    failed_gates.append({
+                        "gate": "Independence",
+                        "passed": False,
+                        "value": "Controlled by another company",
+                        "limit": "Must not be >50% controlled by another company",
+                        "reason": f"Controlled by corporate entity: {psc.get('name', 'Unknown')}"
+                    })
+                    break
+    
+    # =========================================================================
+    # IF ANY GATE FAILED → RETURN NOT ELIGIBLE
+    # =========================================================================
+    if failed_gates:
+        logger.info(f"MANDATORY GATES FAILED: {len(failed_gates)} gates failed - returning NOT ELIGIBLE")
+        return {
+            "score": 0,
+            "max_score": 100,
+            "percentage": 0,
+            "status": "Not Eligible",
+            "status_description": f"Failed {len(failed_gates)} mandatory EIS criteria",
+            "confidence": "High",
+            "confidence_description": "Based on Companies House data - mandatory criteria not met",
+            "factors": [{
+                "factor": gate["gate"],
+                "value": gate["value"],
+                "points": 0,
+                "max_points": 0,
+                "rationale": gate["reason"],
+                "impact": "disqualifying"
+            } for gate in failed_gates],
+            "flags": [f"⛔ DISQUALIFIED: {gate['reason']}" for gate in failed_gates],
+            "failed_gates": failed_gates,
+            "recommendations": [
+                "This company does not meet mandatory EIS eligibility criteria.",
+                "Consult with an EIS specialist to confirm disqualification."
+            ],
+            "sic_analysis": sic_analysis,
+            "is_kic": is_potential_kic,
+            "kic_sic_codes": [sic for sic in sic_codes if is_kic_sic(sic)],
+            "age_warning": "age_limit_exceeded" if age and age > age_limit else None,
+            "age_exceeded": True if age and age > age_limit else False,
+            "company_age_years": age,
+            "methodology": "Mandatory gate check - at least one disqualifying criteria",
+            "disclaimer": "This assessment is based on Companies House data. Actual EIS eligibility requires HMRC advance assurance.",
+            "assessed_at": datetime.now().isoformat()
+        }
+    
+    # =========================================================================
+    # ALL GATES PASSED - Continue with detailed scoring
+    # =========================================================================
     
     # Initialize scoring
     score = 0

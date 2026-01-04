@@ -4,9 +4,10 @@
     "nagasriram2000@gmail.com",
     "akhilesh.namburu@icloud.com",
     "nakhilesh822001@gmail.com",
-    "nakhilesh832001@gmail.com"
+    "nakhilesh832001@gmail.com",
+    "saibharghavpokala@gmail.com"
   ],
-  "updated": "2026-01-03T13:20:24.983327",
+  "updated": "2026-01-04T01:06:33.846607",
   "notes": "Add subscribers using: python mailer.py --add-subscriber email@example.com",
   "frequencies": {
     "nagasriramkochetti@gmail.com": "now"
