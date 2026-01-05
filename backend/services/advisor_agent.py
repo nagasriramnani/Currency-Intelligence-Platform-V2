@@ -72,39 +72,29 @@ SYSTEM_PROMPT = f"""You are an EIS (Enterprise Investment Scheme) Advisor - a he
 
 You have access to these capabilities:
 1. PORTFOLIO DATA: Information about companies the user has saved
-2. COMPANY LOOKUP: Can search UK Companies House database for ANY company
+2. COMPANY LOOKUP: Can search UK Companies House database
 3. EIS SCORING: Can calculate eligibility scores (0-100)
-4. NEWS SEARCH: Can find recent news about companies via Tavily
-5. FINANCIAL DATA: Can find revenue/funding information via Tavily
+4. NEWS SEARCH: Can find recent news about companies
+5. FINANCIAL DATA: Can find revenue/funding information
 6. SECTOR NEWS: Can get UK startup/investment sector news
 
 EIS KNOWLEDGE:
 {EIS_KNOWLEDGE}
 
-CRITICAL GUIDELINES:
-- ALWAYS TRY TO HELP - never refuse to look up a company
-- If company not in portfolio, I will research it via Companies House and Tavily
-- Use the provided Tool Results data to give accurate information
-- Synthesize all gathered data into a clear, conversational response
-- For EIS analysis, use the actual calculated scores from Tool Results
-- Be conversational, professional, and thorough
+GUIDELINES:
+- For EIS-related questions, provide detailed, accurate information
+- For company analysis, break down the EIS score factors
+- For general questions (like geography, math, general knowledge), answer helpfully - you have general intelligence
+- Always cite sources when providing financial/news data
+- Be conversational but professional
+- If you don't know something, say so clearly
 
 When analyzing companies, format your response like:
-📊 Company Overview:
-[Company details from research]
-
-📈 EIS Assessment:
-- Score: XX/100 (Status)
-- Key Factors: ...
-
-📰 Recent News & Activity:
-[News from Tavily]
-
-💰 Financial Insights:
-[Financial data]
-
-📌 Recommendation:
-[Your analysis and advice]
+📊 EIS Score: XX/100 (Status)
+✅ Passed Factors: ...
+❌ Failed Factors: ...
+💰 Financial Data: ...
+📌 Recommendation: ...
 """
 
 
@@ -219,36 +209,27 @@ class EISAdvisorAgent:
             return {"error": str(e), "score": 0}
     
     async def tool_search_news(self, company_name: str) -> str:
-        """Get recent news via Tavily (Research Agent) - ENHANCED"""
+        """Get recent news via Tavily (Research Agent)"""
         if not self.research_agent or not self.research_agent.available:
             return "News search not available (Tavily not configured)"
         
         try:
-            query = f"{company_name} UK company news funding investment 2024 2025"
+            query = f"{company_name} UK company news 2024 2025"
             results = self.research_agent.client.search(
                 query=query,
-                search_depth="advanced",  # Better quality results
-                max_results=5,
-                include_answer=True,
-                topic="news",  # Use news topic for recent updates
+                search_depth="basic",
+                max_results=3,
+                include_answer=True
             )
             
-            # Get LLM-generated answer from Tavily
-            answer = results.get("answer", "")
-            articles = results.get("results", [])[:5]
-            
-            news_output = []
-            if answer:
-                news_output.append(f"Summary: {answer}")
-            
+            articles = results.get("results", [])[:3]
             if articles:
-                news_output.append("\nSources:")
+                news_items = []
                 for a in articles:
                     title = a.get("title", "No title")
                     url = a.get("url", "")
-                    content = a.get("content", "")[:200]  # First 200 chars
-                    news_output.append(f"- {title}\n  {content}...\n  Source: {url}")
-                return "📰 Recent News:\n" + "\n".join(news_output)
+                    news_items.append(f"- {title}\n  Source: {url}")
+                return "Recent News:\n" + "\n".join(news_items)
             
             return f"No recent news found for {company_name}"
         except Exception as e:
@@ -256,37 +237,22 @@ class EISAdvisorAgent:
             return f"News search failed: {str(e)}"
     
     async def tool_get_financials(self, company_name: str) -> str:
-        """Get revenue/funding via Tavily - ENHANCED with finance topic"""
+        """Get revenue/funding via Tavily"""
         if not self.research_agent or not self.research_agent.available:
             return "Financial search not available (Tavily not configured)"
         
         try:
-            query = f"{company_name} UK company revenue turnover funding valuation employees size 2024 2025"
+            query = f"{company_name} UK company revenue funding valuation 2024"
             results = self.research_agent.client.search(
                 query=query,
-                search_depth="advanced",  # Better quality
-                max_results=5,
-                include_answer=True,
-                topic="finance",  # Use finance topic for financial queries
+                search_depth="basic",
+                max_results=3,
+                include_answer=True
             )
             
             answer = results.get("answer", "")
-            articles = results.get("results", [])[:3]
-            
-            financial_output = []
             if answer:
-                financial_output.append(f"Summary: {answer}")
-            
-            if articles:
-                financial_output.append("\nSources:")
-                for a in articles:
-                    title = a.get("title", "No title")
-                    content = a.get("content", "")[:150]
-                    url = a.get("url", "")
-                    financial_output.append(f"- {title}: {content}... ({url})")
-            
-            if financial_output:
-                return "💰 Financial Data:\n" + "\n".join(financial_output)
+                return f"Financial Data:\n{answer}"
             
             return f"No financial data found for {company_name}"
         except Exception as e:
@@ -355,64 +321,28 @@ class EISAdvisorAgent:
         question_lower = question.lower()
         tools = []
         
-        # Check if question mentions a company (contains "Ltd", "Limited", "plc", etc.)
-        company_indicators = ["ltd", "limited", "plc", "inc", "corp", "company", "llp"]
-        has_company_mention = any(ind in question_lower for ind in company_indicators)
+        # Company-specific keywords
+        company_keywords = ["score", "eligibility", "eligible", "analyze", "analysis", "assessment"]
+        if any(k in question_lower for k in company_keywords):
+            tools.append("portfolio")
+            tools.append("eis")
         
-        # Check for company-related action keywords
-        company_action_keywords = ["tell me about", "information", "info", "details", "analyze", 
-                                   "analysis", "score", "eligibility", "eligible", "eis",
-                                   "check", "lookup", "look up", "find", "search", "research"]
-        wants_company_info = any(k in question_lower for k in company_action_keywords)
+        # News keywords
+        if any(k in question_lower for k in ["news", "latest", "recent", "happening"]):
+            if any(k in question_lower for k in ["sector", "industry", "tech", "fintech", "healthcare"]):
+                tools.append("sector_news")
+            else:
+                tools.append("news")
         
-        # If company mentioned OR company action requested → full research pipeline
-        if has_company_mention or wants_company_info:
-            tools.append("portfolio")      # Step 1: Check portfolio
-            tools.append("lookup")         # Step 2: Companies House lookup
-            tools.append("eis")            # Step 3: Calculate EIS
-            tools.append("news")           # Step 4: Get news
-            tools.append("financials")     # Step 5: Get financials
+        # Financial keywords
+        if any(k in question_lower for k in ["revenue", "funding", "valuation", "financial", "money"]):
+            tools.append("financials")
         
-        # News-specific keywords (sector news)
-        if any(k in question_lower for k in ["sector news", "industry news", "market news"]):
-            tools.append("sector_news")
-        
-        # Portfolio-only keywords
-        if any(k in question_lower for k in ["my portfolio", "my saved", "my companies", "list my"]):
-            tools = ["portfolio"]  # Only check portfolio
+        # Portfolio keywords
+        if any(k in question_lower for k in ["portfolio", "saved", "my companies", "list"]):
+            tools.append("portfolio")
         
         return tools
-    
-    def _extract_company_name(self, question: str) -> Optional[str]:
-        """Try to extract company name from question"""
-        # Common patterns: "tell me about XYZ Ltd", "check XYZ Limited"
-        question_lower = question.lower()
-        
-        # Look for company suffixes
-        suffixes = [" ltd", " limited", " plc", " llp", " inc"]
-        for suffix in suffixes:
-            if suffix in question_lower:
-                # Find the word(s) before the suffix
-                idx = question_lower.find(suffix)
-                # Get up to 50 chars before suffix
-                start = max(0, idx - 50)
-                before = question[start:idx + len(suffix)]
-                # Take last few words as company name
-                words = before.strip().split()
-                if len(words) >= 2:
-                    return " ".join(words[-4:])  # Up to 4 words + suffix
-        
-        # If no suffix found, use the whole question (cleaned)
-        # Remove common question starters
-        starters = ["tell me about", "what is", "check", "analyze", "search for", 
-                   "find", "lookup", "look up", "information on", "info on", "details of"]
-        cleaned = question
-        for starter in starters:
-            if cleaned.lower().startswith(starter):
-                cleaned = cleaned[len(starter):].strip()
-                break
-        
-        return cleaned if len(cleaned) > 2 else None
     
     async def chat(self, question: str, portfolio: List[Dict] = None) -> str:
         """Main entry point for advisor chat"""
@@ -430,91 +360,28 @@ class EISAdvisorAgent:
         
         # Gather tool results
         tool_context = []
-        company_name = self._extract_company_name(question)
-        company_data = None  # Will hold Companies House data if found
         
-        logger.info(f"Processing question: '{question}' | Extracted company: '{company_name}' | Tools: {tools_needed}")
+        if "portfolio" in tools_needed:
+            # Extract company name from question if possible
+            result = self.tool_search_portfolio(question, portfolio)
+            tool_context.append(result)
         
-        # ============ FALLBACK CHAIN ============
-        # Step 1: Check Portfolio
-        if "portfolio" in tools_needed and company_name:
-            portfolio_result = self.tool_search_portfolio(company_name, portfolio)
-            tool_context.append(f"📁 Portfolio Search:\n{portfolio_result}")
+        if "news" in tools_needed:
+            # Try to extract company name
+            result = await self.tool_search_news(question)
+            tool_context.append(result)
         
-        # Step 2: Companies House Lookup (if company mentioned)
-        if "lookup" in tools_needed and company_name:
-            try:
-                company_data = await self.tool_lookup_company(company_name)
-                if company_data and not company_data.get("error"):
-                    co = company_data.get("company", {})
-                    tool_context.append(f"""🏢 Companies House Data:
-- Name: {co.get('company_name', 'N/A')}
-- Number: {co.get('company_number', 'N/A')}
-- Status: {co.get('company_status', 'N/A')}
-- Incorporated: {co.get('date_of_creation', 'N/A')}
-- Type: {co.get('type', 'N/A')}
-- SIC Codes: {', '.join(co.get('sic_codes', []))}
-- Address: {co.get('registered_office_address', {}).get('locality', 'N/A')}""")
-                else:
-                    tool_context.append(f"🏢 Companies House: Company '{company_name}' not found in registry")
-            except Exception as e:
-                logger.warning(f"Companies House lookup failed: {e}")
-                tool_context.append(f"🏢 Companies House: Lookup failed - {str(e)}")
-        
-        # Step 3: Calculate EIS (if we have company data)
-        if "eis" in tools_needed and company_data and not company_data.get("error"):
-            try:
-                eis_result = self.tool_calculate_eis(company_data)
-                score = eis_result.get("score", 0)
-                status = eis_result.get("status", "Unknown")
-                failed_gates = eis_result.get("failed_gates", [])
-                
-                eis_output = f"""📊 EIS Assessment:
-- Score: {score}/100
-- Status: {status}
-- Description: {eis_result.get('status_description', 'N/A')}"""
-                
-                if failed_gates:
-                    eis_output += f"\n- Failed Gates ({len(failed_gates)}):"
-                    for gate in failed_gates:
-                        eis_output += f"\n  ❌ {gate.get('gate', 'Unknown')}: {gate.get('reason', 'N/A')}"
-                else:
-                    factors = eis_result.get("factors", [])[:3]
-                    if factors:
-                        eis_output += "\n- Key Factors:"
-                        for f in factors:
-                            eis_output += f"\n  ✅ {f.get('factor', 'Unknown')}: {f.get('rationale', '')[:80]}"
-                
-                tool_context.append(eis_output)
-            except Exception as e:
-                logger.warning(f"EIS calculation failed: {e}")
-        
-        # Step 4: Get News via Tavily
-        if "news" in tools_needed and company_name:
-            try:
-                news_result = await self.tool_search_news(company_name)
-                if news_result and "not available" not in news_result.lower():
-                    tool_context.append(news_result)
-            except Exception as e:
-                logger.warning(f"News search failed: {e}")
-        
-        # Step 5: Get Financials via Tavily
-        if "financials" in tools_needed and company_name:
-            try:
-                financials_result = await self.tool_get_financials(company_name)
-                if financials_result and "not available" not in financials_result.lower():
-                    tool_context.append(financials_result)
-            except Exception as e:
-                logger.warning(f"Financials search failed: {e}")
-        
-        # Sector News (special case)
         if "sector_news" in tools_needed:
+            # Detect sector
             for sector in ["technology", "tech", "fintech", "healthcare", "cleantech"]:
                 if sector in question.lower():
                     result = await self.tool_sector_news(sector)
                     tool_context.append(result)
                     break
-
+        
+        if "financials" in tools_needed:
+            result = await self.tool_get_financials(question)
+            tool_context.append(result)
         
         # Build final prompt
         full_context = context

@@ -9,10 +9,12 @@ The **Sapphire Intelligence Platform** is a dual-purpose enterprise analytics sy
 
 1. **Currency Intelligence** - FX monitoring, ML forecasting, and risk analytics for USD pairs
 2. **EIS Investment Scanner** - UK Companies House integration for Enterprise Investment Scheme eligibility screening
-3. **Company Research Agent** - Tavily-powered deep research with PDF export and email delivery
+3. **EIS Advisor** - AI-powered chat assistant (Ollama llama3.2) for EIS questions
+4. **Company Research Agent** - Tavily-powered deep research with PDF export and email delivery
 
 **Project Status:** Production-ready  
-**Latest Update:** December 26, 2024
+**Version:** 3.0.0  
+**Latest Update:** January 5, 2026
 
 ---
 
@@ -23,7 +25,8 @@ The **Sapphire Intelligence Platform** is a dual-purpose enterprise analytics sy
 | Component | Tech Stack | Key Achievement |
 |-----------|------------|-----------------|
 | **Currency Dashboard** | Next.js 14 + Recharts | Real-time FX with ML forecasting |
-| **EIS Scanner** | FastAPI + Companies House API | 0-100 EIS eligibility scoring |
+| **EIS Scanner** | FastAPI + Companies House API | 6 mandatory gates, 0-100 scoring |
+| **EIS Advisor** | Ollama (llama3.2) | AI chat for EIS questions |
 | **Research Agent** | Tavily + WeasyPrint | Automated company research with PDF |
 | **AI Newsletter** | Tavily + HuggingFace | Smart email with company intelligence |
 

@@ -455,6 +455,51 @@ Action: Consider reducing EUR exposure by 15% or buying puts
 - [ ] Performance dashboards
 - [ ] Documentation & API contracts
 
+### Phase 6: EIS Enhancements (Completed)
+- [x] Mandatory eligibility gates (6 gates)
+- [x] EIS Advisor AI chat (Ollama llama3.2)
+- [x] Portfolio management (5 slots)
+- [x] Failed gates UI display
+- [x] 7-year age rule with KIC exception
+- [x] Remove from portfolio functionality
+
+### Phase 7: Azure Production Deployment (Planned)
+- [ ] Azure Static Web Apps (Frontend)
+- [ ] Azure App Service (Backend)
+- [ ] Azure OpenAI Service (Replace Ollama)
+- [ ] Azure Cosmos DB (Replace JSON files)
+- [ ] Azure Key Vault (Secrets management)
+- [ ] Azure Redis Cache (Session/rate limiting)
+- [ ] CI/CD with GitHub Actions
+
+### Azure Architecture Target
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    AZURE PRODUCTION STACK                        │
+├─────────────────────────────────────────────────────────────────┤
+│  Azure Static Web Apps ───▶ Azure App Service (FastAPI)         │
+│         │                          │                             │
+│         │                    ┌─────┴─────┐                       │
+│         │                    ▼           ▼                       │
+│         │              Azure OpenAI    Azure Cosmos DB           │
+│         │              (GPT-4)         (NoSQL)                   │
+│         │                                                        │
+│  Azure Key Vault ◀─── Secrets Management ───▶ Azure Redis       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Estimated Azure Costs (Monthly)
+
+| Service | Tier | ~Cost |
+|---------|------|-------|
+| Static Web Apps | Free | $0 |
+| App Service | B1 | $13 |
+| Azure OpenAI | Pay-per-use | $20-50 |
+| Cosmos DB | Serverless | $5-15 |
+| Redis Cache | Basic | $16 |
+| **TOTAL** | | **~$60-100** |
+
 ---
 
 ## 9. Key Differentiators vs Basic FX Dashboard
@@ -469,4 +514,16 @@ Action: Consider reducing EUR exposure by 15% or buying puts
 
 ---
 
-*Document Version: 1.0 | December 2024*
+## 10. EIS Scanner Differentiators
+
+| Basic Screening | Sapphire EIS Scanner |
+|-----------------|---------------------|
+| Manual eligibility check | **Automated** 6-gate screening |
+| Single score | **Detailed factors** with explanations |
+| No AI assistance | **AI Advisor** chat with Ollama |
+| Static portfolio | **Persistent** 5-slot portfolio |
+| Generic results | **Failed gates** clearly shown |
+
+---
+
+*Document Version: 2.0 | January 2026*

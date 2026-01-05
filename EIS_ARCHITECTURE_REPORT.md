@@ -2,8 +2,8 @@
 
 ## Complete System Architecture & Component Documentation
 
-**Version:** 2.4.0  
-**Last Updated:** December 29, 2025 
+**Version:** 3.0.0  
+**Last Updated:** January 5, 2026  
 **Author:** Sapphire Intelligence Team
 
 ---
@@ -11,12 +11,13 @@
 ## Table of Contents
 
 1. [Complete EIS Page Architecture](#1-complete-eis-page-architecture)
-2. [Company Research Agent](#2-company-research-agent)
-3. [Newsletter Subscribe System](#3-newsletter-subscribe-system)
-4. [AI Newsroom](#4-ai-newsroom)
-5. [AI Daily News](#5-ai-daily-news)
-6. [Portfolio Persistence System](#6-portfolio-persistence-system)
-7. [EIS Conversational Advisor (Ollama)](#7-eis-conversational-advisor-ollama)
+2. [Mandatory Eligibility Gates](#2-mandatory-eligibility-gates)
+3. [Company Research Agent](#3-company-research-agent)
+4. [Newsletter Subscribe System](#4-newsletter-subscribe-system)
+5. [AI Newsroom](#5-ai-newsroom)
+6. [AI Daily News](#6-ai-daily-news)
+7. [Portfolio Persistence System](#7-portfolio-persistence-system)
+8. [EIS Conversational Advisor (Ollama)](#8-eis-conversational-advisor-ollama)
 
 ---
 
@@ -127,7 +128,91 @@ flowchart TD
 
 ---
 
-## 2. Company Research Agent
+## 2. Mandatory Eligibility Gates
+
+### Overview
+
+The EIS scoring system uses **mandatory gates** - critical criteria that must ALL be passed. If ANY gate fails, the company is immediately marked as **Not Eligible** with score = 0.
+
+> **Critical Rule:** Fail ANY gate = NOT ELIGIBLE (Score = 0)
+
+### 6 Mandatory Gates
+
+| Gate | Criteria | KIC Exception | Check |
+|------|----------|---------------|-------|
+| **1. Status** | Must be 'active' | None | Companies House status |
+| **2. Sector** | Not in excluded list | None | SIC codes |
+| **3. Age** | <7 years from first sale | <10 years | Incorporation date |
+| **4. Employees** | <250 FTE | <500 | Accounts data |
+| **5. Gross Assets** | <£15M | None | Accounts data |
+| **6. Independence** | Not controlled by another | None | PSC data |
+
+### Gate Check Flow
+
+```mermaid
+flowchart TD
+    A[Company Data Loaded] --> B{Gate 1: Active?}
+    B -->|No| FAIL[❌ NOT ELIGIBLE]
+    B -->|Yes| C{Gate 2: Sector OK?}
+    C -->|No| FAIL
+    C -->|Yes| D{Gate 3: Age OK?}
+    D -->|No| FAIL
+    D -->|Yes| E{Gate 4: Employees OK?}
+    E -->|No| FAIL
+    E -->|Yes| F{Gate 5: Assets OK?}
+    F -->|No| FAIL
+    F -->|Yes| G{Gate 6: Independent?}
+    G -->|No| FAIL
+    G -->|Yes| PASS[✅ Continue to Scoring]
+    
+    style FAIL fill:#ef4444,color:#fff
+    style PASS fill:#22c55e,color:#fff
+```
+
+### Excluded Sectors (Gate 2)
+
+| SIC Range | Sector |
+|-----------|--------|
+| 64xxx, 65xxx, 66xxx | Banking, Insurance, Financial Services |
+| 41xxx, 68xxx | Property Development |
+| 69xxx | Legal, Accounting Services |
+| 55xxx, 87xxx | Hotels, Nursing Homes |
+| 35xxx | Energy Generation with Subsidies |
+| 01xxx-03xxx | Farming, Market Gardening |
+
+### Frontend Display
+
+When gates fail, the UI shows:
+- **Red "NOT ELIGIBLE" banner** at top
+- **List of each failed gate** with reason
+- **Badge:** "❌ X criteria failed"
+
+### Example: Why Revolut is Not Eligible
+
+| Gate | Check | Result |
+|------|-------|--------|
+| Status | Active | ✅ Pass |
+| Sector | Banking (SIC 64) | ❌ **FAIL** |
+| Age | 10 years (2015) | ❌ **FAIL** |
+| Employees | ~30,000 | ❌ **FAIL** |
+| Assets | >£15M | ❌ **FAIL** |
+| Independence | N/A | ✅ Pass |
+
+**Result:** Score = 0, Status = "Not Eligible"
+
+### Implementation
+
+**Backend:** `backend/analytics/eis_heuristics.py`
+- Gates checked at lines 237-370
+- Returns `failed_gates` array with details
+
+**Frontend:** `frontend/src/app/eis/page.tsx`
+- Failed gates banner at lines 1007-1043
+- Badge display at lines 1100-1140
+
+---
+
+## 3. Company Research Agent
 
 ### Overview
 The Research Agent performs deep company research using Tavily AI search, generating structured reports with PDF export and email delivery.
